@@ -4,6 +4,36 @@
 
 *English version below.*
 
+## Швидкий старт
+
+### A. Подивитися на своєму комп'ютері (без Proxmox)
+
+Потрібен лише Python 3.10 або новіший ([python.org](https://www.python.org/downloads/); на Windows під час встановлення постав галочку «Add python.exe to PATH»).
+
+| Система | Що зробити |
+|---|---|
+| **Windows** | Двічі клацни `demo.bat` у папці проєкту |
+| **Linux / macOS** | У терміналі в папці проєкту: `./demo.sh` |
+
+Перший запуск триває з хвилину: скрипт готує середовище в `.demo/` і ставить дві бібліотеки. Потім браузер сам відкриє **http://127.0.0.1:8900**.
+
+Далі:
+1. Обери будь-якого користувача (**Ihor**, **Guest** з обмеженими правами або **root**), введи **будь-який пароль** і натисни Enter.
+2. Спробуй усе: ▶ на системі, вебсервіси, вкладку «Контейнери та VM», шестерню налаштувань (мова, тема, віджети), позначку «Оновлення» вгорі.
+3. Щоб зупинити, закрий вікно консолі або натисни Ctrl+C.
+
+Усе вигадане: 4 VM, 7 контейнерів, дві відеокарти, сервіси «з Caddy». Жоден справжній сервер не змінюється, а твої налаштування в демо зберігаються в `.demo/`.
+
+Додаткові параметри (для `demo.bat`, `demo.sh` або `python demo.py`): `--lang uk` чи `--lang en`, `--port 9000`, `--no-browser`.
+
+### B. Встановити на хост Proxmox
+
+```bash
+git clone <URL репозиторію> /root/pve-seat && cd /root/pve-seat && ./install.sh
+```
+
+Подробиці нижче, у розділі [Встановлення](#встановлення).
+
 ## Можливості
 
 - **Вхід користувачами Proxmox.** Усі дії виконуються з квитком самого користувача, тож кожен бачить і може рівно те, що дозволяють його права в PVE.
@@ -15,25 +45,8 @@
 - **Керування з клавіатури.** Стрілки працюють як на пульті телевізора, Tab не виходить за межі відкритого вікна, Esc закриває. Миша не обов'язкова.
 - **Погода й заставка.** Погода з Open-Meteo (без ключа). Живий пейзаж реагує на час доби й погоду: дощ, сніг, туман, грозу.
 - **Налаштування для кожного.** Мова, тема, тло, розкладка віджетів, погода, поведінка запуску зберігаються окремо для кожного користувача.
+- **Оновлення з GitHub** з нагадуванням у меню, за бажанням автоматичні.
 - **Мови:** українська, англійська. Нова мова — це один файл.
-
-## Спробувати без Proxmox
-
-На будь-якому комп'ютері з Python 3.10+ (Windows, macOS, Linux):
-
-```bash
-pip install -r requirements-demo.txt
-python demo.py            # відкриє http://127.0.0.1:8900 у браузері
-```
-
-Це справжнє меню, але поверх вигаданого хоста:
-- 4 VM і 7 контейнерів, дві відеокарти та вебсервіси «з Caddy»;
-- троє користувачів: `ihor@pve`, `guest@pve` з обмеженими правами і `root@pam`;
-- підходить будь-який пароль;
-- запуск систем і старт/стоп контейнерів змінюють лише цей вигаданий світ;
-- позначка оновлення показує, як виглядає нагадування.
-
-Твої налаштування в демо зберігаються в `.demo/`. Параметри: `--lang uk|en`, `--port`, `--no-browser`.
 
 ## Вимоги
 
@@ -181,7 +194,7 @@ A screen for a monitor plugged straight into a Proxmox VE host: sign-in with Pro
 git clone <this repository> /root/pve-seat && cd /root/pve-seat && ./install.sh
 ```
 
-**Try it without Proxmox:** `pip install -r requirements-demo.txt && python demo.py` runs the real menu over a made-up host (any password; nothing real changes).
+**Try it without Proxmox:** double-click `demo.bat` (Windows) or run `./demo.sh` (Linux/macOS); it prepares `.demo/` on first run and opens http://127.0.0.1:8900. It runs the real menu over a made-up host (any password; nothing real changes).
 
 **Updates:** the menu checks GitHub (latest release or `vX.Y.Z` tag, or the newest commit with `channel: main`), shows "Update vX.Y.Z" in the top bar and reminds after sign-in; users with `Sys.Modify` on `/` install it from there. `update.auto: true` installs new versions nightly.
 
