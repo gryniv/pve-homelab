@@ -36,6 +36,9 @@
   "sys.running": "running · {time}",
   "sys.suspended": "hibernated",
   "sys.stopped": "stopped",
+  "sys.prev": "Previous systems",
+  "sys.next": "More systems",
+  "sys.more": "{n} more to the right",
   "sys.go": "Go to {name}",
   "sys.start": "Start {name}",
 

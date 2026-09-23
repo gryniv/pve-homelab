@@ -8,6 +8,7 @@ import * as nav from './nav.js';
 import * as vnc from './console.js';
 import * as tabs from './tabs.js';
 import { arrange, moved } from './order.js';
+import { rail } from './rail.js';
 import * as i18n from './i18n.js';
 import { $, $$, icon, esc, avatar, fmt, toast, confirmBox, keepFocus, t } from './ui.js';
 
@@ -263,8 +264,11 @@ const OS = [
 ];
 const osOf = (vm) => OS.find(([re]) => re.test(`${vm.ostype} ${vm.name}`.replace(/^l26 /, '')) ) || OS[OS.length - 1];
 
+let railUpdate = null;
 function renderSystems() {
   const el = $('#systems');
+  railUpdate ||= rail($('#sysrail'));
+  requestAnimationFrame(railUpdate);
   const hidden = (st.prefs?.hidden_systems || []).map(String);
   st.sysView = arrange('systems', st.systems.filter((v) => !hidden.includes(String(v.vmid))), st.prefs || {});
   if (!st.sysView.length) {
@@ -277,7 +281,7 @@ function renderSystems() {
     return `<div class="sys" style="--i:${i}" draggable="true" data-drag="systems" data-key="${vm.vmid}"><div class="art" style="background:${art}"></div>
       <img class="os" src="/icons/${logo}.svg" alt="" draggable="false" style="${logo === 'apple' ? 'filter:invert(1)' : ''}" onerror="this.style.visibility='hidden'">
       <span class="state"><span class="dot ${run ? 'ok' : 'off'}"></span>${run ? t('sys.running', { time: fmt.uptime(vm.uptime) }) : vm.suspended ? t('sys.suspended') : t('sys.stopped')}</span>
-      <h5>${esc(vm.name)}</h5><div class="meta"><span>VM ${vm.vmid}</span><span>${t('cores', { n: vm.cores })} · ${t('gb', { n: Math.round(vm.memory / 1024) })}</span></div>
+      <h5 title="${esc(vm.name)}">${esc(vm.name)}</h5><div class="meta"><span>VM ${vm.vmid}</span><span>${t('cores', { n: vm.cores })} · ${t('gb', { n: Math.round(vm.memory / 1024) })}</span></div>
       <button class="play${run ? ' go' : ''}" type="button" data-sys="${i}" data-move="systems" data-key="${vm.vmid}" title="${esc(t(run ? 'sys.go' : 'sys.start', { name: vm.name }))}">
         <svg><use href="#${run ? 'i-arrow' : 'i-play'}"/></svg></button></div>`;
   }).join('');

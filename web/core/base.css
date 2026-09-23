@@ -164,16 +164,42 @@ html,body{margin:0;height:100%;background:#05080e}
 .A .me .av{width:1.9em;height:1.9em;font-size:.78em;border-width:.12em}
 .A .body{position:absolute;top:3.6em;bottom:0;left:0;right:0;display:grid;grid-template-columns:19em 1fr;gap:1.2em;padding:1.2em 1.6em}
 .A .main{display:flex;flex-direction:column;gap:1.2em;min-height:0;min-width:0}
-.A .systems{display:grid;grid-template-columns:repeat(auto-fit,minmax(16em,1fr));gap:1.2em;padding:.3em;margin:-.3em}
+/* Systems: one row. Up to 4 cards fill it; more become a Netflix-style rail
+   with a peek of the next card, a dimmed edge, arrows and a "+N" counter. */
+.A .sysrail{position:relative;--gap:1.2em;--pad:.5em}
+.A .systems{display:grid;grid-auto-flow:column;gap:var(--gap);
+  grid-auto-columns:minmax(max(13em,calc((100% - 3*var(--gap))/4)),1fr);
+  overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;scroll-padding-inline:var(--pad);overscroll-behavior-x:contain;
+  padding:.6em var(--pad) .9em;margin:-.6em calc(-1*var(--pad)) -.9em;scrollbar-width:none}
+.A .systems::-webkit-scrollbar{display:none}
+.A .systems > .sys{scroll-snap-align:start}
+.A .systems.many{grid-auto-columns:max(13em,calc((100% - 4*var(--gap))/4.35))}
+.A .sysrail.more-r .systems{-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 8em),rgba(0,0,0,.3));mask-image:linear-gradient(90deg,#000 calc(100% - 8em),rgba(0,0,0,.3))}
+.A .sysrail.more-l .systems{-webkit-mask-image:linear-gradient(90deg,rgba(0,0,0,.3),#000 8em);mask-image:linear-gradient(90deg,rgba(0,0,0,.3),#000 8em)}
+.A .sysrail.more-l.more-r .systems{-webkit-mask-image:linear-gradient(90deg,rgba(0,0,0,.3),#000 8em,#000 calc(100% - 8em),rgba(0,0,0,.3));mask-image:linear-gradient(90deg,rgba(0,0,0,.3),#000 8em,#000 calc(100% - 8em),rgba(0,0,0,.3))}
+.A .rail-btn{position:absolute;top:50%;z-index:3;width:2.8em;height:2.8em;margin-top:-1.4em;border-radius:50%;display:grid;place-items:center;
+  border:1px solid rgba(255,255,255,.18);background:rgba(10,12,20,.62);backdrop-filter:blur(10px);color:#fff;cursor:pointer;
+  box-shadow:0 .6em 1.4em -.6em rgba(0,0,0,.8);opacity:0;pointer-events:none;transform:scale(.8);transition:opacity .25s,transform .25s,background .2s}
+.A .rail-btn .i{width:1.3em;height:1.3em}
+.A .rail-btn.prev{left:-1.1em}.A .rail-btn.prev .i{transform:scaleX(-1)}
+.A .rail-btn.next{right:-1.1em}
+.A .sysrail.more-l .rail-btn.prev,.A .sysrail.more-r .rail-btn.next{opacity:.85;pointer-events:auto;transform:none}
+.A .sysrail:hover .rail-btn{opacity:1}
+.A .rail-btn:hover{background:var(--acc);color:#111}
+.A .rail-btn .more{position:absolute;top:-.55em;right:-.55em;min-width:1.7em;height:1.7em;padding:0 .35em;border-radius:1em;display:grid;place-items:center;
+  font:800 .66em/1 var(--sans);background:var(--acc);color:#111;box-shadow:0 0 0 .2em rgba(10,12,20,.7)}
+.A .rail-btn .more:empty{display:none}
+.A .sysrail.more-r .rail-btn.next{animation:railPulse 2.4s ease-in-out 1s 2}
+@keyframes railPulse{50%{box-shadow:0 0 0 .5em color-mix(in srgb,var(--acc) 30%,transparent),0 .6em 1.4em -.6em rgba(0,0,0,.8)}}
 .A .systems .empty{grid-column:1/-1;padding:1.2em;color:var(--mute);font-size:.9em}
 .A .sys{position:relative;height:9.4em;border-radius:1em;overflow:hidden;padding:1em 1.2em;display:flex;flex-direction:column;border:1px solid rgba(255,255,255,.1);box-shadow:0 .8em 1.6em -1.2em rgba(0,0,0,.8);transition:transform .25s cubic-bezier(.2,.7,.2,1),box-shadow .25s}
 .A .sys:hover{transform:translateY(-.2em);box-shadow:0 1.2em 2em -1.2em rgba(0,0,0,.9)}
 .A .sys .art{position:absolute;inset:0;z-index:0}
 .A .sys > *:not(.art){position:relative;z-index:1}
 .A .sys .os{width:2.6em;height:2.6em;object-fit:contain}
-.A .sys h5{margin:auto 0 0;font-size:1.4em;font-weight:800;letter-spacing:-.01em;text-shadow:0 .1em .4em rgba(0,0,0,.35);font-family:var(--display);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:3.4em}
-.A .sys .meta{font-size:.78em;color:rgba(255,255,255,.78);display:flex;gap:.8em;flex-wrap:wrap;padding-right:4em}
-.A .sys .play{position:absolute;right:1em;bottom:1em;width:3em;height:3em;border-radius:50%;border:0;background:#fff;color:#111;display:grid;place-items:center;box-shadow:0 .5em 1.2em -.4em rgba(0,0,0,.6);transition:transform .2s}
+.A .sys h5{margin:auto 0 0;font-size:1.25em;font-weight:800;letter-spacing:-.01em;text-shadow:0 .1em .4em rgba(0,0,0,.35);font-family:var(--display);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:2.6em}
+.A .sys .meta{font-size:.78em;color:rgba(255,255,255,.78);display:flex;gap:.8em;flex-wrap:wrap;padding-right:3.6em}
+.A .sys .play{position:absolute;right:1em;bottom:1em;width:2.7em;height:2.7em;border-radius:50%;border:0;background:#fff;color:#111;display:grid;place-items:center;box-shadow:0 .5em 1.2em -.4em rgba(0,0,0,.6);transition:transform .2s}
 .A .sys .play:hover{transform:scale(1.08)}
 .A .sys .play svg{width:1.2em;height:1.2em;fill:currentColor;stroke:none}
 .A .sys .play.go svg{fill:none;stroke:currentColor;stroke-width:2.4}

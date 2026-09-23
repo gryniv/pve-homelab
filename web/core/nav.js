@@ -48,7 +48,10 @@ function move(dir) {
     const score = (inBeam ? 0 : 1e6) + main + cross * 2.5;
     if (score < bestScore) { bestScore = score; best = el; }
   }
-  if (best) { best.focus(); best.scrollIntoView({ block: 'nearest', inline: 'nearest' }); }
+  if (best) {
+    best.focus({ preventScroll: true });
+    (best.closest('.sys') || best).scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
+  }
 }
 
 export function focusFirst(root = activeLayer(), prefer) {

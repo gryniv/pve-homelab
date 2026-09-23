@@ -36,6 +36,9 @@
   "sys.running": "працює · {time}",
   "sys.suspended": "приспана",
   "sys.stopped": "вимкнена",
+  "sys.prev": "Попередні системи",
+  "sys.next": "Ще системи",
+  "sys.more": "Ще {n} праворуч",
   "sys.go": "Перейти до {name}",
   "sys.start": "Запустити {name}",
 
