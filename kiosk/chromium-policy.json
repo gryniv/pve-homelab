@@ -1,0 +1,10 @@
+{
+  "DnsOverHttpsMode": "off",
+  "BuiltInDnsClientEnabled": false,
+  "TranslateEnabled": false,
+  "BrowserSignin": 0,
+  "SyncDisabled": true,
+  "MetricsReportingEnabled": false,
+  "DefaultBrowserSettingEnabled": false,
+  "PromotionsEnabled": false
+}

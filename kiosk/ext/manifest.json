@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "PVE Seat: вкладки сервісів",
+  "version": "2.0",
+  "description": "Сервіси відкриваються вкладками поруч із меню; панель перемикання на кожній сторінці.",
+  "permissions": ["tabs"],
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [{
+    "matches": ["http://*/*", "https://*/*"],
+    "js": ["content.js"],
+    "run_at": "document_start",
+    "all_frames": false
+  }],
+  "commands": {
+    "show-dock": { "suggested_key": { "default": "Alt+Q" }, "description": "Панель: меню та відкриті сервіси" }
+  }
+}
