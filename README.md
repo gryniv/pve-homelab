@@ -41,7 +41,12 @@ git clone <URL репозиторію> /root/pve-seat && cd /root/pve-seat && ./
 - **Запуск систем.** VM з тегом `seat` можна запустити:
   - на дискретній відеокарті, підключеній до твого монітора. Меню саме пропише карту у VM і перемкне вхід монітора через DDC/CI, а після вимкнення VM поверне монітор назад;
   - на вбудованій карті через VirGL. Екран VM тоді відкривається прямо в меню (noVNC).
-- **Вебсервіси.** Список береться з admin API Caddy і зіставляється з контейнерами й VM за IP, тож біля кожного сайту видно, чи він працює. Сервіси відкриваються вкладками поруч із меню, а панель на сторінці (Alt+Q) повертає назад.
+- **Вебсервіси знаходяться самі** з трьох джерел:
+  - Caddy (admin API): гарні домени;
+  - відкриті порти контейнерів, які хост читає напряму з `/proc` без входу в гостя, та типові вебпорти VM. Кожен кандидат перевіряється запитом `GET /`: у список потрапляють лише сторінки з HTML, а назву й логотип визначає заголовок сторінки та ім'я контейнера;
+  - посилання в нотатках гостя в Proxmox.
+
+  Біля кожного сервісу видно, чи працює його гість. Сервіси відкриваються вкладками поруч із меню, а панель на сторінці (Alt+Q) повертає назад.
 - **Керування з клавіатури.** Стрілки працюють як на пульті телевізора, Tab не виходить за межі відкритого вікна, Esc закриває. Миша не обов'язкова.
 - **Погода й заставка.** Погода з Open-Meteo (без ключа). Живий пейзаж реагує на час доби й погоду: дощ, сніг, туман, грозу.
 - **Налаштування для кожного.** Мова, тема, тло, розкладка віджетів, погода, поведінка запуску зберігаються окремо для кожного користувача.
@@ -53,7 +58,7 @@ git clone <URL репозиторію> /root/pve-seat && cd /root/pve-seat && ./
 - Proxmox VE 8 або 9.
 - Монітор, підключений до відеокарти, яку використовує хост (вбудована підійде). Без монітора працює лише бекенд, а меню можна не ставити (`--no-kiosk`).
 - Інтернет на хості: пакети apt, погода й логотипи сервісів.
-- За бажанням: Caddy в контейнері з admin API на `localhost:2019`, монітор із DDC/CI для перемикання входів.
+- За бажанням: Caddy в контейнері з admin API на `localhost:2019` (без нього сервіси знаходяться за портами й нотатками), монітор із DDC/CI для перемикання входів.
 
 ## Встановлення
 
@@ -113,7 +118,7 @@ update:
          "0000:79:00.0": 0x11   # HDMI-1, меню
          "0000:02:00.0": 0x0f   # DisplayPort-1, відеокарта для VM
    ```
-3. **Вебсервіси без Caddy.** Додай посилання в `links:`.
+3. **Вебсервіси.** Більшість знайдеться сама. Щоб додати посилання вручну, впиши його в нотатки гостя в Proxmox (`[Назва](http://адреса:порт)`) або в `links:` конфігу. Щоб прибрати зайве, допиши його в `discovery.ignore` або сховай у налаштуваннях меню.
 4. Після змін виконай `systemctl restart pve-seat 'pve-seat-kiosk@*'`.
 
 Повний перелік параметрів із поясненнями є в [`etc/config.example.yaml`](etc/config.example.yaml).
@@ -186,7 +191,7 @@ python3 tools/screenshots.py --out /tmp/shots --lang en
 
 A screen for a monitor plugged straight into a Proxmox VE host: sign-in with Proxmox accounts, a dashboard with host state, containers, VMs and web services, and a launcher that starts desktop VMs on the GPU your monitor is connected to.
 
-**Features:** per-GPU seats with separate sign-in · VMs start on a discrete GPU wired to your monitor, and the monitor input switches over DDC/CI (and back when the VM stops), or on the integrated GPU through VirGL, shown inside the menu · web services discovered from Caddy and matched to guests · services open as tabs next to the menu (Alt+Q dock) · fully keyboard driven · weather-reactive landscape and screensaver · per-user language, theme, layout and behaviour · Ukrainian and English.
+**Features:** per-GPU seats with separate sign-in · VMs start on a discrete GPU wired to your monitor, and the monitor input switches over DDC/CI (and back when the VM stops), or on the integrated GPU through VirGL, shown inside the menu · web services found by themselves: Caddy's admin API, open ports of containers (read from the host) and VMs checked with GET /, and links in guest notes · services open as tabs next to the menu (Alt+Q dock) · fully keyboard driven · weather-reactive landscape and screensaver · per-user language, theme, layout and behaviour · Ukrainian and English.
 
 **Install** (as root on the Proxmox host, PVE 8+):
 

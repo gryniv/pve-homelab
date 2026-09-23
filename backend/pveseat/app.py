@@ -11,7 +11,7 @@ from urllib.parse import quote
 import aiohttp
 from aiohttp import web
 
-from . import caddy, config, gpus as G, i18n, icons, prefs, update, weather
+from . import caddy, config, discover, gpus as G, i18n, icons, prefs, update, weather
 from .ddc import DDC
 from .host import HostStats
 from .launch import Launcher
@@ -403,10 +403,23 @@ async def on_startup(app):
         return {g["vmid"] for g in await app["resources"].get() if g.get("status") == "running"}
     app["running"] = running
 
+    async def find_services():
+        res = await app["resources"].get()
+        ips = await caddy.guest_ips(cfg["node"], res)
+        return await discover.discover(cfg, res, ips, app["host_ip"])
+    # Probing every guest takes a few seconds: refresh in the background every 5 minutes.
+    app["discovered"] = Cached(find_services, 300, stale=True)
+
     async def build_services():
         res = await app["resources"].get()
         ips = await caddy.guest_ips(cfg["node"], res)
-        return caddy.build(cfg, await caddy.routes(cfg), ips, app["host_ip"])
+        listed = caddy.build(cfg, await caddy.routes(cfg), ips, app["host_ip"])
+        try:
+            found = await app["discovered"].get()
+        except Exception as e:
+            log.warning("discovery failed: %s", e)
+            found = []
+        return discover.merge(listed, found)
     app["services"] = Cached(build_services, 60, stale=True)
 
     async def check_update():

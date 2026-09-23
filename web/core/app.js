@@ -285,9 +285,15 @@ function renderServices() {
   $('#health').classList.toggle('warn', down.length > 0);
   $('#health').title = down.length ? t('top.health_down', { list: down.map((s) => s.name).join(', ') }) : t('top.health_ok');
   if (!list.length) { $('#svcgrid').innerHTML = `<div class="mute" style="grid-column:1/-1;padding:1em">${esc(t('dash.no_services'))}</div>`; return; }
+  const found = st.services.filter((s) => s.source === 'port' || s.source === 'notes').length;
+  $('.ptabs .src span').textContent = t('svc.count', { caddy: st.services.filter((s) => s.source === 'caddy').length, found });
   $('#svcgrid').innerHTML = list.map((s, i) => {
     const cls = s.status === 'running' ? '' : s.status ? ' down' : ' unknown';
-    return `<button type="button" class="svc${cls}" style="--i:${i + 3}" data-url="${esc(s.url)}" title="${esc(s.desc || s.name)}">
+    const gname = s.guest ? `${s.guest.type === 'lxc' ? 'CT' : s.guest.type === 'qemu' ? 'VM' : ''} ${s.guest.vmid || ''} ${s.guest.name || ''}`.trim() : '';
+    const src = s.source === 'port' ? t('svc.src_port', { guest: gname, port: s.port })
+      : s.source === 'notes' ? t('svc.src_notes', { guest: gname })
+      : s.source === 'link' ? t('svc.src_link') : t('svc.src_caddy', { host: s.upstream || s.host });
+    return `<button type="button" class="svc${cls}" style="--i:${i + 3}" data-url="${esc(s.url)}" title="${esc([s.desc, src].filter(Boolean).join('\n'))}">
       <span class="st"></span><span class="lg"><img src="/icons/${esc(s.icon || s.key)}.svg" alt=""
         onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'letter',textContent:'${esc(s.name[0])}'}))"></span>
       <span class="n">${esc(s.name)}</span><small>${esc(s.host)}</small></button>`;

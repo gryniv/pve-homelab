@@ -27,8 +27,6 @@ services:
   cloud:    {name: Nextcloud, icon: nextcloud}
   vault:    {name: Vaultwarden, icon: vaultwarden}
   home:     {name: Home Assistant, icon: home-assistant}
-  dns:      {name: AdGuard, icon: adguard-home}
-  git:      {name: Forgejo, icon: forgejo}
   pve:      {name: Proxmox, icon: proxmox}
 
 links:

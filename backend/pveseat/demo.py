@@ -14,7 +14,7 @@ import time
 
 from aiohttp import web
 
-from . import app as A, caddy, gpus as G, i18n, launch as L, update, util, weather
+from . import app as A, caddy, discover, gpus as G, i18n, launch as L, update, util, weather
 from .ddc import DDC
 from .pve import PVE, PVEError, Ticket
 
@@ -40,8 +40,12 @@ for g in WORLD.values():
     g.setdefault("hostpci", [])
     g["started"] = T0 - random.randint(3600, 9 * 86400) if g["status"] == "running" else None
 
+# What "Caddy" proxies. AdGuard, Forgejo and Grafana are left out on purpose: the demo finds
+# them the other ways (an open port in CT 206 / VM 101, a link in VM 101's notes).
 ROUTES = [("jellyfin", 201, 8096), ("photos", 202, 2283), ("cloud", 203, 80), ("vault", 204, 8080),
-          ("home", 205, 8123), ("dns", 206, 3000), ("git", 101, 3000)]
+          ("home", 205, 8123)]
+DISCOVERED = [(206, 3000, "AdGuard Home", "adguard-home", "port"), (101, 3000, "Forgejo", "forgejo", "port"),
+              (101, 3001, "Grafana", "grafana", "notes")]
 
 USERS = [
     {"id": "ihor@pve", "first": "Ihor"},
@@ -204,6 +208,18 @@ async def demo_ips(node, res):
     return {g["ip"]: (g["type"], vmid, g["name"]) for vmid, g in WORLD.items() if g.get("ip") and g["status"] == "running"}
 
 
+async def demo_discover(cfg, res, ips, host_ip=None):
+    out = []
+    for vmid, port, name, icon, source in DISCOVERED:
+        g = WORLD[vmid]
+        if g["status"] != "running":
+            continue
+        out.append({"key": f"{'ct' if g['type'] == 'lxc' else 'vm'}{vmid}-{port}", "name": name, "icon": icon, "desc": name,
+                    "url": f"http://{g['ip']}:{port}", "host": f"{g['ip']}:{port}", "upstream": f"{g['ip']}:{port}",
+                    "guest": {"type": g["type"], "vmid": vmid, "name": g["name"]}, "source": source, "port": port})
+    return out
+
+
 async def assign_gpu(self, vmid, gpu):
     WORLD[vmid]["hostpci"] = [gpu.rsplit(".", 1)[0]]
     log.info("demo: %s now owns %s", WORLD[vmid]["name"], gpu)
@@ -270,6 +286,7 @@ def make_app():
     G.pretty_name = lambda pci, _n=GPUS: asyncio.sleep(0, (_n.get(pci) or {}).get("name", pci))
     caddy.routes = demo_routes
     caddy.guest_ips = demo_ips
+    discover.discover = demo_discover
     L.Launcher._assign_gpu = assign_gpu
     L.Launcher._to_virgl = to_virgl
     DDC.switch_to_gpu = switch_input

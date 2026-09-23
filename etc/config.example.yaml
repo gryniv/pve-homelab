@@ -39,7 +39,17 @@ caddy:
   prefer_suffix: ""           # for duplicates (x.example.com / x.internal) keep this suffix
   hide: []                    # subdomains to skip, e.g. [home]
 
-# Nice names and logos. Key = first part of the domain.
+# Web UIs found without Caddy (Caddy entries win when both find the same one):
+#   ports: open TCP ports of running containers (read from the host) + common web ports of VMs,
+#          each checked with GET / — only pages that answer with HTML are listed
+#   notes: links written in a guest's Notes in Proxmox, e.g. [Grafana](http://10.0.0.5:3000)
+discovery:
+  ports: true
+  vms: true                   # also probe VMs (needs the qemu guest agent for their IP)
+  notes: true
+  ignore: []                  # e.g. [ct206, "ct206:3003", vm102, node]
+
+# Nice names and logos. Key = first part of the domain (Caddy) or ct<id>-<port> / vm<id>-<port> (found).
 # icon = a name from https://github.com/homarr-labs/dashboard-icons ("" = first letter)
 services: {}
 #  photos: {name: Photos, icon: immich, desc: Immich}

@@ -28,9 +28,9 @@
 
   "dash.web": "Web services",
   "dash.guests": "Containers & VMs",
-  "dash.caddy_hint": "The service list comes from Caddy",
+  "dash.caddy_hint": "Services come from Caddy, open ports of containers and VMs, and Proxmox notes",
   "dash.no_systems": "No systems to launch. Tag a VM with {tag} in Proxmox and it shows up here.",
-  "dash.no_services": "No web services. Set the Caddy container (caddy.ct) or add links in /etc/pve-seat/config.yaml.",
+  "dash.no_services": "No web services found. They come from Caddy (caddy.ct), open web ports of guests and links in guest notes; you can also add links in /etc/pve-seat/config.yaml.",
   "dash.session_over": "Your session ended, sign in again",
 
   "sys.running": "running · {time}",
@@ -130,7 +130,7 @@
   "set.launch.gpu_igpu": "Integrated",
   "set.launch.ask": "Ask before starting",
   "set.launch.ask_sub": "turn off and ▶ starts right away on the default GPU",
-  "set.services.lead": "What to show under Web services. The list itself comes from Caddy and updates automatically.",
+  "set.services.lead": "What to show under Web services. The list builds itself: Caddy, web ports of containers and VMs, links in guest notes.",
   "set.account.lead": "Password and permissions are managed in Proxmox. Only this screen's options are here.",
   "set.account.avatar": "Avatar colour",
   "set.account.color": "Colour {n}",
@@ -147,5 +147,10 @@
   "upd.no_perm": "Version {v} is available. An administrator (Sys.Modify) can install it.",
   "upd.apply": "Update",
   "upd.started": "Updating… the menu will restart by itself",
-  "demo.badge": "DEMO · any password · nothing really changes"
+  "demo.badge": "DEMO · any password · nothing really changes",
+  "svc.src_caddy": "via Caddy · {host}",
+  "svc.src_port": "found in {guest}, port {port}",
+  "svc.src_notes": "from {guest}'s notes",
+  "svc.src_link": "link from config.yaml",
+  "svc.count": "Caddy {caddy} · found {found}"
 }
