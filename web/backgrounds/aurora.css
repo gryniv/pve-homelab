@@ -1,0 +1,9 @@
+/* @name.uk Сяйво
+   @name.en Aurora
+   @group flat
+   @order 120 */
+.bgx[data-k="aurora"]::before,.bgx[data-k="aurora"]::after{
+  content:"";position:absolute;width:70em;height:50em;border-radius:50%;filter:blur(7em);opacity:.5;animation:aur 38s ease-in-out infinite alternate}
+.bgx[data-k="aurora"]::before{background:var(--acc);left:-20em;top:-25em}
+.bgx[data-k="aurora"]::after{background:var(--acc2);right:-25em;bottom:-30em;opacity:.32;animation-duration:46s;animation-direction:alternate-reverse}
+@keyframes aur{to{transform:translate(28em,18em) scale(1.25)}}

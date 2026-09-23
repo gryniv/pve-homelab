@@ -1,0 +1,20 @@
+/* @name.uk Зоряна ніч
+   @name.en Starry night
+   @group scape
+   @order 60
+   @tod night */
+/* @tod night: always shown at night, whatever the clock says */
+.bgx[data-k="night"]{background:linear-gradient(180deg,#03050c,var(--sky1) 55%,color-mix(in srgb,var(--acc) 18%,#0e1428) 80%)}
+.bgx[data-k="night"] .stars{inset:0 0 25% 0}
+.bgx[data-k="night"][data-tod] .sun{left:18%;top:14%;width:4em;height:4em;transform:none}
+/* northern lights */
+.bgx[data-k="night"] .l4{left:-10%;right:-10%;top:12%;height:34%;filter:blur(2em);opacity:.55;transition:opacity 1.2s;
+  background:linear-gradient(100deg,transparent 15%,var(--acc) 35%,transparent 45%,var(--acc2) 62%,transparent 80%);
+  transform:skewY(-6deg);animation:aurb 16s ease-in-out infinite alternate}
+@keyframes aurb{to{transform:skewY(-3deg) translateX(6%);opacity:.35}}
+.bgx[data-k="night"] .l1{left:0;right:0;top:56%;bottom:0;background:linear-gradient(180deg,var(--mid),var(--ink));
+  clip-path:polygon(0 42%,10% 20%,19% 36%,31% 4%,42% 34%,52% 16%,63% 40%,74% 10%,86% 34%,100% 18%,100% 100%,0 100%)}
+.bgx[data-k="night"] .l2{left:0;right:0;top:76%;bottom:0;background:var(--ink);
+  clip-path:polygon(0 30%,14% 60%,26% 24%,40% 58%,54% 30%,68% 64%,82% 28%,100% 50%,100% 100%,0 100%)}
+.bgx[data-k="night"]:is([data-wx="overcast"],[data-wx="rain"],[data-wx="thunder"]) .l4{opacity:0}
+.bgx[data-k="night"][data-wx="snow"] .l1{background:linear-gradient(180deg,#eef3f8 0 16%,var(--far) 42%,var(--mid))}

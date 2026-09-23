@@ -1,0 +1,21 @@
+/* @name.uk Море
+   @name.en Sea
+   @group scape
+   @order 20 */
+.bgx[data-k="sea"]{background:linear-gradient(180deg,var(--sky1),var(--sky2) 42%,var(--sky3) 62%)}
+.bgx[data-k="sea"] .sun{left:calc(50% - 5em);top:calc(62% - 5em);width:10em;height:10em}
+.bgx[data-k="sea"] .l1{left:0;right:0;top:62%;bottom:0;background:linear-gradient(180deg,color-mix(in srgb,var(--far) 75%,#1c3a5a),var(--ink))}
+/* the sun's path on the water */
+.bgx[data-k="sea"] .l2{left:calc(50% - 9em);width:18em;top:62%;bottom:4%;
+  background:repeating-linear-gradient(180deg,color-mix(in srgb,var(--acc2) 75%,#fff) 0 .22em,transparent .22em 1em);background-size:100% 2em;
+  clip-path:polygon(38% 0,62% 0,100% 100%,0 100%);-webkit-mask-image:linear-gradient(#000,transparent);mask-image:linear-gradient(#000,transparent);
+  opacity:.7;animation:shim 3.5s linear infinite;transition:opacity 1.2s}
+@keyframes shim{to{background-position:0 2em}}
+.bgx[data-k="sea"] .l3{left:3%;width:34%;top:calc(62% - 3.2em);height:3.2em;background:var(--mid);
+  clip-path:polygon(0 100%,14% 50%,26% 64%,44% 8%,62% 60%,78% 42%,100% 100%)}
+.bgx[data-k="sea"] .l4{right:-2%;width:22%;top:calc(62% - 1.8em);height:1.8em;background:var(--mid);clip-path:polygon(0 100%,30% 30%,55% 50%,80% 10%,100% 100%)}
+.bgx[data-k="sea"][data-tod="night"] .sun{transform:translate(0,-14em) scale(.5)}
+.bgx[data-k="sea"][data-tod="dawn"] .sun{transform:translate(-16em,-.5em)}
+.bgx[data-k="sea"][data-tod="day"] .sun{transform:translate(6em,-16em) scale(.8)}
+.bgx[data-k="sea"][data-tod="night"] .l2{opacity:.3}
+.bgx[data-k="sea"]:is([data-wx="overcast"],[data-wx="rain"],[data-wx="thunder"],[data-wx="fog"]) .l2{opacity:.12}

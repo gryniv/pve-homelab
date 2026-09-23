@@ -1,0 +1,7 @@
+/* @name.uk Точки
+   @name.en Dots
+   @group flat
+   @order 130 */
+.bgx[data-k="dots"]{background:
+  radial-gradient(circle,rgba(255,255,255,.17) .1em,transparent .13em) 0 0/1.7em 1.7em,
+  radial-gradient(80em 50em at 50% 115%,color-mix(in srgb,var(--acc) 22%,transparent),transparent 70%),#080b12}

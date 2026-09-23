@@ -1,0 +1,9 @@
+/* @name.uk Сітка
+   @name.en Grid
+   @group flat
+   @order 140 */
+.bgx[data-k="grid"]{background:
+  linear-gradient(rgba(255,255,255,.08) 1px,transparent 1px) 0 0/3.2em 3.2em,
+  linear-gradient(90deg,rgba(255,255,255,.08) 1px,transparent 1px) 0 0/3.2em 3.2em,
+  radial-gradient(70em 45em at 85% 0%,color-mix(in srgb,var(--acc) 28%,transparent),transparent 70%),#080b12}
+.bgx[data-k="grid"]::after{content:"";position:absolute;inset:0;background:radial-gradient(ellipse at 50% 40%,transparent 30%,#080b12 95%)}

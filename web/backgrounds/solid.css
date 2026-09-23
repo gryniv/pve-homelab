@@ -1,0 +1,6 @@
+/* @name.uk Тема
+   @name.en Theme
+   @group flat
+   @order 150 */
+/* the theme's own backdrop (--solid) */
+.bgx[data-k="solid"]{background:var(--solid)}

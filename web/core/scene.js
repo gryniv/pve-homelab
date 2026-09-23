@@ -130,6 +130,7 @@ function frame(t) {
       }
     } else if (kind === 'fog') {
       for (const p of parts) {
+        if (!(p.r > 0)) continue;   // particles of the previous weather, until they're rebuilt
         p.x += p.v * dt;
         if (p.x - p.r > W) p.x = -p.r;
         const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r);

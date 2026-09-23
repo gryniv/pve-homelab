@@ -146,9 +146,17 @@ export default {
 };
 ```
 
-Після `install.sh` віджет з'явиться в меню «Налаштування → Макет і віджети → Додати».
+Після `install.sh` віджет з'явиться в меню «Налаштування → Панель» або «Екран входу» → «Додати».
 
-**Тема** — це один файл `web/themes/<id>.css`, що містить лише змінні (`--acc`, `--glass`, `--display`, `--lf`…). Назва задається в заголовку: `@name.uk …`, `@name.en …`.
+Теми, фони, годинники й шрифти працюють однаково: **один файл = один модуль**. Бекенд сам знаходить файли в теці, а назву й решту метаданих бере з першого коментаря файлу (`@name.uk …`, `@name.en …`, `@desc.uk …`, `@order 10`). Після `install.sh` новий модуль з'являється в «Налаштування → Вигляд» із живим прев'ю.
+
+**Тема**: `web/themes/<id>.css`, лише змінні (`--acc`, `--acc2`, `--glass`, `--solid`, `--display`, `--lf`…) для `.A[data-skin="<id>"],.A [data-skin="<id>"]`.
+
+**Фон / заставка**: `web/backgrounds/<id>.css`. `@group scape` — пейзаж (сонце, місяць, зорі, хмари, туман і сніг рушій малює сам), `@group flat` — простий фон (отримує лише погодну вуаль). `@tod night` закріплює певну пору доби. Малюєш сам `.bgx[data-k="<id>"]` і потрібні шари `.l1`…`.l4`, кольори береш із палітри `--sky1 --sky2 --sky3 --far --mid --ink` (вона вже враховує тему й пору доби). Під погоду чи пору доби підлаштовуєшся через `.bgx[data-k="<id>"][data-wx="snow"]` або `[data-tod="night"]`. Приклад: `web/backgrounds/mountains.css`.
+
+**Годинник**: `web/clocks/<id>.js`, де `export const css` (стилі для `.clock[data-clockk="<id>"]`) і `export function render(el, t)`. Функція викликається щосекунди з `t = {h, m, s, text, date}` і має змінювати лише те, що змінилось. Приклад: `web/clocks/neon.js`.
+
+**Шрифт**: `web/fonts/<id>.css` з `@family "Назва", sans-serif` у заголовку й `@import` вебшрифту. Завантажується лише тоді, коли його вибрано або відкрито прев'ю.
 
 **Мова** — це один файл `web/i18n/<code>.json` з тими самими ключами, що в `en.json`, і полем `"_name"`. Переклади віджетів лежать у їхніх `i18n`, повідомлення бекенда в `backend/pveseat/i18n.py`, панель сервісів у `kiosk/ext/content.js`.
 
@@ -205,6 +213,6 @@ git clone <this repository> /root/pve-seat && cd /root/pve-seat && ./install.sh
 
 On first run the installer detects GPUs with monitors, DDC monitors and their inputs, the Caddy container and a weather city, then writes `/etc/pve-seat/config.yaml` (never overwritten later). Tag VMs with `seat` to list them. For a discrete GPU wired to the same monitor, add its input code under `monitors` (see [`etc/config.example.yaml`](etc/config.example.yaml)). Update with `./update.sh`, remove with `./uninstall.sh`.
 
-**Extend:** a widget is `web/widgets/<id>/widget.js`, a theme is `web/themes/<id>.css` (tokens only), a language is `web/i18n/<code>.json`. See the Ukrainian section above for the widget contract and the development tools (`tools/dryrun.py`, `tools/screenshots.py`).
+**Extend:** one file is one module, found by the backend and named from its first comment (`@name.en …`, `@order …`): a widget is `web/widgets/<id>/widget.js`, a theme `web/themes/<id>.css` (tokens only), a background `web/backgrounds/<id>.css` (`@group scape|flat`, paint `.bgx[data-k="<id>"]` and layers `.l1`-`.l4` from the `--sky*`/`--far`/`--mid`/`--ink` palette; sun, moon, stars, clouds, fog and weather come from the engine), a clock `web/clocks/<id>.js` (`css` + `render(el, {h, m, s, text})` every second), a font `web/fonts/<id>.css` (`@family` + `@import`), a language `web/i18n/<code>.json`. See the Ukrainian section above for the widget contract and the development tools (`tools/dryrun.py`, `tools/screenshots.py`).
 
 Third-party: noVNC (MPL-2.0) is vendored in `web/vendor/novnc`; weather icons are Meteocons by Bas Milius (MIT); service logos are fetched from homarr-labs/dashboard-icons at runtime.

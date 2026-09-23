@@ -1,0 +1,15 @@
+/* @name.uk Гори
+   @name.en Mountains
+   @group scape
+   @order 10 */
+.bgx[data-k="mountains"]{background:linear-gradient(180deg,var(--sky1),var(--sky2) 50%,var(--sky3) 78%)}
+.bgx[data-k="mountains"] .l1{left:0;right:0;top:38%;bottom:0;background:linear-gradient(180deg,var(--far),var(--mid));
+  clip-path:polygon(0 58%,7% 40%,13% 50%,22% 22%,30% 42%,38% 28%,47% 48%,56% 16%,64% 38%,73% 26%,82% 46%,91% 30%,100% 42%,100% 100%,0 100%)}
+.bgx[data-k="mountains"] .l2{left:0;right:0;top:56%;bottom:0;background:linear-gradient(180deg,var(--mid),var(--ink));
+  clip-path:polygon(0 40%,9% 22%,17% 38%,27% 8%,37% 36%,46% 20%,55% 44%,66% 12%,76% 38%,87% 18%,100% 34%,100% 100%,0 100%)}
+.bgx[data-k="mountains"] .l3{left:0;right:0;top:74%;bottom:0;background:var(--ink);
+  clip-path:polygon(0 30%,11% 55%,21% 18%,33% 58%,45% 32%,57% 62%,69% 26%,81% 54%,91% 22%,100% 42%,100% 100%,0 100%)}
+.bgx[data-k="mountains"] .l4{left:0;right:0;top:58%;height:16%;background:linear-gradient(180deg,transparent,color-mix(in srgb,var(--sky3) 22%,transparent),transparent)}
+/* snow settles on the peaks */
+.bgx[data-k="mountains"][data-wx="snow"] .l1{background:linear-gradient(180deg,#eef3f8 0 16%,var(--far) 42%,var(--mid))}
+.bgx[data-k="mountains"][data-wx="snow"] .l2{background:linear-gradient(180deg,#d8e1ea 0 12%,var(--mid) 40%,var(--ink))}

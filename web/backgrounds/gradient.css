@@ -1,0 +1,7 @@
+/* @name.uk Градієнт
+   @name.en Gradient
+   @group flat
+   @order 110 */
+.bgx[data-k="gradient"]{background:
+  radial-gradient(70em 45em at 12% 0%,color-mix(in srgb,var(--acc) 34%,transparent),transparent 70%),
+  radial-gradient(70em 50em at 95% 105%,color-mix(in srgb,var(--acc2) 24%,transparent),transparent 70%),#080b12}

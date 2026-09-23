@@ -1,7 +1,13 @@
-/* PVE Seat: backgrounds. Each one is plain CSS painted from the theme tokens
-   (--acc, --acc2), so a theme recolours its landscape too. The same markup
-   (core/backgrounds.js → layer()) draws the full screen and the settings previews:
-   sizes are in % and em, and a preview sets its font-size from its own width. */
+/* PVE Seat: background engine. The backgrounds themselves are drop-in files in
+   web/backgrounds/<id>.css (see README: "Add a background"); this file holds what they share:
+   the palette, sun/moon, stars, clouds, fog and weather veil, and the settings mini monitor.
+
+   Every background element carries its own data-tod (night|dawn|day|dusk) and data-wx
+   (clear|partly|overcast|rain|thunder|snow|fog). On the page they mirror <body>; in a settings
+   preview they can differ, which is how a tile shows "rain" or "night" on hover.
+
+   Layers inside .bgx, back to front: .stars .sun .cl .cl2 .l1 .l2 .l3 .l4 .fg .wx
+   A background paints .bgx itself and whichever of .l1-.l4 it needs. */
 
 .bgx{position:absolute;inset:0;overflow:hidden;background:#080b12;
   --sky1:color-mix(in srgb,var(--acc) 12%,var(--s1,#14163a));
@@ -13,118 +19,37 @@
   --sunc:color-mix(in srgb,var(--acc2) 40%,var(--cel,#ffb35e));
   --glow:color-mix(in srgb,var(--sunc) 55%,transparent)}
 .bgx > i{position:absolute;display:block}
+/* Flat backgrounds (no @group scape) only get the weather veil and fog. */
 .bgx:not(.scape) > i:not(.wx):not(.fg){display:none}
-#bgHost > .bgx,.scrn > .bgx{filter:var(--wxf);transition:filter .9s ease,transform .9s ease}
+.bgx{filter:var(--wxf);transition:filter .9s ease,transform .9s ease}
 .A.in #bgHost > .bgx.scape{filter:var(--wxf) blur(.4em) brightness(.5) saturate(1.1);transform:scale(1.05)}
 
-/* sun / moon and stars, shared by the landscapes */
-.bgx .sun{transition:transform 2s ease,opacity 1.2s,background 1.2s,box-shadow 1.2s;width:9em;height:9em;border-radius:50%;left:62%;top:40%;
+/* ---------- sun / moon and stars ---------- */
+.bgx .sun{width:9em;height:9em;border-radius:50%;left:62%;top:40%;
   background:radial-gradient(circle,color-mix(in srgb,var(--sunc) 30%,#fff) 0 40%,var(--sunc) 70%);
-  box-shadow:0 0 5em 1.5em var(--glow),0 0 16em 6em color-mix(in srgb,var(--acc) 22%,transparent);animation:sunb 9s ease-in-out infinite alternate}
+  box-shadow:0 0 5em 1.5em var(--glow),0 0 16em 6em color-mix(in srgb,var(--acc) 22%,transparent);
+  animation:sunb 9s ease-in-out infinite alternate;transition:transform 1.6s ease,opacity 1.2s,background 1.2s,box-shadow 1.2s}
 @keyframes sunb{to{box-shadow:0 0 6em 2em var(--glow),0 0 20em 8em color-mix(in srgb,var(--acc) 26%,transparent)}}
-.bgx .stars{inset:0 0 35% 0;
+.bgx .stars{inset:0 0 35% 0;opacity:0;transition:opacity 1.2s;
   background:radial-gradient(circle,#fff .06em,transparent .1em) 0 0/7.3em 5.1em,
              radial-gradient(circle,rgba(255,255,255,.7) .05em,transparent .09em) 2.9em 1.7em/5.3em 6.7em,
              radial-gradient(circle,rgba(255,255,255,.5) .04em,transparent .08em) 1.3em 3.1em/3.7em 4.3em;
   -webkit-mask-image:linear-gradient(#000,transparent);mask-image:linear-gradient(#000,transparent);animation:twk 5s ease-in-out infinite alternate}
 @keyframes twk{to{filter:brightness(.5)}}
 
-/* ---- mountains ---- */
-.bgx[data-k="mountains"]{background:linear-gradient(180deg,var(--sky1),var(--sky2) 50%,var(--sky3) 78%)}
-.bgx[data-k="mountains"] .l1{left:0;right:0;top:38%;bottom:0;background:linear-gradient(180deg,var(--far),var(--mid));
-  clip-path:polygon(0 58%,7% 40%,13% 50%,22% 22%,30% 42%,38% 28%,47% 48%,56% 16%,64% 38%,73% 26%,82% 46%,91% 30%,100% 42%,100% 100%,0 100%)}
-.bgx[data-k="mountains"] .l2{left:0;right:0;top:56%;bottom:0;background:linear-gradient(180deg,var(--mid),var(--ink));
-  clip-path:polygon(0 40%,9% 22%,17% 38%,27% 8%,37% 36%,46% 20%,55% 44%,66% 12%,76% 38%,87% 18%,100% 34%,100% 100%,0 100%)}
-.bgx[data-k="mountains"] .l3{left:0;right:0;top:74%;bottom:0;background:var(--ink);
-  clip-path:polygon(0 30%,11% 55%,21% 18%,33% 58%,45% 32%,57% 62%,69% 26%,81% 54%,91% 22%,100% 42%,100% 100%,0 100%)}
-.bgx[data-k="mountains"] .l4{left:0;right:0;top:58%;height:16%;background:linear-gradient(180deg,transparent,color-mix(in srgb,var(--sky3) 22%,transparent),transparent)}
-
-/* ---- sea ---- */
-.bgx[data-k="sea"]{background:linear-gradient(180deg,var(--sky1),var(--sky2) 42%,var(--sky3) 62%)}
-.bgx[data-k="sea"] .sun{left:calc(50% - 5em);top:calc(62% - 5em);width:10em;height:10em}
-.bgx[data-k="sea"] .l1{left:0;right:0;top:62%;bottom:0;background:linear-gradient(180deg,color-mix(in srgb,var(--far) 75%,#1c3a5a),var(--ink))}
-.bgx[data-k="sea"] .l2{left:calc(50% - 9em);width:18em;top:62%;bottom:4%;
-  background:repeating-linear-gradient(180deg,color-mix(in srgb,var(--acc2) 75%,#fff) 0 .22em,transparent .22em 1em);background-size:100% 2em;
-  clip-path:polygon(38% 0,62% 0,100% 100%,0 100%);-webkit-mask-image:linear-gradient(#000,transparent);mask-image:linear-gradient(#000,transparent);
-  opacity:.7;animation:shim 3.5s linear infinite}
-@keyframes shim{to{background-position:0 2em}}
-.bgx[data-k="sea"] .l3{left:3%;width:34%;top:calc(62% - 3.2em);height:3.2em;background:var(--mid);
-  clip-path:polygon(0 100%,14% 50%,26% 64%,44% 8%,62% 60%,78% 42%,100% 100%)}
-.bgx[data-k="sea"] .l4{right:-2%;width:22%;top:calc(62% - 1.8em);height:1.8em;background:var(--mid);clip-path:polygon(0 100%,30% 30%,55% 50%,80% 10%,100% 100%)}
-
-/* ---- dunes ---- */
-.bgx[data-k="dunes"]{background:linear-gradient(180deg,var(--sky1),var(--sky2) 30%,var(--sky3) 62%)}
-.bgx[data-k="dunes"] .sun{left:18%;top:16%;width:7em;height:7em}
-.bgx[data-k="dunes"] .l1,.bgx[data-k="dunes"] .l2,.bgx[data-k="dunes"] .l3{border-radius:50% 50% 0 0/100% 100% 0 0;bottom:-10%}
-.bgx[data-k="dunes"] .l1{left:-25%;width:95%;top:52%;background:linear-gradient(110deg,color-mix(in srgb,var(--acc) 45%,var(--far)),color-mix(in srgb,var(--acc) 30%,var(--mid)) 60%)}
-.bgx[data-k="dunes"] .l2{left:30%;width:110%;top:60%;background:linear-gradient(100deg,color-mix(in srgb,var(--acc) 35%,var(--far)),color-mix(in srgb,var(--acc) 18%,var(--mid)) 55%)}
-.bgx[data-k="dunes"] .l3{left:-35%;width:150%;top:76%;background:linear-gradient(95deg,color-mix(in srgb,var(--acc) 22%,var(--mid)),var(--ink) 60%)}
-.bgx[data-k="dunes"] .l4{left:0;right:0;top:48%;height:14%;background:linear-gradient(180deg,transparent,rgba(255,255,255,.12),transparent)}
-
-/* ---- night city ---- */
-.bgx[data-k="city"]{background:linear-gradient(180deg,var(--sky1),var(--sky2) 55%,var(--sky3) 92%)}
-.bgx[data-k="city"] .sun{left:78%;top:14%;width:6em;height:6em}
-.bgx[data-k="city"] .l1{left:0;right:0;top:44%;bottom:0;background:color-mix(in srgb,var(--far) 70%,#141a2e);
-  clip-path:polygon(0% 100%,0.0% 35%,5.2% 35%,5.2% 40%,9.5% 40%,9.5% 19%,14.4% 19%,14.4% 21%,17.8% 21%,17.8% 18%,22.9% 18%,22.9% 28%,25.3% 28%,25.3% 42%,28.9% 42%,28.9% 30%,31.5% 30%,31.5% 42%,34.0% 42%,34.0% 51%,36.7% 51%,36.7% 29%,40.9% 29%,40.9% 52%,46.2% 52%,46.2% 51%,50.3% 51%,50.3% 18%,55.6% 18%,55.6% 17%,59.6% 17%,59.6% 23%,62.8% 23%,62.8% 24%,66.8% 24%,66.8% 51%,70.0% 51%,70.0% 67%,74.4% 67%,74.4% 21%,78.5% 21%,78.5% 55%,81.4% 55%,81.4% 21%,85.4% 21%,85.4% 19%,89.5% 19%,89.5% 54%,92.4% 54%,92.4% 58%,96.3% 58%,96.3% 64%,100.0% 64%,100% 100%)}
-.bgx[data-k="city"] .l2,.bgx[data-k="city"] .l3{left:0;right:0;top:58%;bottom:0;
-  clip-path:polygon(0% 100%,0.0% 25%,5.4% 25%,5.4% 34%,10.3% 34%,10.3% 20%,17.2% 20%,17.2% 49%,24.0% 49%,24.0% 10%,29.9% 10%,29.9% 38%,35.4% 38%,35.4% 26%,42.0% 26%,42.0% 23%,48.0% 23%,48.0% 9%,51.9% 9%,51.9% 31%,56.0% 31%,56.0% 26%,60.0% 26%,60.0% 36%,65.2% 36%,65.2% 47%,68.9% 47%,68.9% 40%,74.7% 40%,74.7% 57%,79.5% 57%,79.5% 49%,84.4% 49%,84.4% 36%,90.3% 36%,90.3% 34%,100.0% 34%,100% 100%)}
-.bgx[data-k="city"] .l2{background:var(--ink)}
-/* lit windows; the vertical mask strips leave some towers dark */
-.bgx[data-k="city"] .l3{opacity:.6;
-  background:radial-gradient(circle,color-mix(in srgb,var(--acc2) 80%,#fff) .1em,transparent .15em) .3em .6em/.9em 1.25em;
-  -webkit-mask-image:linear-gradient(90deg,#000 0 9%,transparent 9% 14%,#000 14% 31%,transparent 31% 38%,#000 38% 52%,transparent 52% 57%,#000 57% 74%,transparent 74% 81%,#000 81%);
-  mask-image:linear-gradient(90deg,#000 0 9%,transparent 9% 14%,#000 14% 31%,transparent 31% 38%,#000 38% 52%,transparent 52% 57%,#000 57% 74%,transparent 74% 81%,#000 81%);
-  animation:twk 7s ease-in-out infinite alternate}
-.bgx[data-k="city"] .l4{left:0;right:0;bottom:0;height:30%;background:linear-gradient(0deg,color-mix(in srgb,var(--acc) 22%,transparent),transparent)}
-
-/* ---- hills ---- */
-.bgx[data-k="hills"]{background:linear-gradient(180deg,var(--sky1),var(--sky2) 40%,var(--sky3) 72%)}
-.bgx[data-k="hills"] .sun{left:70%;top:22%;width:6em;height:6em}
-.bgx[data-k="hills"] .l1,.bgx[data-k="hills"] .l2,.bgx[data-k="hills"] .l3{left:0;right:0;bottom:0}
-.bgx[data-k="hills"] .l1{top:48%;--c:color-mix(in srgb,var(--far) 70%,#3c5a50);
-  background:radial-gradient(ellipse 30% 70% at 12% 100%,var(--c) 99%,transparent 100%),radial-gradient(ellipse 34% 90% at 52% 100%,var(--c) 99%,transparent 100%),radial-gradient(ellipse 30% 60% at 90% 100%,var(--c) 99%,transparent 100%)}
-.bgx[data-k="hills"] .l2{top:60%;--c:color-mix(in srgb,var(--mid) 70%,#223a34);
-  background:radial-gradient(ellipse 36% 80% at 30% 100%,var(--c) 99%,transparent 100%),radial-gradient(ellipse 40% 70% at 78% 100%,var(--c) 99%,transparent 100%),linear-gradient(transparent 70%,var(--c) 70%)}
-.bgx[data-k="hills"] .l3{top:74%;--c:var(--ink);
-  background:radial-gradient(ellipse 45% 70% at 8% 100%,var(--c) 99%,transparent 100%),radial-gradient(ellipse 42% 60% at 60% 100%,var(--c) 99%,transparent 100%),linear-gradient(transparent 60%,var(--c) 60%)}
-.bgx[data-k="hills"] .l4{left:0;right:0;top:44%;height:18%;background:linear-gradient(180deg,transparent,rgba(255,255,255,.12),transparent)}
-
-/* ---- starry night ---- */
-.bgx[data-k="night"]{--s1:#040816;--s2:#0f1c36;--s3:#223a60;--m1:#1c2b47;--m2:#131f36;--m3:#0a111f;
-  background:linear-gradient(180deg,#03050c,var(--sky1) 55%,color-mix(in srgb,var(--acc) 18%,#0e1428) 80%)}
-.bgx[data-k="night"] .stars{inset:0 0 25% 0}
-.bgx[data-k="night"] .sun{left:18%;top:14%;width:4em;height:4em;background:#f2f0e8;box-shadow:inset -1.1em -.3em 0 0 #c9c6bb,0 0 3em .6em rgba(242,240,232,.2);animation:none}
-.bgx[data-k="night"] .l4{left:-10%;right:-10%;top:12%;height:34%;filter:blur(2em);opacity:.55;
-  background:linear-gradient(100deg,transparent 15%,var(--acc) 35%,transparent 45%,var(--acc2) 62%,transparent 80%);
-  transform:skewY(-6deg);animation:aurb 16s ease-in-out infinite alternate}
-@keyframes aurb{to{transform:skewY(-3deg) translateX(6%);opacity:.35}}
-.bgx[data-k="night"] .l1{left:0;right:0;top:56%;bottom:0;background:linear-gradient(180deg,var(--mid),var(--ink));
-  clip-path:polygon(0 42%,10% 20%,19% 36%,31% 4%,42% 34%,52% 16%,63% 40%,74% 10%,86% 34%,100% 18%,100% 100%,0 100%)}
-.bgx[data-k="night"] .l2{left:0;right:0;top:76%;bottom:0;background:var(--ink);
-  clip-path:polygon(0 30%,14% 60%,26% 24%,40% 58%,54% 30%,68% 64%,82% 28%,100% 50%,100% 100%,0 100%)}
-
-/* ---------- time of day: body[data-tod] moves the sun and swaps it for the moon ----------
-   (Starry night is always night.) */
-.bgx .stars{opacity:0}
-.A[data-tod="night"] .bgx .stars{opacity:.85}
-.A[data-tod="dusk"] .bgx .stars{opacity:.3}
-.bgx[data-k="night"] .stars{opacity:1}
-.A[data-tod="day"] .bgx:not([data-k="night"]) .sun{transform:translate(-4em,-11em) scale(.85)}
-.A[data-tod="dawn"] .bgx:not([data-k="night"]) .sun{transform:translate(-14em,3em) scale(1.1)}
-.A[data-tod="night"] .bgx:not([data-k="night"]) .sun,.bgx[data-k="night"] .sun{
+/* ---------- time of day: the sun moves, and becomes the moon at night ---------- */
+.bgx[data-tod="night"] .stars{opacity:.85}
+.bgx[data-tod="dusk"] .stars{opacity:.3}
+.bgx[data-tod="day"] .sun{transform:translate(-4em,-11em) scale(.85)}
+.bgx[data-tod="dawn"] .sun{transform:translate(-14em,3em) scale(1.1)}
+.bgx[data-tod="night"] .sun{
   background:radial-gradient(circle at 42% 40%,#fbfaf4,#e3e0d4 70%);
   box-shadow:inset -1.1em -.35em 0 0 rgba(160,160,150,.55),0 0 3em .6em rgba(242,240,232,.18);animation:none}
-.A[data-tod="night"] .bgx:not([data-k="night"]) .sun{transform:translate(-2em,-12em) scale(.5)}
-.A[data-tod="night"] .bgx[data-k="sea"] .sun{transform:translate(0,-14em) scale(.5)}
-.A[data-tod="dawn"] .bgx[data-k="sea"] .sun{transform:translate(-16em,-.5em)}
-.A[data-tod="day"] .bgx[data-k="sea"] .sun{transform:translate(6em,-16em) scale(.8)}
-.A[data-tod="night"] .bgx[data-k="sea"] .l2{opacity:.3}
-.A[data-tod="day"] .bgx[data-k="city"] .l3{opacity:.08}
-.A[data-tod="dawn"] .bgx[data-k="city"] .l3{opacity:.3}
+.bgx[data-tod="night"] .sun{transform:translate(-2em,-12em) scale(.5)}
 
-/* ---------- weather: every background follows body[data-wx] ----------
-   Rain, snow and lightning particles are drawn over any background by scene.js (#fx);
-   here: clouds, a hidden sun and stars, fog, snow on the peaks and a tinted veil. */
+/* ---------- weather ----------
+   Rain, snow and lightning particles are drawn over the page by scene.js (#fx) and over a
+   preview by .pvfx below; here: clouds, a hidden sun and stars, fog and a tinted veil. */
 .bgx .cl{left:-15%;right:-15%;top:4%;height:42%;opacity:.55;filter:blur(1.2em);
   background:radial-gradient(ellipse 16% 26% at 18% 42%,var(--cloud),transparent 70%),radial-gradient(ellipse 20% 22% at 46% 28%,var(--cloud),transparent 70%),
              radial-gradient(ellipse 15% 20% at 74% 48%,var(--cloud),transparent 70%),radial-gradient(ellipse 12% 16% at 92% 22%,var(--cloud),transparent 70%);
@@ -136,50 +61,25 @@
 .bgx .fg{left:0;right:0;top:30%;bottom:0;opacity:0;transition:opacity 1.2s;
   background:linear-gradient(180deg,transparent,rgba(214,219,226,.55) 45%,rgba(214,219,226,.4))}
 .bgx .wx{inset:0;opacity:0;transition:opacity 1.2s,background 1.2s}
-.bgx .sun,.bgx .stars{transition:opacity 1.2s}
-.A[data-wx="clear"] .bgx .cl{opacity:0}
-.A:is([data-wx="overcast"],[data-wx="rain"],[data-wx="thunder"],[data-wx="snow"]) .bgx .cl{opacity:.9}
-.A:is([data-wx="overcast"],[data-wx="rain"],[data-wx="thunder"],[data-wx="snow"]) .bgx .cl2{opacity:.85}
-.A:is([data-wx="overcast"],[data-wx="rain"],[data-wx="thunder"],[data-wx="snow"],[data-wx="fog"]) .bgx .sun{opacity:.12}
-.A:is([data-wx="overcast"],[data-wx="rain"],[data-wx="thunder"],[data-wx="snow"],[data-wx="fog"]) .bgx .stars{opacity:0}
-.A:is([data-wx="overcast"],[data-wx="rain"],[data-wx="thunder"],[data-wx="fog"]) .bgx[data-k="sea"] .l2{opacity:.12}
-.A:is([data-wx="overcast"],[data-wx="rain"],[data-wx="thunder"]) .bgx[data-k="night"] .l4{opacity:0}
-.A[data-wx="fog"] .bgx .fg{opacity:1}
-.A[data-wx="overcast"] .bgx .wx{opacity:1;background:rgba(60,66,78,.22)}
-.A[data-wx="rain"] .bgx .wx{opacity:1;background:linear-gradient(180deg,rgba(30,42,60,.45),rgba(30,42,60,.25))}
-.A[data-wx="thunder"] .bgx .wx{opacity:1;background:linear-gradient(180deg,rgba(16,18,32,.6),rgba(16,18,32,.3))}
-.A[data-wx="snow"] .bgx .wx{opacity:1;background:linear-gradient(0deg,rgba(235,242,250,.22),rgba(200,210,225,.12))}
-.A[data-wx="fog"] .bgx .wx{opacity:1;background:rgba(200,206,214,.18)}
-/* snow settles on the peaks and hills */
-.A[data-wx="snow"] .bgx:is([data-k="mountains"],[data-k="night"]) .l1{background:linear-gradient(180deg,#eef3f8 0 16%,var(--far) 42%,var(--mid))}
-.A[data-wx="snow"] .bgx[data-k="mountains"] .l2{background:linear-gradient(180deg,#d8e1ea 0 12%,var(--mid) 40%,var(--ink))}
-.A[data-wx="snow"] .bgx[data-k="hills"] .l1{--c:#dfe7ef}
-.A[data-wx="snow"] .bgx[data-k="hills"] .l2{--c:#aebccb}
-.A[data-wx="snow"] .bgx[data-k="hills"] .l3{--c:#51606f}
-.A[data-wx="snow"] .bgx[data-k="city"] .l2{background:linear-gradient(180deg,#cfd8e2 0 2%,var(--ink) 4%)}
+.bgx[data-wx="clear"] .cl{opacity:0}
+.bgx:is([data-wx="overcast"],[data-wx="rain"],[data-wx="thunder"],[data-wx="snow"]) .cl{opacity:.9}
+.bgx:is([data-wx="overcast"],[data-wx="rain"],[data-wx="thunder"],[data-wx="snow"]) .cl2{opacity:.85}
+.bgx:is([data-wx="overcast"],[data-wx="rain"],[data-wx="thunder"],[data-wx="snow"],[data-wx="fog"]) .sun{opacity:.12}
+.bgx:is([data-wx="overcast"],[data-wx="rain"],[data-wx="thunder"],[data-wx="snow"],[data-wx="fog"]) .stars{opacity:0}
+.bgx[data-wx="fog"] .fg{opacity:1}
+.bgx[data-wx="overcast"] .wx{opacity:1;background:rgba(60,66,78,.22)}
+.bgx[data-wx="rain"] .wx{opacity:1;background:linear-gradient(180deg,rgba(30,42,60,.45),rgba(30,42,60,.25))}
+.bgx[data-wx="thunder"] .wx{opacity:1;background:linear-gradient(180deg,rgba(16,18,32,.6),rgba(16,18,32,.3))}
+.bgx[data-wx="snow"] .wx{opacity:1;background:linear-gradient(0deg,rgba(235,242,250,.22),rgba(200,210,225,.12))}
+.bgx[data-wx="fog"] .wx{opacity:1;background:rgba(200,206,214,.18)}
 
-/* ---- simple ones ---- */
-.bgx[data-k="gradient"]{background:
-  radial-gradient(70em 45em at 12% 0%,color-mix(in srgb,var(--acc) 34%,transparent),transparent 70%),
-  radial-gradient(70em 50em at 95% 105%,color-mix(in srgb,var(--acc2) 24%,transparent),transparent 70%),#080b12}
-.bgx[data-k="aurora"]::before,.bgx[data-k="aurora"]::after{
-  content:"";position:absolute;width:70em;height:50em;border-radius:50%;filter:blur(7em);opacity:.5;animation:aur 38s ease-in-out infinite alternate}
-.bgx[data-k="aurora"]::before{background:var(--acc);left:-20em;top:-25em}
-.bgx[data-k="aurora"]::after{background:var(--acc2);right:-25em;bottom:-30em;opacity:.32;animation-duration:46s;animation-direction:alternate-reverse}
-@keyframes aur{to{transform:translate(28em,18em) scale(1.25)}}
-.bgx[data-k="dots"]{background:
-  radial-gradient(circle,rgba(255,255,255,.17) .1em,transparent .13em) 0 0/1.7em 1.7em,
-  radial-gradient(80em 50em at 50% 115%,color-mix(in srgb,var(--acc) 22%,transparent),transparent 70%),#080b12}
-.bgx[data-k="grid"]{background:
-  linear-gradient(rgba(255,255,255,.08) 1px,transparent 1px) 0 0/3.2em 3.2em,
-  linear-gradient(90deg,rgba(255,255,255,.08) 1px,transparent 1px) 0 0/3.2em 3.2em,
-  radial-gradient(70em 45em at 85% 0%,color-mix(in srgb,var(--acc) 28%,transparent),transparent 70%),#080b12}
-.bgx[data-k="grid"]::after{content:"";position:absolute;inset:0;background:radial-gradient(ellipse at 50% 40%,transparent 30%,#080b12 95%)}
-.bgx[data-k="solid"]{background:var(--solid)}
-.bgx[data-k="black"]{background:#000}
-.A[data-bg="still"] .bgx *,.A[data-bg="still"] .bgx::before,.A[data-bg="still"] .bgx::after{animation:none!important}
+/* The SVG scene inside a preview: the page sets its stars from JS, a preview does it here. */
+.landpv[data-tod] #stars{opacity:0!important;transition:opacity 1s}
+.landpv[data-tod="night"] #stars{opacity:1!important}
+.landpv[data-tod="dusk"] #stars{opacity:.35!important}
+.landpv:is([data-wx="overcast"],[data-wx="rain"],[data-wx="thunder"],[data-wx="snow"],[data-wx="fog"]) #stars{opacity:0!important}
 
-/* ---------- mini monitor: settings preview with a tiny presentation ---------- */
+/* ---------- settings: tiles are tiny monitors ---------- */
 .A .looks{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.7em}
 .A .looks .skin{padding:0}
 .A .looks .skin > span:last-child{padding:.1em .8em .6em}
@@ -187,18 +87,40 @@
   border:1px solid rgba(255,255,255,.1);margin:.6em .6em 1.1em}
 .A .mon::after{content:"";position:absolute;left:38%;right:38%;bottom:-.6em;height:.6em;background:linear-gradient(180deg,#15181e,#0b0d11);
   clip-path:polygon(18% 0,82% 0,100% 100%,0 100%)}
-.A .scrn{position:relative;display:block;aspect-ratio:16/9;overflow:hidden;border-radius:.2em;container-type:inline-size;background:#080b12}
-.A .scrn > .bgx,.A .scrn > .landpv,.A .scrn > .mock{font-size:1.25cqw}
+.A .scrn{position:relative;display:block;aspect-ratio:16/9;overflow:hidden;border-radius:.2em;container-type:inline-size;background:#080b12;font-family:var(--font-ui,"Onest",system-ui,sans-serif)}
+.A .scrn > *{font-size:1.25cqw}
 .A .scrn > .landpv{position:absolute;inset:0;filter:var(--lf) var(--wxf)}
 .A .scrn > .landpv svg{width:100%;height:100%;display:block}
+/* Previews stand still until they are looked at: two dozen live skies would load the GPU. */
+.A .scrn:not(.live) *,.A .scrn:not(.live) *::before,.A .scrn:not(.live) *::after{animation-play-state:paused!important}
+
+/* rain / snow for a preview (the page has its canvas) */
+.A .pvfx{position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .8s}
+.A .scrn:is([data-wx="rain"],[data-wx="thunder"]) .pvfx{opacity:.8;
+  background:repeating-linear-gradient(104deg,transparent 0 1.6em,rgba(190,210,240,.38) 1.6em 1.72em) 0 0/100% 7em;animation:pvRain .45s linear infinite}
+@keyframes pvRain{to{background-position:-1.7em 7em}}
+.A .scrn[data-wx="snow"] .pvfx{opacity:.9;
+  background:radial-gradient(circle,#fff .18em,transparent .24em) 0 0/4.3em 4.9em,radial-gradient(circle,rgba(255,255,255,.7) .13em,transparent .19em) 2em 2.2em/3.1em 3.7em;
+  animation:pvSnow 6s linear infinite}
+@keyframes pvSnow{to{background-position:2em 24.5em,-1em 22.2em}}
+.A .scrn[data-wx="thunder"] .pvfx::after{content:"";position:absolute;inset:0;background:#dfe8ff;opacity:0;animation:pvFlash 3.2s linear infinite}
+@keyframes pvFlash{0%,86%,90%,100%{opacity:0}87%{opacity:.5}89%{opacity:.15}}
+
+/* the sign-in screen and the dashboard, in miniature */
 .A .mock{position:absolute;inset:0;pointer-events:none;color:#fff}
-.A .mock > span{position:absolute;inset:0;transition:opacity .6s}
+.A .mock > span{position:absolute;inset:0;transition:opacity .7s}
 .A .mock b,.A .mock i{position:absolute;display:block}
-.A .mk-login .t{left:6%;top:22%;font:800 7.5em/1 var(--display);letter-spacing:-.03em;text-shadow:0 .1em .4em rgba(0,0,0,.35)}
-.A .mk-login .d{left:6.4%;top:42%;width:18%;height:2.2%;border-radius:1em;background:rgba(255,255,255,.55)}
-.A .mk-login .u{left:50%;bottom:14%;transform:translateX(-50%);display:flex;gap:2.2em}
-.A .mk-login .u b{position:static;width:5.5em;height:5.5em;border-radius:50%;background:rgba(255,255,255,.22);border:.25em solid rgba(255,255,255,.35)}
+.A .mk-login .hl{left:5%;top:9%;width:22%;height:2%;border-radius:1em;background:rgba(255,255,255,.35)}
+.A .mk-login .ck{position:absolute;left:5%;top:15%;margin:0}
+.A .mk-login .dt{left:5.3%;top:44%;width:17%;height:2.4%;border-radius:1em;background:rgba(255,255,255,.55)}
+.A .mk-login .w1,.A .mk-login .w2{top:52%;width:19%;height:20%;border-radius:.9em;background:var(--glass);border:1px solid var(--edge)}
+.A .mk-login .w1{left:5%}.A .mk-login .w2{left:26%}
+.A .mk-login .who{right:5%;top:14%;width:36%;bottom:14%;border-radius:1.1em;background:var(--glass);border:1px solid var(--edge);backdrop-filter:blur(.6em)}
+.A .mk-login .u{right:9%;top:24%;width:28%;display:flex;gap:1.4em;justify-content:center}
+.A .mk-login .u b{position:static;width:5em;height:5em;border-radius:50%;background:rgba(255,255,255,.18);border:.22em solid rgba(255,255,255,.3)}
 .A .mk-login .u b:first-child{background:linear-gradient(180deg,var(--acc2),var(--acc));border-color:#fff}
+.A .mk-login .pw{right:9%;top:62%;width:20%;height:6.5%;border-radius:.6em;background:rgba(255,255,255,.1);border:1px solid var(--edge)}
+.A .mk-login .go{right:9%;top:62%;width:6.5%;height:6.5%;border-radius:.6em;background:linear-gradient(180deg,var(--acc2),var(--acc))}
 .A .mk-dash{opacity:0;background:rgba(4,7,12,.5)}
 .A .mk-dash i{border-radius:.9em;background:var(--glass);border:1px solid var(--edge)}
 .A .mk-dash .tp{right:2%;top:2.5%;width:13%;height:5%;border-radius:1em;background:var(--acc-soft);border-color:var(--acc-line)}
@@ -210,9 +132,14 @@
 .A .mk-dash .sy b:nth-child(4){background:linear-gradient(135deg,#ff6b8a,#7a2a5a)}
 .A .mk-dash .gr{left:23%;right:2%;top:34%;bottom:4%;padding:3%;display:grid;grid-template-columns:repeat(5,1fr);gap:.9em}
 .A .mk-dash .gr b{position:static;border-radius:.6em;background:rgba(255,255,255,.08)}
-/* The presentation runs on the selected tile and on the one under the mouse or focus. */
-.A .skin:hover .mk-dash,.A .skin:focus-visible .mk-dash,.A .skin.sel .mk-dash{animation:mkDash 8s ease-in-out infinite}
-.A .skin:hover .mk-login,.A .skin:focus-visible .mk-login,.A .skin.sel .mk-login{animation:mkLogin 8s ease-in-out infinite}
-@keyframes mkDash{0%,40%{opacity:0}50%,90%{opacity:1}100%{opacity:0}}
-@keyframes mkLogin{0%,40%{opacity:1}50%,90%{opacity:0}100%{opacity:1}}
-@media (prefers-reduced-motion:reduce){.A .mk-dash,.A .mk-login{animation:none!important}}
+.A .scrn[data-mode="dash"] .mk-dash{opacity:1}
+.A .scrn[data-mode="dash"] .mk-login{opacity:0}
+/* what the presentation is showing right now */
+.A .scrn .cap{position:absolute;left:3%;bottom:4%;padding:.35em .8em;border-radius:1em;font:700 3.4cqw/1 var(--font-ui,"Onest",sans-serif);
+  background:rgba(0,0,0,.55);color:#fff;opacity:0;transform:translateY(.4em);transition:opacity .3s,transform .3s}
+.A .scrn.live .cap:not(:empty){opacity:1;transform:none}
+.A .scrn .pdots{position:absolute;right:3%;bottom:5%;display:flex;gap:.8em;opacity:0;transition:opacity .3s}
+.A .scrn.live .pdots{opacity:1}
+.A .scrn .pdots i{position:static;width:1.4em;height:1.4em;border-radius:50%;background:rgba(255,255,255,.35);transition:background .3s,transform .3s}
+.A .scrn .pdots i.on{background:#fff;transform:scale(1.3)}
+@media (prefers-reduced-motion:reduce){.A .pvfx{animation:none!important}}

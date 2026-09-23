@@ -1,0 +1,17 @@
+/* @name.uk Нічне місто
+   @name.en Night city
+   @group scape
+   @order 40 */
+.bgx[data-k="city"]{background:linear-gradient(180deg,var(--sky1),var(--sky2) 55%,var(--sky3) 92%)}
+.bgx[data-k="city"] .sun{left:78%;top:14%;width:6em;height:6em}
+.bgx[data-k="city"] .l1{left:0;right:0;top:44%;bottom:0;background:color-mix(in srgb,var(--far) 70%,#141a2e);clip-path:polygon(0% 100%,0.0% 35%,5.2% 35%,5.2% 40%,9.5% 40%,9.5% 19%,14.4% 19%,14.4% 21%,17.8% 21%,17.8% 18%,22.9% 18%,22.9% 28%,25.3% 28%,25.3% 42%,28.9% 42%,28.9% 30%,31.5% 30%,31.5% 42%,34.0% 42%,34.0% 51%,36.7% 51%,36.7% 29%,40.9% 29%,40.9% 52%,46.2% 52%,46.2% 51%,50.3% 51%,50.3% 18%,55.6% 18%,55.6% 17%,59.6% 17%,59.6% 23%,62.8% 23%,62.8% 24%,66.8% 24%,66.8% 51%,70.0% 51%,70.0% 67%,74.4% 67%,74.4% 21%,78.5% 21%,78.5% 55%,81.4% 55%,81.4% 21%,85.4% 21%,85.4% 19%,89.5% 19%,89.5% 54%,92.4% 54%,92.4% 58%,96.3% 58%,96.3% 64%,100.0% 64%,100% 100%)}
+.bgx[data-k="city"] :is(.l2,.l3){left:0;right:0;top:58%;bottom:0;clip-path:polygon(0% 100%,0.0% 25%,5.4% 25%,5.4% 34%,10.3% 34%,10.3% 20%,17.2% 20%,17.2% 49%,24.0% 49%,24.0% 10%,29.9% 10%,29.9% 38%,35.4% 38%,35.4% 26%,42.0% 26%,42.0% 23%,48.0% 23%,48.0% 9%,51.9% 9%,51.9% 31%,56.0% 31%,56.0% 26%,60.0% 26%,60.0% 36%,65.2% 36%,65.2% 47%,68.9% 47%,68.9% 40%,74.7% 40%,74.7% 57%,79.5% 57%,79.5% 49%,84.4% 49%,84.4% 36%,90.3% 36%,90.3% 34%,100.0% 34%,100% 100%)}
+.bgx[data-k="city"] .l2{background:var(--ink)}
+/* lit windows; the vertical mask strips leave some towers dark */
+.bgx[data-k="city"] .l3{opacity:.6;transition:opacity 1.2s;
+  background:radial-gradient(circle,color-mix(in srgb,var(--acc2) 80%,#fff) .1em,transparent .15em) .3em .6em/.9em 1.25em;
+  -webkit-mask-image:linear-gradient(90deg,#000 0 9%,transparent 9% 14%,#000 14% 31%,transparent 31% 38%,#000 38% 52%,transparent 52% 57%,#000 57% 74%,transparent 74% 81%,#000 81%);mask-image:linear-gradient(90deg,#000 0 9%,transparent 9% 14%,#000 14% 31%,transparent 31% 38%,#000 38% 52%,transparent 52% 57%,#000 57% 74%,transparent 74% 81%,#000 81%);animation:twk 7s ease-in-out infinite alternate}
+.bgx[data-k="city"] .l4{left:0;right:0;bottom:0;height:30%;background:linear-gradient(0deg,color-mix(in srgb,var(--acc) 22%,transparent),transparent)}
+.bgx[data-k="city"][data-tod="day"] .l3{opacity:.08}
+.bgx[data-k="city"][data-tod="dawn"] .l3{opacity:.3}
+.bgx[data-k="city"][data-wx="snow"] .l2{background:linear-gradient(180deg,#cfd8e2 0 2%,var(--ink) 4%)}

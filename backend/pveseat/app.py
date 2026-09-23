@@ -75,9 +75,7 @@ def pve_users(app):
                 if not pr["show_on_login"]:
                     continue
                 name = first or uid.split("@")[0]
-                users.append({"id": uid, "name": name, "full": " ".join(x for x in (first, last) if x),
-                              "avatar": pr["avatar"], "skin": pr["skin"], "background": pr["background"],
-                              "login": pr["layout"].get("login", []), "lang": pr["lang"]})
+                users.append({"id": uid, "name": name, "full": " ".join(x for x in (first, last) if x), **prefs.public(pr)})
     except OSError:
         pass
     return users
@@ -89,22 +87,28 @@ def list_dir_modules(sub, pattern):
                   for p in glob.glob(os.path.join(base, pattern)))
 
 
-def themes():
-    """Theme metadata from the CSS header: @name.uk Сутінки / @name.en Dusk / @preview … / @accent …"""
+def catalog(sub, ext):
+    """Drop-in modules: every web/<sub>/<id>.<ext> is one item. Its metadata lives in the
+    header comment: @name.uk Сутінки / @name.en Dusk / @desc.uk … / @group … / @order 10 …
+    (themes, backgrounds, clocks, fonts all work this way, so adding one is adding a file)."""
     out = []
-    for path in sorted(glob.glob(os.path.join(config.WEB_DIR, "themes", "*.css"))):
+    for path in glob.glob(os.path.join(config.WEB_DIR, sub, "*." + ext)):
         with open(path, encoding="utf-8") as f:
-            head = f.read(800)
-        tid = os.path.splitext(os.path.basename(path))[0]
-        meta = {"id": tid, "name": {}, "desc": {}, "preview": "", "accent": ""}
-        for key, code, val in re.findall(r"@(\w+)(?:\.(\w+))?\s+([^\n*]+)", head):
+            m = re.search(r"/\*(.*?)\*/", f.read(4000), re.S)
+        mid = os.path.splitext(os.path.basename(path))[0]
+        meta = {"id": mid, "name": {}, "desc": {}}
+        for key, code, val in re.findall(r"@(\w+)(?:\.(\w+))?[ \t]+([^\n*]+)", m.group(1) if m else ""):
             if key in ("name", "desc"):
                 meta[key][code or "en"] = val.strip()
-            elif key in ("preview", "accent"):
+            else:
                 meta[key] = val.strip()
-        meta["name"] = meta["name"] or {"en": tid}
+        meta["name"] = meta["name"] or {"en": mid}
         out.append(meta)
-    return out
+    return sorted(out, key=lambda m: (int(m.get("order", 50)), m["id"]))
+
+
+def themes():
+    return catalog("themes", "css")
 
 
 def languages():
@@ -146,6 +150,10 @@ async def public(req):
         "saver_after_min": cfg["saver"]["after_min"],
         "lock_after_min": cfg["lock_after_min"],
         "themes": themes(),
+        "backgrounds": catalog("backgrounds", "css"),
+        "clocks": catalog("clocks", "js"),
+        "fonts": catalog("fonts", "css"),
+        "login": prefs.load_login(),
         "widgets": list_dir_modules("widgets", "*/widget.js"),
     })
 
@@ -200,6 +208,21 @@ async def logout(req):
 async def me(req):
     s = await session(req)
     return web.json_response({"user": s["user"], "prefs": prefs.load(s["user"])})
+
+
+@routes.get("/api/login-settings")
+async def get_login_settings(req):
+    s = await session(req)
+    return web.json_response({"settings": prefs.load_login(),
+                              "can_edit": await req.app["pve"].can(s["ticket"], "/", "Sys.Modify")})
+
+
+@routes.put("/api/login-settings")
+async def put_login_settings(req):
+    s = await session(req)
+    if not await req.app["pve"].can(s["ticket"], "/", "Sys.Modify"):
+        raise PVEError(403, i18n._("forbidden"))
+    return web.json_response(prefs.save_login(await req.json()))
 
 
 @routes.put("/api/prefs")

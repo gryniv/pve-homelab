@@ -1,0 +1,17 @@
+/* @name.uk Пагорби
+   @name.en Hills
+   @group scape
+   @order 50 */
+.bgx[data-k="hills"]{background:linear-gradient(180deg,var(--sky1),var(--sky2) 40%,var(--sky3) 72%)}
+.bgx[data-k="hills"] .sun{left:70%;top:22%;width:6em;height:6em}
+.bgx[data-k="hills"] :is(.l1,.l2,.l3){left:0;right:0;bottom:0}
+.bgx[data-k="hills"] .l1{top:48%;--c:color-mix(in srgb,var(--far) 70%,#3c5a50);
+  background:radial-gradient(ellipse 30% 70% at 12% 100%,var(--c) 99%,transparent 100%),radial-gradient(ellipse 34% 90% at 52% 100%,var(--c) 99%,transparent 100%),radial-gradient(ellipse 30% 60% at 90% 100%,var(--c) 99%,transparent 100%)}
+.bgx[data-k="hills"] .l2{top:60%;--c:color-mix(in srgb,var(--mid) 70%,#223a34);
+  background:radial-gradient(ellipse 36% 80% at 30% 100%,var(--c) 99%,transparent 100%),radial-gradient(ellipse 40% 70% at 78% 100%,var(--c) 99%,transparent 100%),linear-gradient(transparent 70%,var(--c) 70%)}
+.bgx[data-k="hills"] .l3{top:74%;--c:var(--ink);
+  background:radial-gradient(ellipse 45% 70% at 8% 100%,var(--c) 99%,transparent 100%),radial-gradient(ellipse 42% 60% at 60% 100%,var(--c) 99%,transparent 100%),linear-gradient(transparent 60%,var(--c) 60%)}
+.bgx[data-k="hills"] .l4{left:0;right:0;top:44%;height:18%;background:linear-gradient(180deg,transparent,rgba(255,255,255,.12),transparent)}
+.bgx[data-k="hills"][data-wx="snow"] .l1{--c:#dfe7ef}
+.bgx[data-k="hills"][data-wx="snow"] .l2{--c:#aebccb}
+.bgx[data-k="hills"][data-wx="snow"] .l3{--c:#51606f}

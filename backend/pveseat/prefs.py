@@ -12,6 +12,8 @@ DEFAULT = {
     "lang": "",                   # empty = the screen's default language
     "skin": "dusk",
     "background": "scene",        # scene | still | mountains | sea | dunes | city | hills | night | gradient | aurora | dots | grid | solid | black
+    "clock": "digital",           # web/clocks/<id>.js
+    "fonts": {"ui": "", "display": ""},     # web/fonts/<id>.css; empty = the theme's font
     "weather_react": True,
     "sky_by_time": True,
     "layout": {"login": ["weather", "host"], "side": ["host", "gpus"]},
@@ -27,6 +29,42 @@ DEFAULT = {
     "show_on_login": True,
     "note": "",
 }
+
+
+# What the sign-in screen may show about a user before they sign in.
+def public(pr):
+    return {"avatar": pr["avatar"], "skin": pr["skin"], "background": pr["background"], "clock": pr["clock"],
+            "fonts": pr["fonts"], "login": pr["layout"].get("login", []), "lang": pr["lang"]}
+
+
+# Sign-in screen of the whole host (not per user): /etc/pve-seat/login.yaml, edited by admins.
+LOGIN_DEFAULT = {
+    "title": "",             # a line above the clock, e.g. "Home server"
+    "other_user": True,      # the "someone else" tile for typing a user name
+    "remember_last": True,   # preselect whoever signed in last on this seat
+    "avatars": "large",      # large | small
+    "date": True,
+    "hostline": True,
+}
+
+
+def load_login():
+    p = os.path.join(STATE_DIR, "login.yaml")
+    data = {}
+    if os.path.exists(p):
+        with open(p, encoding="utf-8") as f:
+            data = yaml.safe_load(f) or {}
+    return _merge(LOGIN_DEFAULT, data)
+
+
+def save_login(data):
+    merged = _merge(LOGIN_DEFAULT, data)
+    p = os.path.join(STATE_DIR, "login.yaml")
+    os.makedirs(STATE_DIR, exist_ok=True)
+    with open(p + ".tmp", "w", encoding="utf-8") as f:
+        yaml.safe_dump(merged, f, allow_unicode=True, sort_keys=False)
+    os.replace(p + ".tmp", p)
+    return merged
 
 
 def _path(user):

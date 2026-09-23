@@ -10,6 +10,8 @@ import * as tabs from './tabs.js';
 import { arrange, moved } from './order.js';
 import { rail } from './rail.js';
 import * as bg from './backgrounds.js';
+import * as clocks from './clocks.js';
+import * as fonts from './fonts.js';
 import * as i18n from './i18n.js';
 import { $, $$, icon, esc, avatar, fmt, toast, confirmBox, keepFocus, t } from './ui.js';
 
@@ -37,7 +39,8 @@ const app = {
   openSettings: (s) => { S.open(s); go('settings'); },
   openUrl: (url) => tabs.open(url),
   pveUrl: () => (st.services.find((s) => s.key === 'pve')?.url) || `https://${st.pub.ip}:8006`,
-  applyPrefs, weather, useLang: (code) => useLang(code), t,
+  applyPrefs, weather, useLang: (code) => useLang(code), t, locale: () => i18n.locale(),
+  setLoginSettings: (L) => { st.pub.login = L; },
 };
 
 /* ---------------- language ---------------- */
@@ -107,15 +110,20 @@ function paintWeather() {
 }
 
 /* ---------------- look ---------------- */
-function applyLook(skin, background) {
-  document.body.dataset.skin = skin || 'dusk';
-  document.body.dataset.bg = background || 'scene';
-  bg.apply(background || 'scene');
+// A look = theme, background, clock design and fonts: the signed-in user's, or on the
+// sign-in screen the selected user's.
+let clockId = 'digital';
+function applyLook(look = {}) {
+  document.body.dataset.skin = look.skin || 'dusk';
+  document.body.dataset.bg = look.background || 'scene';
+  bg.apply(look.background || 'scene');
+  fonts.apply(look.fonts);
+  if ((look.clock || 'digital') !== clockId) { clockId = look.clock || 'digital'; tick(); }
 }
 
 function applyPrefs({ relayout = false } = {}) {
   const p = st.prefs;
-  applyLook(p.skin, p.background);
+  applyLook(p);
   scene.configure({ react: p.weather_react, byTime: p.sky_by_time, fx: p.saver.fx });
   $('.scr-saver').classList.toggle('sv-clockless', !p.saver.clock);
   paintMe();
@@ -165,17 +173,33 @@ function go(screen) {
 }
 
 /* ---------------- login ---------------- */
+const LAST = 'pveseat.last.' + SEAT;
+const lastUser = () => { try { return localStorage.getItem(LAST) || ''; } catch { return ''; } };
+
+function paintLoginChrome() {
+  const L = st.pub.login || {};
+  $('#loginTitle').textContent = L.title || '';
+  $('#loginTitle').hidden = !L.title;
+  $('.scr-login .date').hidden = L.date === false;
+  $('.scr-login .host').hidden = L.hostline === false;
+  $('#users').classList.toggle('small', L.avatars === 'small');
+}
+
 function renderUsers() {
   const users = st.pub.users;
+  const L = st.pub.login || {};
+  paintLoginChrome();
+  if (st.selUser == null && L.remember_last !== false && users.some((u) => u.id === lastUser())) st.selUser = lastUser();
   if (!st.selUser && users.length) st.selUser = users[0].id;
+  if (st.selUser === '' && L.other_user === false) st.selUser = users[0]?.id ?? '';
   $('#users').innerHTML = users.map((u, i) => {
     const av = avatar(u, u.avatar);
     return `<button class="user${u.id === st.selUser ? ' sel' : ''}" style="--i:${i + 4}" type="button" data-user="${esc(u.id)}">
       <span class="avw"><span class="av" style="background:${av.bg}">${av.inner}</span></span>
       <span class="nm">${esc(u.name)}</span><small>${esc(u.id)}</small></button>`;
-  }).join('') + `<button class="user${st.selUser === '' ? ' sel' : ''}" type="button" data-user="">
+  }).join('') + (L.other_user === false && users.length ? '' : `<button class="user${st.selUser === '' ? ' sel' : ''}" type="button" data-user="">
       <span class="avw"><span class="av" style="background:rgba(255,255,255,.08)"><svg viewBox="0 0 24 24"><use href="#i-user"/></svg></span></span>
-      <span class="nm">${t('login.other')}</span><small>${t('login.other_sub')}</small></button>`;
+      <span class="nm">${t('login.other')}</span><small>${t('login.other_sub')}</small></button>`);
   $$('[data-user]').forEach((b) => (b.onclick = () => selectUser(b.dataset.user)));
   selectUser(st.selUser ?? '', true);
 }
@@ -187,7 +211,7 @@ function selectUser(id, initial = false) {
   $('#otherRow').hidden = !!u;
   $('#pwLabel').textContent = u ? t('login.password_for', { user: u.id }) : t('login.password');
   $('#loginErr').hidden = true;
-  applyLook(u?.skin, u?.background);
+  applyLook(u || {});
   if (!initial) useLang();
   W.renderZone('login', u?.login?.length ? u.login : ['weather', 'host'], { app });
   if (!initial) { $('#pw').value = ''; (u ? $('#pw') : $('#otherUser')).focus(); }
@@ -202,6 +226,7 @@ $('#loginForm').addEventListener('submit', async (e) => {
   try {
     const r = await api.post('/api/login', { user, password: $('#pw').value });
     $('#pw').value = '';
+    try { localStorage.setItem(LAST, r.user); } catch {}
     await enter(r.user, r.prefs);
   } catch (err) {
     $('#loginErr').textContent = err.message;
@@ -602,7 +627,7 @@ setInterval(() => {
 
 function tick() {
   const d = new Date();
-  $$('[data-clock]').forEach((e) => (e.textContent = d.toLocaleTimeString(i18n.locale(), { hour: '2-digit', minute: '2-digit' })));
+  $$('[data-clock]').forEach((e) => clocks.paint(e, clockId, d, i18n.locale()));
   $$('[data-date]').forEach((e) => (e.textContent = d.toLocaleDateString(i18n.locale(), { weekday: 'long', day: 'numeric', month: 'long' })));
 }
 
@@ -647,6 +672,8 @@ async function boot() {
     l.rel = 'stylesheet'; l.href = `/themes/${t.id}.css`;
     document.head.appendChild(l);
   }
+  bg.init(st.pub.backgrounds);
+  fonts.init(st.pub.fonts);
   $$('[data-seat-name]').forEach((x) => (x.textContent = st.pub.seat.gpu_name));
   $$('[data-hostline]').forEach((x) => (x.textContent = `${st.pub.node} · Proxmox VE ${st.pub.version} · ${st.pub.ip}`));
   $$('[data-node]').forEach((x) => (x.textContent = st.pub.node));
@@ -660,7 +687,7 @@ async function boot() {
   tabs.watch(renderOpenTabs);
   await W.load(st.pub.widgets);
   await useLang();
-  tick(); setInterval(tick, 10000);
+  tick(); setInterval(tick, 1000);
   weather().catch(() => {});
   setInterval(() => weather(true).catch(() => {}), 900000);
   setInterval(async () => { try { const p = await api.get('/api/public'); st.pub.guests = p.guests; } catch {} }, 30000);

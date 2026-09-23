@@ -270,9 +270,10 @@ def demo_users(app):
     out = []
     for u in USERS:
         pr = prefs.load(u["id"])
-        out.append({"id": u["id"], "name": u["first"] or u["id"].split("@")[0], "full": u["first"],
-                    "avatar": pr["avatar"] if u["id"] != "guest@pve" or pr["avatar"] else 1, "skin": pr["skin"],
-                    "background": pr["background"], "login": pr["layout"].get("login", []), "lang": pr["lang"]})
+        pub = prefs.public(pr)
+        if u["id"] == "guest@pve" and not pr["avatar"]:
+            pub["avatar"] = 1
+        out.append({"id": u["id"], "name": u["first"] or u["id"].split("@")[0], "full": u["first"], **pub})
     return out
 
 
