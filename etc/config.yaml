@@ -1,0 +1,64 @@
+# PVE Seat: основне налаштування.
+# Файл на хості: /etc/pve-seat/config.yaml. Після змін: systemctl restart pve-seat
+
+listen: 127.0.0.1:8900
+node: ""                      # порожньо = ім'я цього хоста
+systems_tag: seat             # VM з цим тегом з'являються в меню «Системи»
+systems_extra: [100]          # і ці VM теж (100 зараз приспана на диск, тег на неї не ставиться)
+
+# Місце = відеокарта, на якій хост малює своє меню.
+# kiosk: чи запускати на ній меню (Етап 2 додасть RTX).
+seats:
+  igpu:
+    title: Вбудована Radeon
+    gpu: "0000:79:00.0"
+    tty: 7
+    kiosk: true
+
+# Фізичні монітори, підключені до кількох відеокарт одночасно.
+# inputs: PCI-адреса відеокарти -> код входу монітора (VCP 0x60) для DDC.
+monitors:
+  main:
+    ddc_bus: auto             # або номер N з /dev/i2c-N
+    inputs:
+      "0000:79:00.0": 0x11    # HDMI-1
+      "0000:02:00.0": 0x0f    # DisplayPort-1
+
+launch:
+  assign_gpu: true            # перед стартом VM прописувати їй обрану відеокарту
+  allow_igpu: false           # передача вбудованої Radeon у VM (експериментально)
+  return_to_menu: true        # після вимкнення VM перемикати монітор назад на меню
+
+caddy:
+  ct: 200
+  admin: http://localhost:2019
+  prefer_suffix: .hryniv.dev  # з дублікатів (x.hryniv.dev / x.internal) лишати цей
+  hide: [home]
+
+# Гарні назви та логотипи сервісів. Ключ = перша частина домену.
+# icon = назва з https://github.com/homarr-labs/dashboard-icons
+services:
+  audiobooks: {name: Аудіокниги, icon: audiobookshelf, desc: Audiobookshelf}
+  books:      {name: Книги, icon: calibre-web, desc: Calibre-Web}
+  manga:      {name: Манга, icon: komga, desc: Komga}
+  vault:      {name: Паролі, icon: vaultwarden, desc: Vaultwarden}
+  cloud:      {name: Хмара, icon: nextcloud, desc: Nextcloud}
+  photos:     {name: Фото, icon: immich, desc: Immich}
+  plex:       {name: Plex, icon: plex, desc: Медіасервер}
+  jellyfin:   {name: Jellyfin, icon: jellyfin, desc: Медіасервер}
+  claw:       {name: OpenClaw, icon: openclaw, desc: OpenClaw}
+  bambu:      {name: Bambu, icon: bambu-lab, desc: 3D-друк}
+  pve:        {name: Proxmox, icon: proxmox, desc: Гіпервізор}
+  ai:         {name: AI, icon: open-webui, desc: AI-сервіс}
+  lg:         {name: LangGraph, icon: "", desc: LangGraph}
+
+weather:
+  city: Київ
+  units: c                    # c або f
+
+users:
+  hide: []                    # кого не показувати на екрані входу, напр. [root@pam]
+
+saver:
+  after_min: 5                # заставка на екрані входу
+lock_after_min: 15            # вийти з панелі, якщо ніхто нічого не робить
