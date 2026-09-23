@@ -1,3 +1,5 @@
+import { report } from './errlog.js';
+
 // Clock designs are drop-in modules: web/clocks/<id>.js (see README: "Add a clock").
 // A module exports `css` (scoped by [data-clockk="<id>"]) and `render(el, date, ctx)`,
 // which is called every second and should only touch what changed.
@@ -14,7 +16,10 @@ export function load(id) {
       document.head.appendChild(s);
     }
     return m;
-  }).catch(() => (id === 'digital' ? null : load('digital'))));
+  }).catch((e) => {
+    report('clock', `${id}: ${e.message}`, e.stack);
+    return id === 'digital' ? null : load('digital');
+  }));
 }
 
 const parts = (d, locale) => {

@@ -257,5 +257,18 @@
   "pv.windows": "Windows",
   "set.w.configure": "Widget settings",
   "set.w.preview": "How it will look",
-  "set.w.none": "This widget has no settings."
+  "set.w.none": "This widget has no settings.",
+  "log.title": "Error journal",
+  "log.lead": "Warnings and errors from the backend and from the screens themselves (JS, widgets, API failures). File: {file}, and journalctl -u pve-seat.",
+  "log.refresh": "Refresh",
+  "log.clear": "Clear",
+  "log.clear_q": "Clear the error journal?",
+  "log.clear_text": "The entries go away from here and from the log file.",
+  "log.count": "{n} entries",
+  "log.empty": "No errors.",
+  "log.src_server": "server",
+  "log.src_client": "screen · {kind}",
+  "log.seat": "monitor",
+  "log.user": "user",
+  "log.first": "first at {t}"
 }

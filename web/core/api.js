@@ -1,5 +1,6 @@
 // Thin wrapper over the backend. The seat id and UI language travel with every request.
 import { current as lang, t } from './i18n.js';
+import { report } from './errlog.js';
 
 export const SEAT = new URLSearchParams(location.search).get('seat') || 'igpu';
 
@@ -31,6 +32,8 @@ async function call(method, path, body) {
   if (!r.ok) {
     const e = new Error(data.error || `Помилка ${r.status}`);
     e.status = r.status;
+    // 4xx are answers for the user (wrong password, no rights); 5xx are faults worth a record
+    if (r.status >= 500) report('api', `${method} ${path.split('?')[0]} → ${r.status}: ${e.message}`);
     throw e;
   }
   return data;
@@ -42,4 +45,5 @@ export const api = {
   get: (p) => call('GET', withSeat(p)),
   post: (p, b = {}) => call('POST', withSeat(p), b),
   put: (p, b) => call('PUT', withSeat(p), b),
+  del: (p) => call('DELETE', withSeat(p)),
 };

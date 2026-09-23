@@ -19,6 +19,7 @@
 import { api } from './api.js';
 import * as ui from './ui.js';
 import { extend, t } from './i18n.js';
+import { report } from './errlog.js';
 
 const wt = (id) => (key, vars) => {
   const own = t(`w.${id}.${key}`, vars);
@@ -41,6 +42,7 @@ export async function load(ids) {
       }
     } catch (e) {
       console.warn('widget', id, e);
+      report('widget', `${id}: ${e.message}`, e.stack);
     }
   }));
 }
@@ -77,6 +79,8 @@ export function mount(box, id, zone, ctx) {
       w.after?.(box, data, wctx);
     } catch (e) {
       box.innerHTML = `<h4>${ui.esc(w.title)}</h4><div class="werr">${ui.esc(e.message)}</div>`;
+      // the backend already logged its own failures; record what broke in the browser
+      if (!e.status) report('widget', `${id} (${zone}): ${e.message}`, e.stack);
     }
   };
   refresh();

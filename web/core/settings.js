@@ -6,7 +6,7 @@ import * as BG from './backgrounds.js';
 import * as F from './fonts.js';
 import { arrange, moved } from './order.js';
 import { current as currentLang } from './i18n.js';
-import { $, $$, icon, esc, AVATARS, toast, keepFocus, t } from './ui.js';
+import { $, $$, icon, esc, AVATARS, toast, confirmBox, keepFocus, t } from './ui.js';
 
 const ZONES = {
   login: { title: 'set.layout.zone_login', sub: 'set.layout.zone_login_sub' },
@@ -19,7 +19,7 @@ const SECTIONS = [
 ];
 const LOOK_TABS = [['theme', 'set.look.tab_theme'], ['bg', 'set.look.tab_bg'], ['fonts', 'set.look.tab_fonts'], ['clock', 'set.look.tab_clock']];
 
-let app, current = 'look', lookTab = 'theme', saveTimer, loginCfg = null, loginTimer, openW = '', stopPreview = null;
+let app, current = 'look', lookTab = 'theme', saveTimer, loginCfg = null, loginTimer, openW = '', stopPreview = null, logs = null;
 
 const sw = (id, on) => `<span class="sw"><input type="checkbox" id="${id}" ${on ? 'checked' : ''}><i></i></span>`;
 const tgl = (id, on, title, sub = '') => `<label class="tgl"><span>${esc(t(title))}${sub ? `<small>${esc(t(sub))}</small>` : ''}</span>${sw(id, on)}</label>`;
@@ -149,6 +149,31 @@ const lookViews = {
   },
 };
 
+// Error journal (Settings → About): backend warnings and the screens' own errors.
+function journal() {
+  if (!logs) {
+    logs = { pending: true };
+    app.api.get('/api/logs').then((r) => { logs = r; render(); })
+      .catch((e) => { logs = { denied: e.status === 403 || e.status === 401, error: e.message }; render(); });
+  }
+  if (logs.pending) return grp('log.title', '<p class="mute">…</p>');
+  if (logs.denied) return '';
+  if (logs.error) return grp('log.title', `<p class="bad">${esc(logs.error)}</p>`);
+  const fmt = new Intl.DateTimeFormat(currentLang(), { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const src = (x) => (x.startsWith('client') ? t('log.src_client', { kind: x.split(':')[1] || '' }) : t('log.src_server'));
+  const rows = logs.entries.map((e) => `<details class="lrow ${e.level}">
+      <summary><span class="lt">${esc(fmt.format(new Date(e.last * 1000)))}</span><span class="ls">${esc(src(e.source))}</span>
+        <span class="lm">${esc(e.msg)}</span>${e.count > 1 ? `<span class="lc">×${e.count}</span>` : ''}</summary>
+      <div class="ld">${[e.seat && `${t('log.seat')}: ${esc(e.seat)}`, e.user && `${t('log.user')}: ${esc(e.user)}`, e.where && esc(e.where),
+        e.count > 1 && t('log.first', { t: fmt.format(new Date(e.time * 1000)) })].filter(Boolean).join(' · ')}</div>
+      ${e.detail ? `<pre>${esc(e.detail)}</pre>` : ''}</details>`).join('');
+  return grp('log.title', `<p class="lead" style="margin-top:0">${esc(t('log.lead', { file: logs.file }))}</p>
+    <div class="lbar"><button class="chipbtn" type="button" id="logRefresh">${icon('i-refresh')}${t('log.refresh')}</button>
+      ${logs.can_clear && logs.entries.length ? `<button class="chipbtn" type="button" id="logClear">${icon('i-x')}${t('log.clear')}</button>` : ''}
+      <span class="mute">${t('log.count', { n: logs.entries.length })}</span></div>
+    <div class="llist">${rows || `<p class="ok" style="margin:.4em 0">${t('log.empty')}</p>`}</div>`);
+}
+
 const views = {
   look(p) {
     const lang = currentLang();
@@ -214,7 +239,8 @@ const views = {
       </div>
       <div class="grp"><div class="gl">${t('about.credits')}</div>
         <div class="mute credits">noVNC (MPL-2.0) · Meteocons, Bas Milius (MIT) · dashboard-icons, homarr-labs · Open-Meteo · Google Fonts (OFL) · cage · Chromium</div></div>
-      <button class="btn ghost" type="button" id="showHelp">${icon('i-info')}${t('help.title')}</button>`;
+      <button class="btn ghost" type="button" id="showHelp">${icon('i-info')}${t('help.title')}</button>
+      <div style="margin-top:1.6em">${journal()}</div>`;
   },
 };
 
@@ -270,6 +296,11 @@ function bind(p) {
     try { await app.weather(true); toast(t('set.weather.updated')); app.applyPrefs({ relayout: true }); } catch (err) { toast(err.message, true); }
   });
   $('#showHelp') && ($('#showHelp').onclick = () => app.showHelp());
+  $('#logRefresh') && ($('#logRefresh').onclick = () => { logs = null; render(); });
+  $('#logClear') && ($('#logClear').onclick = async () => {
+    if (!(await confirmBox(t('log.clear_q'), t('log.clear_text'), t('log.clear')))) return;
+    try { await app.api.del('/api/logs'); logs = null; render(); } catch (e) { toast(e.message, true); }
+  });
   // widget zones
   $$('[data-wcfg]', box).forEach((b) => (b.onclick = () => { openW = openW === b.dataset.wcfg ? '' : b.dataset.wcfg; render(); }));
   const setOpt = (id, key, v) => {
@@ -334,7 +365,7 @@ function draw() {
       <span class="sp"></span><span class="saved" id="savedNote">${t('set.saved_hint')}</span>
     </nav>
     <div class="scont"><button class="chipbtn sclose" type="button" id="sClose">${icon('i-x')}${t('set.close')}</button>${views[current](p)}</div>`;
-  $$('[data-sp]').forEach((b) => (b.onclick = () => { current = b.dataset.sp; render(); }));
+  $$('[data-sp]').forEach((b) => (b.onclick = () => { current = b.dataset.sp; if (current === 'about') logs = null; render(); }));
   $('#sClose').onclick = () => app.go('dash');
   bind(p);
 }

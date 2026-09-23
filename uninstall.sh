@@ -10,7 +10,7 @@ systemctl disable --now pve-seat.service pve-seat-update.timer 2>/dev/null || tr
 rm -rf /etc/systemd/system/pve-seat-update.service /etc/systemd/system/pve-seat-update.timer
 rm -rf /etc/systemd/system/pve-seat.service /etc/systemd/system/pve-seat-kiosk@.service /etc/systemd/system/pve-seat-kiosk@*.service.d
 rm -f /etc/modules-load.d/pve-seat.conf
-rm -rf /opt/pve-seat /var/cache/pve-seat
+rm -rf /opt/pve-seat /var/cache/pve-seat /var/log/pve-seat
 systemctl daemon-reload
 chvt 1 || true
 echo "PVE Seat прибрано. Пакети (cage, chromium, ddcutil) і користувач pveseat лишились."

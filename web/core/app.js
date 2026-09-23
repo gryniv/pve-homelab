@@ -12,6 +12,7 @@ import { rail } from './rail.js';
 import * as bg from './backgrounds.js';
 import * as clocks from './clocks.js';
 import * as fonts from './fonts.js';
+import * as errlog from './errlog.js';
 import * as i18n from './i18n.js';
 import { $, $$, icon, esc, avatar, fmt, toast, confirmBox, keepFocus, t } from './ui.js';
 
@@ -664,6 +665,7 @@ app.about = () => about;
 
 /* ---------------- boot ---------------- */
 async function boot() {
+  errlog.init();
   scene.init();
   nav.init();
   st.pub = await api.get('/api/public');
@@ -701,6 +703,7 @@ async function boot() {
 }
 
 boot().catch((e) => {
+  errlog.report('boot', e.message, e.stack);
   toast(t('error.load', { msg: e.message }), true);
   setTimeout(() => location.reload(), 5000);
 });

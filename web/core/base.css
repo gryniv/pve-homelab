@@ -350,6 +350,21 @@ html,body{margin:0;height:100%;background:#05080e}
 .A .wcfg .checks label{display:inline-flex;align-items:center;gap:.35em}
 .A .wprevbox .gl{margin-bottom:.4em}
 .A .wprev .w{font-size:.92em}
+/* error journal (Settings → About) */
+.A .lbar{display:flex;align-items:center;gap:.6em;margin:.2em 0 .7em}
+.A .llist{display:flex;flex-direction:column;gap:.3em;max-height:28em;overflow:auto;padding-right:.3em}
+.A .lrow{border:1px solid var(--edge);border-radius:.6em;background:rgba(255,255,255,.03);font-size:.85em}
+.A .lrow summary{display:flex;align-items:baseline;gap:.7em;padding:.5em .7em;cursor:pointer;list-style:none;min-width:0}
+.A .lrow summary::-webkit-details-marker{display:none}
+.A .lrow .lt{font-family:var(--mono);font-size:.85em;color:var(--mute);flex:none}
+.A .lrow .ls{flex:none;font-size:.78em;padding:.08em .5em;border-radius:1em;background:rgba(255,255,255,.08)}
+.A .lrow.error .ls{background:rgba(255,107,107,.18);color:#ffb3b3}
+.A .lrow.warning .ls{background:rgba(245,196,81,.16);color:#ffe0a0}
+.A .lrow .lm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.A .lrow[open] .lm{white-space:normal}
+.A .lrow .lc{flex:none;font-weight:700;color:var(--acc-text)}
+.A .lrow .ld{padding:0 .7em .5em;color:var(--mute);font-size:.9em}
+.A .lrow pre{margin:0 .7em .7em;padding:.6em;border-radius:.4em;background:rgba(0,0,0,.35);font:.82em/1.4 var(--mono);white-space:pre-wrap;word-break:break-word;max-height:16em;overflow:auto;user-select:text}
 .A .subh{margin:1.6em 0 .2em;font-size:1.05em;text-transform:none;letter-spacing:0;color:#e8edf3}
 .A .lookbar{display:flex;align-items:center;gap:1em;flex-wrap:wrap;margin-bottom:.4em}
 .A .lookbar .sp{flex:1}

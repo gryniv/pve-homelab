@@ -11,7 +11,7 @@ from urllib.parse import quote
 import aiohttp
 from aiohttp import web
 
-from . import caddy, config, discover, gpus as G, i18n, icons, prefs, update, weather
+from . import caddy, config, discover, errlog, gpus as G, i18n, icons, prefs, update, weather
 from .ddc import DDC
 from .host import HostStats
 from .launch import Launcher
@@ -50,8 +50,13 @@ async def errors(req, handler):
     try:
         return await handler(req)
     except PVEError as e:
+        # 4xx from Proxmox is the user's business (wrong password, no permission); 5xx is ours
+        if e.status >= 500:
+            log.warning("PVE %s on %s %s: %s", e.status, req.method, req.path, e)
         return err(e.status, str(e))
     except web.HTTPException as e:
+        if e.status >= 500:
+            log.warning("%s %s -> %s %s", req.method, req.path, e.status, e.text or e.reason)
         if req.path.startswith("/api/") and e.status >= 400:
             return err(e.status, e.text or e.reason)
         raise
@@ -223,6 +228,40 @@ async def put_login_settings(req):
     if not await req.app["pve"].can(s["ticket"], "/", "Sys.Modify"):
         raise PVEError(403, i18n._("forbidden"))
     return web.json_response(prefs.save_login(await req.json()))
+
+
+# ---------------- error journal ----------------
+@routes.post("/api/client-log")
+async def client_log(req):
+    """The screens report their own errors here, also before anyone has signed in."""
+    seat = seat_of(req)
+    s = req.app["sessions"].get(req.cookies.get(COOKIE))
+    try:
+        body = await req.json()
+    except ValueError:
+        raise web.HTTPBadRequest(text="bad json")
+    errlog.client(body if isinstance(body, dict) else {}, seat, s["user"] if s else "")
+    return web.json_response({"ok": True})
+
+
+@routes.get("/api/logs")
+async def get_logs(req):
+    s = await session(req)
+    pve = req.app["pve"]
+    if not (await pve.can(s["ticket"], "/", "Sys.Audit") or await pve.can(s["ticket"], "/", "Sys.Modify")):
+        raise PVEError(403, i18n._("forbidden"))
+    return web.json_response({"entries": errlog.entries(), "file": errlog.LOG_FILE,
+                              "can_clear": await pve.can(s["ticket"], "/", "Sys.Modify")})
+
+
+@routes.delete("/api/logs")
+async def clear_logs(req):
+    s = await session(req)
+    if not await req.app["pve"].can(s["ticket"], "/", "Sys.Modify"):
+        raise PVEError(403, i18n._("forbidden"))
+    errlog.clear()
+    log.info("error journal cleared by %s", s["user"])
+    return web.json_response({"ok": True})
 
 
 @routes.put("/api/prefs")
@@ -497,6 +536,7 @@ async def _no_stale_code(req, resp):
 
 
 def make_app():
+    errlog.setup()
     app = web.Application(middlewares=[errors])
     app.on_response_prepare.append(_no_stale_code)
     app["cfg"] = config.load()
