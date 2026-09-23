@@ -12,6 +12,10 @@ import os
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+# Must be set before pveseat is imported: it reads these paths at import time.
+# Per-user settings written during a dry run go to /tmp, never to /etc/pve-seat/users.
+os.environ["PVESEAT_STATE"] = "/tmp/pve-seat-dryrun"
+os.environ.setdefault("PVESEAT_WEB", os.path.join(HERE, "..", "web"))
 for p in (os.path.join(HERE, "..", "backend"), "/opt/pve-seat/backend"):
     if os.path.isdir(p):
         sys.path.insert(0, p)
@@ -58,7 +62,6 @@ def main():
     L.Launcher._to_virgl = _noop
     D.DDC.switch_to_gpu = _noop
     A.PVE = DryPVE
-    os.environ.setdefault("PVESEAT_STATE", "/tmp/pve-seat-dryrun")
     logging.basicConfig(level=logging.INFO)
     web.run_app(A.make_app(), host="127.0.0.1", port=a.port, print=None, access_log=None)
 

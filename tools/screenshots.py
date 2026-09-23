@@ -84,7 +84,9 @@ async def run(out, base, sizes, lang):
             await js("document.querySelector('#pw').value='test';document.querySelector('#loginForm').requestSubmit()")
             await asyncio.sleep(8)
             if lang:
-                await js(f"fetch('/api/prefs?seat=igpu',{{method:'PUT',headers:{{'Content-Type':'application/json'}},body:JSON.stringify(Object.assign({{}},window.__prefs||{{}},{{lang:'{lang}'}}))}})")
+                await js("fetch('/api/me?seat=igpu').then(r=>r.json()).then(me=>fetch('/api/prefs?seat=igpu',"
+                         "{method:'PUT',headers:{'Content-Type':'application/json'},"
+                         f"body:JSON.stringify(Object.assign(me.prefs,{{lang:'{lang}'}}))}}))")
             for size in sizes:
                 w, h = map(int, size.split("x"))
                 await cmd("Emulation.setDeviceMetricsOverride", width=w, height=h, deviceScaleFactor=1, mobile=False)
