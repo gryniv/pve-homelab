@@ -54,6 +54,7 @@ async function useLang(code = wantedLang()) {
 // Everything that holds translated text is rebuilt from state.
 function rerender() {
   tick(); paintWeather(); renderLoginLang();
+  if (upd?.available) $('#updPill span').textContent = t('upd.pill', { v: updLabel(upd) });
   if (st.me) {
     W.renderZone('side', st.prefs.layout.side || [], { app });
     const body = $('.scr-dash .body');
@@ -217,6 +218,9 @@ async function enter(userid, prefs) {
   const a = document.activeElement;
   if (st.screen === 'dash' && (!a || a === document.body || a.closest('.top'))) nav.focusFirst(undefined, '.sys .play');
   st.timers.push(setInterval(refreshDash, 10000));
+  updReminded = false;
+  setTimeout(checkUpdate, 2500);
+  st.timers.push(setInterval(checkUpdate, 30 * 60000));
 }
 
 async function logout() {
@@ -421,6 +425,31 @@ function fail(msg) {
 
 $('#mStart').onclick = startLaunch;
 
+/* ---------------- updates ---------------- */
+let upd = null, updReminded = false;
+const updLabel = (u) => u.latest.version ? `v${u.latest.version}` : (u.latest.commit || '').slice(0, 7);
+
+async function checkUpdate() {
+  if (!st.me) return;
+  try { upd = await api.get('/api/update'); } catch { upd = null; }
+  const pill = $('#updPill');
+  pill.hidden = !upd?.available;
+  if (!upd?.available) return;
+  pill.querySelector('span').textContent = t('upd.pill', { v: updLabel(upd) });
+  pill.title = upd.latest.notes || '';
+  // Remind once per sign-in.
+  if (!updReminded) { updReminded = true; toast(t('upd.remind', { v: updLabel(upd) })); }
+}
+
+$('#updPill').onclick = async () => {
+  if (!upd?.available) return;
+  const v = updLabel(upd);
+  if (!upd.can_apply) { toast(t('upd.no_perm', { v }), true); return; }
+  if (!(await confirmBox(t('upd.confirm_title', { v }), t('upd.confirm_text'), t('upd.apply')))) return;
+  try { await api.post('/api/update/apply'); toast(t('upd.started')); $('#updPill').hidden = true; }
+  catch (e) { toast(e.message, true); }
+};
+
 /* ---------------- open service tabs ---------------- */
 function renderOpenTabs(list) {
   const el = $('#openTabs');
@@ -494,6 +523,11 @@ async function boot() {
   $$('[data-seat-name]').forEach((x) => (x.textContent = st.pub.seat.gpu_name));
   $$('[data-hostline]').forEach((x) => (x.textContent = `${st.pub.node} · Proxmox VE ${st.pub.version} · ${st.pub.ip}`));
   $$('[data-node]').forEach((x) => (x.textContent = st.pub.node));
+  if (st.pub.demo) {
+    const b = document.createElement('div');
+    b.className = 'demo-badge'; b.dataset.i18n = 'demo.badge';
+    document.body.appendChild(b);
+  }
   S.init(app);
   tabs.watch(renderOpenTabs);
   await W.load(st.pub.widgets);

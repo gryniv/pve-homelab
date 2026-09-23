@@ -6,7 +6,8 @@ set -euo pipefail
 for u in $(systemctl list-units --all --plain --no-legend 'pve-seat-kiosk@*' | awk '{print $1}'); do
   systemctl disable --now "$u" || true
 done
-systemctl disable --now pve-seat.service 2>/dev/null || true
+systemctl disable --now pve-seat.service pve-seat-update.timer 2>/dev/null || true
+rm -rf /etc/systemd/system/pve-seat-update.service /etc/systemd/system/pve-seat-update.timer
 rm -rf /etc/systemd/system/pve-seat.service /etc/systemd/system/pve-seat-kiosk@.service /etc/systemd/system/pve-seat-kiosk@*.service.d
 rm -f /etc/modules-load.d/pve-seat.conf
 rm -rf /opt/pve-seat /var/cache/pve-seat

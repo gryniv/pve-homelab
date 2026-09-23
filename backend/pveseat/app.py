@@ -11,12 +11,12 @@ from urllib.parse import quote
 import aiohttp
 from aiohttp import web
 
-from . import caddy, config, gpus as G, i18n, icons, prefs, weather
+from . import caddy, config, gpus as G, i18n, icons, prefs, update, weather
 from .ddc import DDC
 from .host import HostStats
 from .launch import Launcher
 from .pve import PVE, PVEError
-from .util import Cached, log, pvesh
+from .util import Cached, log, pvesh, run
 
 COOKIE = "pveseat_sid"
 routes = web.RouteTableDef()
@@ -130,6 +130,7 @@ async def public(req):
     guests = [g for g in res if not g.get("template")]
     return web.json_response({
         "node": cfg["node"],
+        "demo": app.get("demo", False),
         "version": app["pveversion"],
         "ip": app["host_ip"],
         "seat": {"id": seat, **cfg["seats"][seat], "gpu_name": await G.pretty_name(cfg["seats"][seat]["gpu"])},
@@ -333,6 +334,29 @@ async def console_ws(req):
     return down
 
 
+@routes.get("/api/update")
+async def update_status(req):
+    s = await session(req)
+    try:
+        st = dict(await req.app["update"].get())
+    except Exception as e:
+        return web.json_response({"enabled": False, "error": str(e)})
+    st["can_apply"] = await req.app["pve"].can(s["ticket"], "/", "Sys.Modify")
+    return web.json_response(st)
+
+
+@routes.post("/api/update/apply")
+async def update_apply(req):
+    s = await session(req)
+    if not await req.app["pve"].can(s["ticket"], "/", "Sys.Modify"):
+        raise PVEError(403, i18n._("forbidden"))
+    # A transient unit, so restarting pve-seat during install.sh doesn't kill the update itself.
+    await run("systemd-run", "--unit=pve-seat-update-now", "--collect", "--quiet",
+              "--setenv=PYTHONPATH=/opt/pve-seat/backend", "/usr/bin/python3", "-m", "pveseat.update", "apply")
+    log.info("update started by %s", s["user"])
+    return web.json_response({"ok": True})
+
+
 @routes.post("/api/host/power")
 async def host_power(req):
     s = await session(req)
@@ -384,6 +408,10 @@ async def on_startup(app):
         ips = await caddy.guest_ips(cfg["node"], res)
         return caddy.build(cfg, await caddy.routes(cfg), ips, app["host_ip"])
     app["services"] = Cached(build_services, 60, stale=True)
+
+    async def check_update():
+        return await update.status(cfg)
+    app["update"] = Cached(check_update, max(1, float(update.settings(cfg)["check_hours"])) * 3600, stale=True)
 
     app["launcher"] = Launcher(app)
     app["tasks"] = [asyncio.create_task(app["stats"].loop()),

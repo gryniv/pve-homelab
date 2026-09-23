@@ -141,6 +141,11 @@ html,body{margin:0;height:100%;background:#05080e}
 .A .top .tw img{width:1.9em;height:1.9em;margin:-.5em -.25em -.5em -.4em}
 .A .top .clock-s{color:#e8edf3;font-weight:600}
 .A .vsep{width:1px;height:1.6em;background:var(--edge)}
+.A .updpill{display:inline-flex;align-items:center;gap:.45em;border:1px solid var(--acc-line);background:var(--acc-soft);color:var(--acc-text);
+  border-radius:2em;padding:.3em .8em;font-size:.82em;font-weight:600;white-space:nowrap;animation:fadein .4s ease both}
+.A .updpill:hover{background:var(--acc);color:var(--acc-ink)}
+.A .demo-badge{position:absolute;left:50%;top:1em;transform:translateX(-50%);z-index:30;font-size:.78em;font-weight:600;letter-spacing:.04em;
+  background:rgba(255,193,94,.16);color:#ffd59a;border:1px solid rgba(255,193,94,.45);border-radius:2em;padding:.3em 1em;pointer-events:none}
 .A .ibtn{background:none;border:0;border-radius:.5em;width:2.2em;height:2.2em;display:grid;place-items:center;color:var(--mute);transition:background .15s,color .15s}
 .A .ibtn:hover{background:rgba(255,255,255,.08);color:#fff}
 /* open service tabs: flexible middle strip, fades out instead of clipping */

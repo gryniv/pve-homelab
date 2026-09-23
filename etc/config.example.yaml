@@ -62,3 +62,12 @@ lock_after_min: 15            # log out of the dashboard after this much inactiv
 
 kiosk:
   debug_port: 0               # >0 = Chromium DevTools on 127.0.0.1:<port> (development only)
+
+# Updates from GitHub. The menu shows "Update vX.Y.Z" in the top bar and reminds after sign-in;
+# users with Sys.Modify on / can install it from there. Git is not needed on the host.
+update:
+  repo: ""                    # owner/name; empty = the repository this was installed from (git clone)
+  channel: release            # release = latest GitHub release (tag vX.Y.Z); main = newest commit of `branch`
+  branch: main
+  auto: false                 # true = install new versions by itself every night (pve-seat-update.timer)
+  check_hours: 6

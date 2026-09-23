@@ -175,6 +175,13 @@ def render(seats, monitors, caddy_ct, city, lang):
     w("")
     w("kiosk:")
     w("  debug_port: 0               # >0 = Chromium DevTools on 127.0.0.1:<port> (development only)")
+    w("")
+    w("update:")
+    w("  repo: \"\"                    # owner/name on GitHub; empty = the repository this was installed from")
+    w("  channel: release            # release = latest GitHub release, main = newest commit of `branch`")
+    w("  branch: main")
+    w("  auto: false                 # true = install new versions by itself every night (04:30)")
+    w("  check_hours: 6              # how often the menu checks; new versions are shown in the top bar")
     return "\n".join(L) + "\n"
 
 

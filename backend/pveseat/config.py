@@ -17,6 +17,7 @@ DEFAULTS = {
     "systems_extra": [],
     "links": [],
     "kiosk": {"debug_port": 0},
+    "update": {"repo": "", "channel": "release", "branch": "main", "auto": False, "check_hours": 6},
     "seats": {},
     "monitors": {},
     "launch": {"assign_gpu": True, "allow_igpu": False, "return_to_menu": True},

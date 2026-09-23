@@ -43,6 +43,11 @@ install -d /opt/pve-seat /etc/pve-seat/users /var/cache/pve-seat
 rm -rf /opt/pve-seat/backend /opt/pve-seat/web /opt/pve-seat/kiosk
 cp -r backend web kiosk /opt/pve-seat/
 [ -f VERSION ] && cp VERSION /opt/pve-seat/
+# What is installed and where it came from, for the updater (see backend/pveseat/update.py).
+COMMIT="${PVESEAT_COMMIT:-$(git rev-parse HEAD 2>/dev/null || true)}"
+REPO="${PVESEAT_REPO:-$(git remote get-url origin 2>/dev/null || true)}"
+echo "$COMMIT" > /opt/pve-seat/COMMIT
+[ -n "$REPO" ] && echo "$REPO" > /opt/pve-seat/REPO
 chown -R root:root /opt/pve-seat
 chmod -R u=rwX,go=rX /opt/pve-seat
 chmod 755 /opt/pve-seat/kiosk/kiosk.sh
@@ -65,7 +70,7 @@ if [ "$KIOSK" = 1 ]; then
 fi
 
 echo "==> Services"
-cp systemd/pve-seat.service systemd/pve-seat-kiosk@.service /etc/systemd/system/
+cp systemd/pve-seat.service systemd/pve-seat-kiosk@.service systemd/pve-seat-update.service systemd/pve-seat-update.timer /etc/systemd/system/
 SEATS=$(python3 -c "
 import yaml
 c = yaml.safe_load(open('/etc/pve-seat/config.yaml')) or {}
@@ -74,7 +79,10 @@ for sid, s in (c.get('seats') or {}).items():
 ")
 systemctl daemon-reload
 systemctl enable --now pve-seat.service >/dev/null
-systemctl restart pve-seat.service
+systemctl enable --now pve-seat-update.timer >/dev/null 2>&1
+# An update installed from the menu runs inside pve-seat-update-now; restarting the backend
+# must not kill that run, so the restart happens without waiting for it.
+systemctl restart --no-block pve-seat.service
 
 if [ "$KIOSK" = 1 ]; then
   while read -r sid tty; do

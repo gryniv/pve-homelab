@@ -138,5 +138,14 @@
   "set.account.show_sub": "otherwise sign in through Other",
 
   "wx.clear": "clear", "wx.partly": "partly cloudy", "wx.overcast": "overcast", "wx.fog": "fog",
-  "wx.rain": "rain", "wx.snow": "snow", "wx.thunder": "thunderstorm"
+  "wx.rain": "rain", "wx.snow": "snow", "wx.thunder": "thunderstorm",
+
+  "upd.pill": "Update {v}",
+  "upd.remind": "A new PVE Seat version is available: {v}",
+  "upd.confirm_title": "Update PVE Seat to {v}?",
+  "upd.confirm_text": "The menu restarts in about a minute. Settings and config are kept.",
+  "upd.no_perm": "Version {v} is available. An administrator (Sys.Modify) can install it.",
+  "upd.apply": "Update",
+  "upd.started": "Updating… the menu will restart by itself",
+  "demo.badge": "DEMO · any password · nothing really changes"
 }
