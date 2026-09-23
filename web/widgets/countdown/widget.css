@@ -1,0 +1,2 @@
+.A .w[data-w="countdown"] .cd{display:flex;align-items:baseline;gap:.5em;margin:.1em 0 .2em}
+.A .w[data-w="countdown"] .cd b{font-family:var(--font-display,var(--display));font-size:2.4em;line-height:1;color:var(--acc-text)}

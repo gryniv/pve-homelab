@@ -1,0 +1,4 @@
+.A .w[data-w="clock"]{text-align:center}
+.A .w[data-w="clock"] .clock.wclk{font-size:3.4em;margin:.05em 0 .1em}
+.A .w[data-w="clock"] .clock.wclk[data-clockk="analog"]{font-size:4em}
+.A .w[data-w="clock"] .wdate{font-size:.85em}

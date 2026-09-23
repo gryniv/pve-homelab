@@ -94,17 +94,12 @@
 /* Previews stand still until they are looked at: two dozen live skies would load the GPU. */
 .A .scrn:not(.live) *,.A .scrn:not(.live) *::before,.A .scrn:not(.live) *::after{animation-play-state:paused!important}
 
-/* rain / snow for a preview (the page has its canvas) */
-.A .pvfx{position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .8s}
-.A .scrn:is([data-wx="rain"],[data-wx="thunder"]) .pvfx{opacity:.8;
-  background:repeating-linear-gradient(104deg,transparent 0 1.6em,rgba(190,210,240,.38) 1.6em 1.72em) 0 0/100% 7em;animation:pvRain .45s linear infinite}
-@keyframes pvRain{to{background-position:-1.7em 7em}}
-.A .scrn[data-wx="snow"] .pvfx{opacity:.9;
-  background:radial-gradient(circle,#fff .18em,transparent .24em) 0 0/4.3em 4.9em,radial-gradient(circle,rgba(255,255,255,.7) .13em,transparent .19em) 2em 2.2em/3.1em 3.7em;
-  animation:pvSnow 6s linear infinite}
-@keyframes pvSnow{to{background-position:2em 24.5em,-1em 22.2em}}
-.A .scrn[data-wx="thunder"] .pvfx::after{content:"";position:absolute;inset:0;background:#dfe8ff;opacity:0;animation:pvFlash 3.2s linear infinite}
-@keyframes pvFlash{0%,86%,90%,100%{opacity:0}87%{opacity:.5}89%{opacity:.15}}
+/* rain / snow / lightning for a preview: a small canvas (backgrounds.js), only while hovered */
+.A .pvfx{position:absolute;inset:0;pointer-events:none}
+.A .pvfx canvas{width:100%;height:100%;display:block}
+.A .pvfx::after{content:"";position:absolute;inset:0;background:#dfe8ff;opacity:0}
+.A .scrn.live[data-wx="thunder"] .pvfx::after{animation:pvFlash 2.2s linear infinite}
+@keyframes pvFlash{0%,62%,70%,100%{opacity:0}63%{opacity:.55}66%{opacity:.12}67%{opacity:.35}}
 
 /* the sign-in screen and the dashboard, in miniature */
 .A .mock{position:absolute;inset:0;pointer-events:none;color:#fff}
@@ -142,4 +137,4 @@
 .A .scrn.live .pdots{opacity:1}
 .A .scrn .pdots i{position:static;width:1.4em;height:1.4em;border-radius:50%;background:rgba(255,255,255,.35);transition:background .3s,transform .3s}
 .A .scrn .pdots i.on{background:#fff;transform:scale(1.3)}
-@media (prefers-reduced-motion:reduce){.A .pvfx{animation:none!important}}
+@media (prefers-reduced-motion:reduce){.A .pvfx::after{animation:none!important}}

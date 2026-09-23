@@ -17,6 +17,7 @@ DEFAULT = {
     "weather_react": True,
     "sky_by_time": True,
     "layout": {"login": ["weather", "host"], "side": ["host", "gpus"]},
+    "widget_opts": {},            # {<widget id>: {<option>: value}}, see "options" in web/widgets/<id>/widget.js
     "weather": {"city": "", "units": ""},   # порожньо = як у config.yaml
     "launch": {"gpu": "auto", "ask": True, "pass_input": True},
     "saver": {"fx": True, "clock": True},
@@ -34,7 +35,9 @@ DEFAULT = {
 # What the sign-in screen may show about a user before they sign in.
 def public(pr):
     return {"avatar": pr["avatar"], "skin": pr["skin"], "background": pr["background"], "clock": pr["clock"],
-            "fonts": pr["fonts"], "login": pr["layout"].get("login", []), "lang": pr["lang"]}
+            "fonts": pr["fonts"], "login": pr["layout"].get("login", []), "lang": pr["lang"],
+            # options of the sign-in screen widgets only (the rest stays private)
+            "widget_opts": {k: v for k, v in pr["widget_opts"].items() if k in pr["layout"].get("login", [])}}
 
 
 # Sign-in screen of the whole host (not per user): /etc/pve-seat/login.yaml, edited by admins.
@@ -77,7 +80,11 @@ def _merge(base, over):
     for k, v in (over or {}).items():
         if k not in base:
             continue
-        out[k] = _merge(base[k], v) if isinstance(base[k], dict) and isinstance(v, dict) else v
+        if isinstance(base[k], dict) and isinstance(v, dict):
+            # an empty default dict is free-form (widget_opts): keep whatever is stored
+            out[k] = copy.deepcopy(v) if not base[k] else _merge(base[k], v)
+        else:
+            out[k] = v
     return out
 
 

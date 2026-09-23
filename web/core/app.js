@@ -55,7 +55,7 @@ async function useLang(code = wantedLang()) {
   if (await i18n.setLang(code)) {
     rerender();
     // City names come back from the geocoder in the requested language.
-    if (st.pub) weather(true).then(() => st.me ? W.renderZone('side', st.prefs.layout.side || [], { app }) : keepFocus($('#loginForm'), renderUsers)).catch(() => {});
+    if (st.pub) weather(true).then(() => st.me ? W.renderZone('side', st.prefs.layout.side || [], { app, opts: st.prefs.widget_opts }) : keepFocus($('#loginForm'), renderUsers)).catch(() => {});
   }
   tabs.setLang(i18n.current());
 }
@@ -65,7 +65,7 @@ function rerender() {
   tick(); paintWeather(); renderLoginLang(); paintAbout();
   if (upd?.available) $('#updPill span').textContent = t('upd.pill', { v: updLabel(upd) });
   if (st.me) {
-    W.renderZone('side', st.prefs.layout.side || [], { app });
+    W.renderZone('side', st.prefs.layout.side || [], { app, opts: st.prefs.widget_opts });
     const body = $('.scr-dash .body');
     keepFocus(body, renderSystems); keepFocus(body, renderServices); keepFocus(body, renderGuests);
     if (st.screen === 'settings') S.render();
@@ -127,7 +127,7 @@ function applyPrefs({ relayout = false } = {}) {
   scene.configure({ react: p.weather_react, byTime: p.sky_by_time, fx: p.saver.fx });
   $('.scr-saver').classList.toggle('sv-clockless', !p.saver.clock);
   paintMe();
-  if (relayout) W.renderZone('side', p.layout.side || [], { app });
+  if (relayout) W.renderZone('side', p.layout.side || [], { app, opts: p.widget_opts });
   const body = $('.scr-dash .body');
   keepFocus(body, renderServices);
   if (st.me) keepFocus(body, renderSystems);
@@ -213,7 +213,7 @@ function selectUser(id, initial = false) {
   $('#loginErr').hidden = true;
   applyLook(u || {});
   if (!initial) useLang();
-  W.renderZone('login', u?.login?.length ? u.login : ['weather', 'host'], { app });
+  W.renderZone('login', u?.login?.length ? u.login : ['weather', 'host'], { app, opts: u?.widget_opts });
   if (!initial) { $('#pw').value = ''; (u ? $('#pw') : $('#otherUser')).focus(); }
 }
 
@@ -244,7 +244,7 @@ async function enter(userid, prefs) {
   rerender();
   applyPrefs();
   W.stopZone('login');
-  W.renderZone('side', prefs.layout.side || [], { app });
+  W.renderZone('side', prefs.layout.side || [], { app, opts: prefs.widget_opts });
   go('dash');
   weather(true).catch(() => {});
   await refreshDash();

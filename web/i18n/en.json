@@ -254,5 +254,8 @@
   "pv.clear": "Clear",
   "pv.storm": "Storm",
   "pv.night": "Night",
-  "pv.windows": "Windows"
+  "pv.windows": "Windows",
+  "set.w.configure": "Widget settings",
+  "set.w.preview": "How it will look",
+  "set.w.none": "This widget has no settings."
 }

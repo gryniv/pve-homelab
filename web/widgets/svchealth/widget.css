@@ -1,0 +1,5 @@
+.A .w[data-w="svchealth"] .sh{display:flex;align-items:baseline;gap:.5em;margin-bottom:.35em}
+.A .w[data-w="svchealth"] .sh b{font-family:var(--font-display,var(--display));font-size:1.9em;line-height:1}
+.A .w[data-w="svchealth"] .sr{display:flex;align-items:center;gap:.5em;font-size:.86em;padding:.22em 0}
+.A .w[data-w="svchealth"] .sr span:nth-child(2){flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.A .w[data-w="svchealth"] .sr small{font-size:.78em}

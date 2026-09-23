@@ -111,11 +111,68 @@ function present(scrn) {
   const step = () => { setFrame(scrn, FRAMES[i], i); i = (i + 1) % FRAMES.length; };
   step();
   scrn._pv = setInterval(step, 2200);
+  particles(scrn);
 }
 
 function stop(scrn) {
   clearInterval(scrn._pv);
   scrn._pv = null;
+  cancelAnimationFrame(scrn._raf);
+  const cv = scrn.querySelector('.pvfx canvas');
+  cv?.getContext('2d').clearRect(0, 0, cv.width, cv.height);
   scrn.classList.remove('live');
   setFrame(scrn, null);
+}
+
+// Rain, snow and lightning for the hovered preview, drawn like the page's own (scene.js #fx),
+// scaled to the tiny screen. Only one preview is hovered at a time, so this stays cheap.
+function particles(scrn) {
+  const box = scrn.querySelector('.pvfx');
+  let cv = box.querySelector('canvas');
+  if (!cv) { cv = document.createElement('canvas'); box.appendChild(cv); }
+  const dpr = Math.min(2, devicePixelRatio || 1);
+  const W = (cv.width = Math.round(scrn.clientWidth * dpr));
+  const H = (cv.height = Math.round(scrn.clientHeight * dpr));
+  const ctx = cv.getContext('2d');
+  const rnd = (a, b) => a + Math.random() * (b - a);
+  const drops = Array.from({ length: 90 }, () => ({ x: rnd(-0.1, 1.2) * W, y: rnd(0, 1) * H, v: rnd(1.3, 2) * H, l: rnd(0.035, 0.07) * H, a: rnd(0.25, 0.6) }));
+  const flakes = Array.from({ length: 70 }, () => ({ x: rnd(0, 1) * W, y: rnd(0, 1) * H, v: rnd(0.08, 0.18) * H, r: rnd(0.004, 0.011) * H, a: rnd(0.5, 0.95), ph: rnd(0, 6.3) }));
+  let bolt = null, nextBolt = 0, last = performance.now();
+  const frame = (t) => {
+    const dt = Math.min(0.05, (t - last) / 1000);
+    last = t;
+    ctx.clearRect(0, 0, W, H);
+    const kind = scrn.dataset.wx;
+    if (kind === 'rain' || kind === 'thunder') {
+      ctx.lineCap = 'round';
+      ctx.lineWidth = Math.max(1, dpr * 0.9);
+      for (const p of drops) {
+        p.y += p.v * dt; p.x -= p.v * dt * 0.18;
+        if (p.y - p.l > H) { p.y = -rnd(0, 0.2) * H; p.x = rnd(0, 1.2) * W; }
+        ctx.strokeStyle = `rgba(205,218,238,${p.a})`;
+        ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x + p.l * 0.18, p.y - p.l); ctx.stroke();
+      }
+      if (kind === 'thunder' && t > nextBolt) {
+        let x = rnd(0.2, 0.8) * W, y = 0;
+        bolt = { t, pts: [[x, y]] };
+        while (y < H * 0.55) { y += rnd(0.05, 0.1) * H; x += rnd(-0.05, 0.05) * W; bolt.pts.push([x, y]); }
+        nextBolt = t + 2200;
+      }
+      if (bolt && t - bolt.t < 220) {
+        ctx.strokeStyle = `rgba(235,240,255,${1 - (t - bolt.t) / 220})`;
+        ctx.lineWidth = 1.6 * dpr; ctx.shadowColor = '#bcd0ff'; ctx.shadowBlur = 8 * dpr;
+        ctx.beginPath(); bolt.pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y))); ctx.stroke();
+        ctx.shadowBlur = 0;
+      }
+    } else if (kind === 'snow') {
+      for (const p of flakes) {
+        p.y += p.v * dt; p.ph += dt; p.x += Math.sin(p.ph) * 0.02 * W * dt;
+        if (p.y > H) { p.y = -p.r; p.x = rnd(0, 1) * W; }
+        ctx.fillStyle = `rgba(255,255,255,${p.a})`;
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 6.283); ctx.fill();
+      }
+    }
+    scrn._raf = requestAnimationFrame(frame);
+  };
+  scrn._raf = requestAnimationFrame(frame);
 }

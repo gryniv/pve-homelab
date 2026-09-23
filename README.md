@@ -142,7 +142,11 @@ export default {
   public: true,                      // можна показувати на екрані входу
   source: '/api/host', every: 5,     // звідки брати дані і як часто оновлювати (сек)
   i18n: { uk: { title: 'Мережа' }, en: { title: 'Network' } },
-  render: (data, { t, ui }) => `<h4>${t('title')}</h4>…`,
+  options: [                         // налаштування віджета (кнопка ⚙ біля нього в «Налаштуваннях»)
+    { key: 'iface', type: 'text', label: 'opt_iface', default: '' },
+    { key: 'graph', type: 'toggle', label: 'opt_graph', default: true },
+  ],                                 // типи: toggle, select, checks, number, text, date, list, textarea
+  render: (data, { t, ui, opts }) => `<h4>${t('title')}</h4>…`,   // opts.graph, opts.iface
 };
 ```
 
@@ -213,6 +217,6 @@ git clone <this repository> /root/pve-seat && cd /root/pve-seat && ./install.sh
 
 On first run the installer detects GPUs with monitors, DDC monitors and their inputs, the Caddy container and a weather city, then writes `/etc/pve-seat/config.yaml` (never overwritten later). Tag VMs with `seat` to list them. For a discrete GPU wired to the same monitor, add its input code under `monitors` (see [`etc/config.example.yaml`](etc/config.example.yaml)). Update with `./update.sh`, remove with `./uninstall.sh`.
 
-**Extend:** one file is one module, found by the backend and named from its first comment (`@name.en …`, `@order …`): a widget is `web/widgets/<id>/widget.js`, a theme `web/themes/<id>.css` (tokens only), a background `web/backgrounds/<id>.css` (`@group scape|flat`, paint `.bgx[data-k="<id>"]` and layers `.l1`-`.l4` from the `--sky*`/`--far`/`--mid`/`--ink` palette; sun, moon, stars, clouds, fog and weather come from the engine), a clock `web/clocks/<id>.js` (`css` + `render(el, {h, m, s, text})` every second), a font `web/fonts/<id>.css` (`@family` + `@import`), a language `web/i18n/<code>.json`. See the Ukrainian section above for the widget contract and the development tools (`tools/dryrun.py`, `tools/screenshots.py`).
+**Extend:** one file is one module, found by the backend and named from its first comment (`@name.en …`, `@order …`): a widget is `web/widgets/<id>/widget.js` (with `options: [{key, type, label, default}]` it gets a ⚙ form and a live preview in settings; the values arrive as `ctx.opts`), a theme `web/themes/<id>.css` (tokens only), a background `web/backgrounds/<id>.css` (`@group scape|flat`, paint `.bgx[data-k="<id>"]` and layers `.l1`-`.l4` from the `--sky*`/`--far`/`--mid`/`--ink` palette; sun, moon, stars, clouds, fog and weather come from the engine), a clock `web/clocks/<id>.js` (`css` + `render(el, {h, m, s, text})` every second), a font `web/fonts/<id>.css` (`@family` + `@import`), a language `web/i18n/<code>.json`. See the Ukrainian section above for the widget contract and the development tools (`tools/dryrun.py`, `tools/screenshots.py`).
 
 Third-party: noVNC (MPL-2.0) is vendored in `web/vendor/novnc`; weather icons are Meteocons by Bas Milius (MIT); service logos are fetched from homarr-labs/dashboard-icons at runtime.

@@ -25,19 +25,26 @@ export default {
   source: '/api/host',
   every: 5,
   css: true,
+  options: [
+    { key: 'rings', type: 'checks', label: 'opt_rings', default: ['cpu', 'mem', 'temp'], choices: [['cpu', 'r_cpu'], ['mem', 'r_mem'], ['temp', 'r_temp']] },
+    { key: 'graph', type: 'toggle', label: 'opt_graph', default: true },
+  ],
   i18n: {
-    uk: { title: 'Стан хоста', host: 'Хост', now: 'Хост зараз', of: 'з {n} ГБ', temp: 'ТЕМП', guests: 'Гості', running: '{n} працюють', stopped: '{n} стоп', wait: "графік CPU з'явиться за хвилину" },
-    en: { title: 'Host', host: 'Host', now: 'Host now', of: 'of {n} GB', temp: 'TEMP', guests: 'Guests', running: '{n} running', stopped: '{n} stopped', wait: 'the CPU graph appears in a minute' },
+    uk: { title: 'Стан хоста', host: 'Хост', now: 'Хост зараз', of: 'з {n} ГБ', temp: 'ТЕМП', guests: 'Гості', running: '{n} працюють', stopped: '{n} стоп', wait: "графік CPU з'явиться за хвилину",
+      opt_rings: 'Кільця', r_cpu: 'процесор', r_mem: "пам'ять", r_temp: 'температура', opt_graph: 'Графік CPU за 30 хв (на панелі)' },
+    en: { title: 'Host', host: 'Host', now: 'Host now', of: 'of {n} GB', temp: 'TEMP', guests: 'Guests', running: '{n} running', stopped: '{n} stopped', wait: 'the CPU graph appears in a minute',
+      opt_rings: 'Rings', r_cpu: 'CPU', r_mem: 'memory', r_temp: 'temperature', opt_graph: 'CPU graph, 30 min (dashboard)' },
   },
-  render(h, { zone, ui, app, t }) {
+  render(h, { zone, ui, app, t, opts }) {
     waitText = t('wait');
     const memGb = ui.fmt.gb(h.mem_used), totGb = ui.fmt.gb(h.mem_total);
-    const rings = ring('#ff8a3d', h.cpu, `<b>${Math.round(h.cpu)}%</b><small>CPU</small>`)
-      + ring('#6fb4ff', (h.mem_used / h.mem_total) * 100, `${memGb}<small>${t('of', { n: totGb })}</small>`)
-      + ring('#f5c451', h.temp ?? 0, `${h.temp ?? '—'}°<small>${t('temp')}</small>`);
+    const on = (k) => opts.rings.includes(k);
+    const rings = (on('cpu') ? ring('#ff8a3d', h.cpu, `<b>${Math.round(h.cpu)}%</b><small>CPU</small>`) : '')
+      + (on('mem') ? ring('#6fb4ff', (h.mem_used / h.mem_total) * 100, `${memGb}<small>${t('of', { n: totGb })}</small>`) : '')
+      + (on('temp') ? ring('#f5c451', h.temp ?? 0, `${h.temp ?? '—'}°<small>${t('temp')}</small>`) : '');
     const g = app.guestCounts();
     return `<h4>${zone === 'side' ? `${t('host')}<span class="sp"></span><span style="text-transform:none;letter-spacing:0">${ui.fmt.uptime(h.uptime)}</span>` : t('now')}</h4>
       <div class="rings">${rings}</div>
-      ${zone === 'side' ? spark(h.cpu_hist) : `<div class="foot-line"><span class="mute">${t('guests')}</span><span><b class="ok">${t('running', { n: g.running })}</b> · ${t('stopped', { n: g.stopped })}</span></div>`}`;
+      ${zone === 'side' ? (opts.graph ? spark(h.cpu_hist) : '') : `<div class="foot-line"><span class="mute">${t('guests')}</span><span><b class="ok">${t('running', { n: g.running })}</b> · ${t('stopped', { n: g.stopped })}</span></div>`}`;
   },
 };

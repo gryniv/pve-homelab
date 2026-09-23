@@ -19,7 +19,7 @@ const SECTIONS = [
 ];
 const LOOK_TABS = [['theme', 'set.look.tab_theme'], ['bg', 'set.look.tab_bg'], ['fonts', 'set.look.tab_fonts'], ['clock', 'set.look.tab_clock']];
 
-let app, current = 'look', lookTab = 'theme', saveTimer, loginCfg = null, loginTimer;
+let app, current = 'look', lookTab = 'theme', saveTimer, loginCfg = null, loginTimer, openW = '', stopPreview = null;
 
 const sw = (id, on) => `<span class="sw"><input type="checkbox" id="${id}" ${on ? 'checked' : ''}><i></i></span>`;
 const tgl = (id, on, title, sub = '') => `<label class="tgl"><span>${esc(t(title))}${sub ? `<small>${esc(t(sub))}</small>` : ''}</span>${sw(id, on)}</label>`;
@@ -67,16 +67,52 @@ function orderEditor(kind, list, p, hidden, label) {
     </div>`).join('')}</div>`;
 }
 
+// One option of a widget as a form field (types are described in core/widgets.js).
+function optField(w, o, val) {
+  const id = `${w.id}|${o.key}`;
+  const lbl = esc(w.t(o.label));
+  const hint = o.hint ? `<small>${esc(w.t(o.hint))}</small>` : '';
+  const ph = o.placeholder ? ` placeholder="${esc(w.t(o.placeholder))}"` : '';
+  const choices = typeof o.choices === 'function' ? o.choices(app, currentLang()) : o.choices || [];
+  switch (o.type) {
+    case 'toggle':
+      return `<label class="tgl"><span>${lbl}${hint}</span><span class="sw"><input type="checkbox" data-wo="${esc(id)}" ${val ? 'checked' : ''}><i></i></span></label>`;
+    case 'select':
+      return `<div class="fld">${lbl}<select data-wo="${esc(id)}">${choices.map(([v, k]) => `<option value="${esc(v)}" ${String(val) === String(v) ? 'selected' : ''}>${esc(w.t(k))}</option>`).join('')}</select>${hint}</div>`;
+    case 'checks':
+      return `<div class="fld">${lbl}<div class="checks">${choices.map(([v, k]) => `<label><input type="checkbox" data-wochk="${esc(id)}|${esc(v)}" ${(val || []).includes(v) ? 'checked' : ''}> ${esc(w.t(k))}</label>`).join('')}</div>${hint}</div>`;
+    case 'number':
+      return `<div class="fld">${lbl}<input type="number" data-wo="${esc(id)}" value="${esc(val)}" ${o.min != null ? `min="${o.min}"` : ''} ${o.max != null ? `max="${o.max}"` : ''}>${hint}</div>`;
+    case 'list': case 'textarea':
+      return `<div class="fld">${lbl}<textarea rows="4" data-wo="${esc(id)}"${ph}>${esc(val ?? '')}</textarea>${hint}</div>`;
+    default:
+      return `<div class="fld">${lbl}<input type="${o.type === 'date' ? 'date' : 'text'}" data-wo="${esc(id)}" value="${esc(val ?? '')}"${ph}>${hint}</div>`;
+  }
+}
+
+// The options form of one widget in a zone, next to a live preview of it.
+function widgetPanel(p, z, id) {
+  const w = W.all()[id];
+  const stored = p.widget_opts?.[id] || {};
+  const form = w.options.length
+    ? w.options.map((o) => optField(w, o, stored[o.key] ?? o.default)).join('')
+    : `<p class="mute" style="font-size:.85em">${t('set.w.none')}</p>`;
+  return `<div class="wcfg"><div class="wform">${form}</div>
+    <div class="wprevbox"><div class="gl">${t('set.w.preview')}</div><div class="wprev" data-wprev="${z}|${id}"></div></div></div>`;
+}
+
 // A widget zone editor (login screen, dashboard side column).
 function zone(p, z) {
   const ids = p.layout[z] || [];
   const reg = W.all();
   const avail = W.allowed(z).filter((w) => !ids.includes(w.id));
   return `<div class="zbox"><div class="zt">${icon(z === 'login' ? 'i-lock' : 'i-layout')}${t(ZONES[z].title)}</div><div class="zs">${t(ZONES[z].sub)}</div>
-    ${ids.map((id, i) => `<div class="wrow"><span class="grip">⋮⋮</span><span class="nm">${esc(reg[id]?.title || id)}</span>
+    ${ids.map((id, i) => `<div class="wrow${openW === `${z}|${id}` ? ' open' : ''}"><span class="grip">⋮⋮</span><span class="nm">${esc(reg[id]?.title || id)}</span>
+      <button type="button" class="wgear" data-wcfg="${z}|${id}" aria-expanded="${openW === `${z}|${id}`}" title="${t('set.w.configure')}">${icon('i-gear')}</button>
       <button type="button" data-mv="${z}|${i}|-1" ${i === 0 ? 'disabled' : ''} title="${t('set.layout.up')}">${icon('i-up')}</button>
       <button type="button" data-mv="${z}|${i}|1" ${i === ids.length - 1 ? 'disabled' : ''} title="${t('set.layout.down')}">${icon('i-down')}</button>
-      <button type="button" data-rm="${z}|${i}" title="${t('set.layout.remove')}">${icon('i-x')}</button></div>`).join('') || `<div class="mute" style="font-size:.85em;padding:.4em 0">${t('set.layout.empty')}</div>`}
+      <button type="button" data-rm="${z}|${i}" title="${t('set.layout.remove')}">${icon('i-x')}</button></div>
+      ${openW === `${z}|${id}` && reg[id] ? widgetPanel(p, z, id) : ''}`).join('') || `<div class="mute" style="font-size:.85em;padding:.4em 0">${t('set.layout.empty')}</div>`}
     <div class="addw"><select id="add-${z}" aria-label="${esc(t(ZONES[z].title))}">${avail.length ? avail.map((w) => `<option value="${w.id}">${esc(w.title)}</option>`).join('') : `<option value="">${t('set.layout.all_added')}</option>`}</select>
     <button class="btn" type="button" data-add="${z}" ${avail.length ? '' : 'disabled'}>${icon('i-plus')}${t('set.layout.add')}</button></div></div>`;
 }
@@ -142,7 +178,6 @@ const views = {
   dash(p) {
     return `<h3>${t('set.s.dash')}</h3>${lead('set.dash.lead')}
       <div class="zones one">${zone(p, 'side')}</div>
-      ${grp('set.layout.note', `<div class="fld" style="max-width:40em"><textarea id="pNote" rows="3">${esc(p.note)}</textarea></div>`)}
       <h4 class="subh">${t('set.dash.services')}</h4>${lead('set.services.lead')}
       ${orderEditor('services', app.services(), p, p.hidden_services,
         (x) => `<img src="/icons/${esc(x.icon || x.key)}.svg" alt="" onerror="this.style.visibility='hidden'"><span class="nm">${esc(x.name)}<small>${esc(x.host)}</small></span>`)}`;
@@ -208,7 +243,6 @@ function bind(p) {
   chk('lHost', (v) => saveLogin({ hostline: v }));
   $('#lTitle') && ($('#lTitle').oninput = (e) => saveLogin({ title: e.target.value.trim() }));
   // dash / systems
-  $('#pNote') && ($('#pNote').onchange = (e) => save({ note: e.target.value }, { relayout: true }));
   segBind('gpuSeg', (v) => save({ launch: { ...p.launch, gpu: v } }));
   chk('pAsk', (v) => save({ launch: { ...p.launch, ask: v } }));
   for (const kind of ['services', 'systems']) segBind(`sort-${kind}`, (v) => save({ sort: { ...(p.sort || {}), [kind]: v } }));
@@ -237,6 +271,32 @@ function bind(p) {
   });
   $('#showHelp') && ($('#showHelp').onclick = () => app.showHelp());
   // widget zones
+  $$('[data-wcfg]', box).forEach((b) => (b.onclick = () => { openW = openW === b.dataset.wcfg ? '' : b.dataset.wcfg; render(); }));
+  const setOpt = (id, key, v) => {
+    const all = { ...(p.widget_opts || {}) };
+    all[id] = { ...(all[id] || {}), [key]: v };
+    save({ widget_opts: all }, { relayout: true });
+    preview();
+  };
+  $$('[data-wo]', box).forEach((el) => (el.onchange = () => {
+    const [id, key] = el.dataset.wo.split('|');
+    setOpt(id, key, el.type === 'checkbox' ? el.checked : el.type === 'number' ? +el.value : el.value);
+  }));
+  $$('[data-wochk]', box).forEach((el) => (el.onchange = () => {
+    const [id, key] = el.dataset.wochk.split('|');
+    setOpt(id, key, $$(`[data-wochk^="${id}|${key}|"]`, box).filter((c) => c.checked).map((c) => c.dataset.wochk.split('|')[2]));
+  }));
+  const preview = () => {
+    stopPreview?.();
+    stopPreview = null;
+    const el = $('[data-wprev]', box);
+    if (!el) return;
+    const [z, id] = el.dataset.wprev.split('|');
+    const inner = document.createElement('div');
+    el.replaceChildren(inner);
+    stopPreview = W.mount(inner, id, z, { app, opts: p.widget_opts });
+  };
+  preview();
   const lay = () => JSON.parse(JSON.stringify(p.layout));
   $$('[data-mv]').forEach((b) => (b.onclick = () => {
     const [z, i, d] = b.dataset.mv.split('|'); const L = lay(); const a = L[z]; const j = +i + +d;
@@ -256,6 +316,8 @@ export function render() {
 }
 
 function draw() {
+  stopPreview?.();
+  stopPreview = null;
   const p = app.prefs();
   const me = app.me();
   const av = app.avatarOf(me);

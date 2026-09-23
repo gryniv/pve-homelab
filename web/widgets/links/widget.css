@@ -1,0 +1,6 @@
+.A .w[data-w="links"] .lk{display:flex;flex-direction:column;gap:.3em}
+.A .w[data-w="links"] .lk button{display:flex;align-items:center;gap:.6em;background:rgba(255,255,255,.04);border:1px solid var(--edge);border-radius:.6em;padding:.45em .6em;text-align:left;min-width:0}
+.A .w[data-w="links"] .lk button:hover,.A .w[data-w="links"] .lk button:focus-visible{background:var(--acc-soft);border-color:var(--acc-line)}
+.A .w[data-w="links"] .lk img{width:1.3em;height:1.3em;border-radius:.3em;flex:none}
+.A .w[data-w="links"] .lk span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.9em}
+.A .w[data-w="links"] .lk small{display:block;color:var(--mute);font-size:.78em}

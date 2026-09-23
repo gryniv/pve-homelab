@@ -338,7 +338,18 @@ html,body{margin:0;height:100%;background:#05080e}
 .A .sw input:checked + i::after{transform:translateX(1.15em)}
 .A .sw input:focus-visible + i{outline:2px solid var(--acc);outline-offset:2px}
 .A .zones{display:grid;grid-template-columns:1fr 1fr;gap:1.2em}
-.A .zones.one{grid-template-columns:minmax(0,34em);margin-bottom:1.4em}
+.A .zones.one{grid-template-columns:minmax(0,52em);margin-bottom:1.4em}
+/* widget options: a form next to a live preview of the widget */
+.A .wrow.open{background:var(--acc-soft);border-color:var(--acc-line)}
+.A .wrow .wgear[aria-expanded="true"]{color:var(--acc-text)}
+.A .wcfg{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,17em);gap:1.2em;padding:.9em 1em 1em;margin:-.2em 0 .6em;border:1px solid var(--edge);border-top:0;border-radius:0 0 .8em .8em;background:rgba(0,0,0,.18)}
+.A .wcfg .fld{margin:0 0 .8em}
+.A .wcfg .fld small,.A .wcfg .tgl small{display:block;color:var(--mute);font-size:.78em;margin-top:.25em}
+.A .wcfg textarea{width:100%;font-family:var(--mono);font-size:.85em}
+.A .wcfg .checks{display:flex;flex-wrap:wrap;gap:.4em 1em;margin-top:.35em;font-size:.9em}
+.A .wcfg .checks label{display:inline-flex;align-items:center;gap:.35em}
+.A .wprevbox .gl{margin-bottom:.4em}
+.A .wprev .w{font-size:.92em}
 .A .subh{margin:1.6em 0 .2em;font-size:1.05em;text-transform:none;letter-spacing:0;color:#e8edf3}
 .A .lookbar{display:flex;align-items:center;gap:1em;flex-wrap:wrap;margin-bottom:.4em}
 .A .lookbar .sp{flex:1}

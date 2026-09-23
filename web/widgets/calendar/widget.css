@@ -1,0 +1,6 @@
+.A .w[data-w="calendar"] .cal{width:100%;border-collapse:collapse;text-align:center;font-size:.86em;font-variant-numeric:tabular-nums}
+.A .w[data-w="calendar"] .cal th{color:var(--mute);font-weight:600;font-size:.82em;padding:.2em 0 .45em;text-transform:uppercase}
+.A .w[data-w="calendar"] .cal td{padding:.28em 0;border-radius:.5em}
+.A .w[data-w="calendar"] .cal td.we{color:var(--acc-text)}
+.A .w[data-w="calendar"] .cal td.today{background:linear-gradient(180deg,var(--acc2),var(--acc));color:var(--acc-ink);font-weight:800}
+.A .w[data-w="calendar"] .cal .wn{color:var(--mute);font-size:.75em;opacity:.7}

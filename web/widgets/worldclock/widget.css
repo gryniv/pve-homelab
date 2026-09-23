@@ -1,0 +1,5 @@
+.A .w[data-w="worldclock"] .wc{display:flex;align-items:center;justify-content:space-between;gap:.8em;padding:.35em 0;border-top:1px solid var(--edge)}
+.A .w[data-w="worldclock"] .wc:first-of-type{border-top:0}
+.A .w[data-w="worldclock"] .wc span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.A .w[data-w="worldclock"] .wc small{margin-left:.5em;color:var(--acc-text);font-size:.75em}
+.A .w[data-w="worldclock"] .wc b{font-family:var(--font-display,var(--display));font-size:1.35em;font-variant-numeric:tabular-nums}
