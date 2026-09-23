@@ -12,8 +12,11 @@ CACHE_DIR = os.environ.get("PVESEAT_CACHE", "/var/cache/pve-seat")
 DEFAULTS = {
     "listen": "127.0.0.1:8900",
     "node": "",
+    "language": "en",
     "systems_tag": "seat",
     "systems_extra": [],
+    "links": [],
+    "kiosk": {"debug_port": 0},
     "seats": {},
     "monitors": {},
     "launch": {"assign_gpu": True, "allow_igpu": False, "return_to_menu": True},

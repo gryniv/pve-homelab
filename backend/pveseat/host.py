@@ -8,14 +8,27 @@ from collections import deque
 
 
 class HostStats:
-    def __init__(self, bridge="vmbr0"):
-        self.bridge = bridge
+    def __init__(self, bridge=None):
+        self.bridge = bridge or self._default_iface()
         self.cpu_hist = deque(maxlen=90)  # 90 x 20 s = 30 min
         self._cpu_prev = self._read_cpu()
         self._net_prev = (time.monotonic(), self._read_net())
         self.cpu = 0.0
         self.net = (0.0, 0.0)
         self._temp_path = self._find_temp()
+
+    @staticmethod
+    def _default_iface():
+        """Interface of the default route (vmbr0 on a stock Proxmox install)."""
+        try:
+            with open("/proc/net/route") as f:
+                for line in f.readlines()[1:]:
+                    p = line.split()
+                    if p[1] == "00000000":
+                        return p[0]
+        except OSError:
+            pass
+        return "vmbr0"
 
     @staticmethod
     def _read_cpu():

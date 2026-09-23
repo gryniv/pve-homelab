@@ -1,6 +1,7 @@
 """Web services discovered from Caddy's admin API and matched to PVE guests by IP."""
 
 import json
+import re
 
 from .util import pvesh, run
 
@@ -61,23 +62,35 @@ async def guest_ips(node, resources):
     return ips
 
 
+def _slug(name):
+    return re.sub(r"[^a-z0-9-]+", "-", (name or "").lower()).strip("-")
+
+
 def build(cfg, rts, ips, host_ip):
-    meta = cfg.get("services", {})
+    meta = cfg.get("services") or {}
     out = []
     for r in rts:
         m = meta.get(r["key"], {})
         up_ip = (r["upstream"] or "").rsplit(":", 1)[0]
         guest = ips.get(up_ip)
         if up_ip == host_ip:
-            guest = ("node", 0, "host")
+            guest = ("node", 0, "proxmox")
+        # Logo: explicit in config, else the guest's name (containers are usually named after the app), else the subdomain.
+        icon = m.get("icon") if "icon" in m else _slug(guest[2]) if guest else r["key"]
         out.append({
             "key": r["key"],
             "name": m.get("name") or r["key"].capitalize(),
             "desc": m.get("desc", ""),
-            "icon": m.get("icon", r["key"]),
+            "icon": icon or r["key"],
             "url": "https://" + r["host"],
             "host": r["host"],
             "upstream": r["upstream"],
             "guest": {"type": guest[0], "vmid": guest[1], "name": guest[2]} if guest else None,
         })
+    for i, link in enumerate(cfg.get("links") or []):
+        url = link.get("url", "")
+        host = re.sub(r"^\w+://", "", url).split("/")[0]
+        out.append({"key": link.get("key") or f"link{i}", "name": link.get("name") or host, "desc": link.get("desc", ""),
+                    "icon": link.get("icon") or _slug(link.get("name")), "url": url, "host": host,
+                    "upstream": None, "guest": None})
     return sorted(out, key=lambda s: s["name"].lower())

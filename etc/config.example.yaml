@@ -1,0 +1,64 @@
+# PVE Seat configuration: /etc/pve-seat/config.yaml
+# install.sh generates this file on first run by detecting your hardware
+# (python3 -m pveseat.setup). This example shows every option.
+# After editing: systemctl restart pve-seat 'pve-seat-kiosk@*'
+
+listen: 127.0.0.1:8900
+node: ""                      # empty = this host's name
+language: en                  # default UI language (uk, en); every user can pick their own
+systems_tag: seat             # VMs with this tag appear under Systems
+systems_extra: []             # untagged VMs to show as well, e.g. [100]
+
+# A seat = a GPU with a monitor where the host draws its own menu.
+# Each seat has its own login. A GPU passed to a VM can't be a seat while that VM runs.
+seats:
+  igpu:
+    title: Integrated Radeon
+    gpu: "0000:79:00.0"       # lspci -D
+    tty: 7
+    kiosk: true
+
+# Monitors wired to several GPUs. For each GPU: the monitor input code (DDC/CI, VCP 0x60).
+# Find the codes with: ddcutil capabilities | grep -A8 'Feature: 60'
+# With this the menu switches the monitor to a VM's GPU when you start it, and back when it stops.
+monitors:
+  main:
+    ddc_bus: auto             # or N from /dev/i2c-N (see: ddcutil detect)
+    inputs:
+      "0000:79:00.0": 0x11    # HDMI-1: the menu
+      "0000:02:00.0": 0x0f    # DisplayPort-1: discrete GPU for VMs
+
+launch:
+  assign_gpu: true            # write the chosen GPU into the VM config before start
+  allow_igpu: false           # true = pass the seat GPU through entirely (otherwise VirGL inside the menu)
+  return_to_menu: true        # switch the monitor back to the menu when the VM stops
+
+caddy:
+  ct: null                    # container running Caddy (its admin API must listen on localhost:2019)
+  admin: http://localhost:2019
+  prefer_suffix: ""           # for duplicates (x.example.com / x.internal) keep this suffix
+  hide: []                    # subdomains to skip, e.g. [home]
+
+# Nice names and logos. Key = first part of the domain.
+# icon = a name from https://github.com/homarr-labs/dashboard-icons ("" = first letter)
+services: {}
+#  photos: {name: Photos, icon: immich, desc: Immich}
+#  vault:  {name: Passwords, icon: vaultwarden}
+
+# Links that don't go through Caddy
+links: []
+#  - {name: Router, url: "http://192.168.1.1", icon: openwrt}
+
+weather:
+  city: Kyiv
+  units: c                    # c or f
+
+users:
+  hide: []                    # accounts to hide on the login screen, e.g. [root@pam]
+
+saver:
+  after_min: 5                # screensaver on the login screen
+lock_after_min: 15            # log out of the dashboard after this much inactivity
+
+kiosk:
+  debug_port: 0               # >0 = Chromium DevTools on 127.0.0.1:<port> (development only)

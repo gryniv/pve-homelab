@@ -327,6 +327,12 @@ async def index(req):
 # ---------------- app ----------------
 async def on_startup(app):
     cfg = app["cfg"]
+    if not cfg["seats"]:
+        # No seats configured: every host-driven GPU with a monitor gets one.
+        from .setup import detect_seats
+        for i, g in enumerate(await detect_seats()):
+            cfg["seats"]["igpu" if g["integrated"] else f"gpu{i}"] = {"title": g["name"], "gpu": g["pci"], "tty": 7 + i, "kiosk": True}
+        log.info("auto-detected seats: %s", list(cfg["seats"]))
     app["pve"] = PVE()
     app["stats"] = HostStats()
     app["ddc"] = DDC(cfg["monitors"])

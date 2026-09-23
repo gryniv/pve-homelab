@@ -4,7 +4,14 @@
 set -eu
 SEAT="$1"
 URL="http://127.0.0.1:8900/?seat=$SEAT"
-GPU="$(python3 -c "import yaml,sys;print(yaml.safe_load(open('/etc/pve-seat/config.yaml'))['seats'][sys.argv[1]]['gpu'])" "$SEAT")"
+read -r GPU DEBUG_PORT <<EOF
+$(python3 -c "
+import yaml, sys
+c = yaml.safe_load(open('/etc/pve-seat/config.yaml'))
+print(c['seats'][sys.argv[1]]['gpu'], int((c.get('kiosk') or {}).get('debug_port') or 0))" "$SEAT")
+EOF
+DEBUG_ARGS=""
+[ "$DEBUG_PORT" -gt 0 ] && DEBUG_ARGS="--remote-debugging-address=127.0.0.1 --remote-debugging-port=$DEBUG_PORT"
 
 CARD="$(ls "/sys/bus/pci/devices/$GPU/drm" | grep -m1 '^card')"
 [ -n "$CARD" ] || { echo "no DRM card for $GPU" >&2; exit 1; }
@@ -36,4 +43,4 @@ exec cage -s -- chromium \
   --disable-features=Translate,MediaRouter,HardwareMediaKeyHandling,DisableLoadExtensionCommandLineSwitch \
   --check-for-update-interval=31536000 --overscroll-history-navigation=0 \
   --disable-pinch --autoplay-policy=no-user-gesture-required \
-  --remote-debugging-address=127.0.0.1 --remote-debugging-port=9222
+  $DEBUG_ARGS
