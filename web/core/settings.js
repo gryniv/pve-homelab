@@ -1,6 +1,7 @@
 // Per-user settings panel. Every change is applied live and saved to the user's file.
 
 import * as W from './widgets.js';
+import { arrange, moved } from './order.js';
 import { current as currentLang } from './i18n.js';
 import { $, $$, icon, esc, AVATARS, toast, keepFocus, t } from './ui.js';
 
@@ -11,7 +12,7 @@ const ZONES = {
 
 const SECTIONS = [
   ['look', 'i-palette'], ['layout', 'i-layout'], ['saver', 'i-moon'], ['weather', 'i-cloud'],
-  ['launch', 'i-gpu'], ['services', 'i-grid'], ['account', 'i-user'],
+  ['systems', 'i-monitor'], ['launch', 'i-gpu'], ['services', 'i-grid'], ['account', 'i-user'], ['about', 'i-info'],
 ];
 
 let app, current = 'look', saveTimer;
@@ -34,6 +35,22 @@ function save(changes, { relayout = false } = {}) {
       $('#savedNote') && ($('#savedNote').textContent = t('set.saved'));
     } catch (e) { toast(e.message, true); }
   }, 400);
+}
+
+
+// Sort mode + a reorderable list with visibility switches (web services, systems).
+function orderEditor(kind, list, p, hidden, label) {
+  const mode = p.sort?.[kind] || 'manual';
+  const rows = arrange(kind, list, p);
+  const key = (x) => (kind === 'systems' ? String(x.vmid) : x.key);
+  return `<div class="grp"><div class="gl">${t('set.sort')}</div>
+      ${seg(`sort-${kind}`, mode, [['manual', t('set.sort_manual')], ['name', t('set.sort_name')], ['status', t('set.sort_status')]])}
+      <p class="lead" style="margin:.7em 0 0">${esc(t('set.order_hint'))}</p></div>
+    <div class="olist">${rows.map((x, i) => `<div class="orow">${label(x)}
+      <button type="button" data-omv="${kind}|${esc(key(x))}|-1" ${i === 0 || mode !== 'manual' ? 'disabled' : ''} title="${t('set.layout.up')}">${icon('i-up')}</button>
+      <button type="button" data-omv="${kind}|${esc(key(x))}|1" ${i === rows.length - 1 || mode !== 'manual' ? 'disabled' : ''} title="${t('set.layout.down')}">${icon('i-down')}</button>
+      <span class="sw" title="${esc(t('set.visible'))}"><input type="checkbox" data-vis="${kind}|${esc(key(x))}" ${hidden.includes(key(x)) ? '' : 'checked'} aria-label="${esc(t('set.visible'))}"><i></i></span>
+    </div>`).join('')}</div>`;
 }
 
 const views = {
@@ -88,10 +105,28 @@ const views = {
       ${tgl('pAsk', p.launch.ask, 'set.launch.ask', 'set.launch.ask_sub')}`;
   },
   services(p) {
-    const list = app.services();
-    return `<h3>${t('set.s.services')}</h3>${lead('set.services.lead')}
-      <div class="svclist">${list.map((s) => `<label><img src="/icons/${esc(s.icon || s.key)}.svg" alt="" onerror="this.style.visibility='hidden'">${esc(s.name)}
-        <input type="checkbox" data-hide="${esc(s.key)}" ${p.hidden_services.includes(s.key) ? '' : 'checked'}></label>`).join('')}</div>`;
+    return `<h3>${t('set.s.services')}</h3>${lead('set.services.lead')}${orderEditor('services', app.services(), p, p.hidden_services,
+      (x) => `<img src="/icons/${esc(x.icon || x.key)}.svg" alt="" onerror="this.style.visibility='hidden'"><span class="nm">${esc(x.name)}<small>${esc(x.host)}</small></span>`)}`;
+  },
+  systems(p) {
+    return `<h3>${t('set.s.systems')}</h3>${lead('set.systems.lead', { tag: '«' + (app.pub().systems_tag || 'seat') + '»' })}${orderEditor('systems', app.systems(), p, (p.hidden_systems || []).map(String),
+      (x) => `<span class="nm">${esc(x.name)}<small>VM ${x.vmid} · ${esc(t(x.status === 'running' ? 'guest.running' : 'guest.stopped'))}</small></span>`)}`;
+  },
+  about() {
+    const a = app.about(), pub = app.pub(), u = app.updateStatus();
+    const row = (k, v) => `<div class="kv"><span class="mute">${esc(t(k))}</span><b>${v}</b></div>`;
+    const repo = a.repo || (pub.app.repo ? `https://github.com/${pub.app.repo}` : '');
+    return `<h3>${esc(a.name || 'PVE Seat')}</h3>${lead('about.lead')}
+      <div class="grp about-box">
+        ${row('about.version', `v${esc(pub.app.version)}${u?.available ? ` · <span class="acc-text">${esc(t('about.update_new', { v: u.latest.version ? 'v' + u.latest.version : (u.latest.commit || '').slice(0, 7) }))}</span>` : u?.enabled ? ` · ${esc(t('about.update_ok'))}` : ''}`)}
+        ${a.author ? row('about.author', a.author_url ? `<a href="${esc(a.author_url)}" target="_blank" rel="noopener">${esc(a.author)}</a>` : esc(a.author)) : ''}
+        ${row('about.repo', repo ? `<a href="${esc(repo)}" target="_blank" rel="noopener">${esc(repo.replace(/^https?:\/\//, ''))}</a>` : esc(t('about.none')))}
+        ${row('about.license', esc(a.license || t('about.none')))}
+        ${row('about.host', `Proxmox VE ${esc(pub.version)} · ${esc(pub.node)}`)}
+      </div>
+      <div class="grp"><div class="gl">${t('about.credits')}</div>
+        <div class="mute credits">noVNC (MPL-2.0) · Meteocons, Bas Milius (MIT) · dashboard-icons, homarr-labs · Open-Meteo · cage · Chromium</div></div>
+      <button class="btn ghost" type="button" id="showHelp">${icon('i-info')}${t('help.title')}</button>`;
   },
   account(p) {
     return `<h3>${t('set.s.account')}</h3>${lead('set.account.lead')}
@@ -121,10 +156,20 @@ function bind(p) {
     try { await app.weather(true); toast(t('set.weather.updated')); app.applyPrefs({ relayout: true }); } catch (err) { toast(err.message, true); }
   });
   $$('[data-av]').forEach((b) => (b.onclick = () => { save({ avatar: +b.dataset.av }); render(); }));
-  $$('[data-hide]').forEach((c) => (c.onchange = () => {
-    const k = c.dataset.hide;
-    save({ hidden_services: c.checked ? p.hidden_services.filter((x) => x !== k) : [...p.hidden_services, k] });
+  for (const kind of ['services', 'systems']) segBind(`sort-${kind}`, (v) => save({ sort: { ...(p.sort || {}), [kind]: v } }));
+  $$('[data-omv]').forEach((b) => (b.onclick = async () => {
+    const [kind, key, d] = b.dataset.omv.split('|');
+    const list = kind === 'systems' ? app.systems() : app.services();
+    await app.saveOrder(kind, moved(kind, list, p, key, { delta: +d }));
+    render();
   }));
+  $$('[data-vis]').forEach((c) => (c.onchange = () => {
+    const [kind, key] = c.dataset.vis.split('|');
+    const field = kind === 'systems' ? 'hidden_systems' : 'hidden_services';
+    const cur = (p[field] || []).map(String);
+    save({ [field]: c.checked ? cur.filter((x) => x !== key) : [...cur, key] });
+  }));
+  $('#showHelp') && ($('#showHelp').onclick = () => app.showHelp());
   const lay = () => JSON.parse(JSON.stringify(p.layout));
   $$('[data-mv]').forEach((b) => (b.onclick = () => {
     const [z, i, d] = b.dataset.mv.split('|'); const L = lay(); const a = L[z]; const j = +i + +d;

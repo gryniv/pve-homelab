@@ -107,6 +107,7 @@
     <div class="loginerr" id="loginErr" hidden></div>
     <div class="seatnote"><svg class="i"><use href="#i-monitor"/></svg><span><span data-i18n="login.seat"></span> <b data-seat-name></b></span></div>
   </form>
+  <div class="about-mini login-about" data-about></div>
   <div class="power"><div class="seg langseg" id="loginLang" role="group" data-i18n-aria="login.language"></div><button class="chipbtn" type="button" data-go="saver"><svg class="i"><use href="#i-moon"/></svg><span data-i18n="saver.button"></span></button></div>
 </section>
 
@@ -126,14 +127,14 @@
     </div>
   </div>
   <div class="body">
-    <div class="zone-side" data-zone="side"></div>
+    <div class="sidecol"><div class="zone-side" data-zone="side"></div><div class="about-mini" data-about></div></div>
     <div class="main">
       <div class="systems" id="systems"></div>
       <div class="glass tabp">
         <div class="ptabs" role="tablist">
           <button role="tab" aria-selected="true" data-ptab="web"><svg class="i"><use href="#i-ext"/></svg><span data-i18n="dash.web"></span><span class="cnt" id="svcCount">0</span></button>
           <button role="tab" aria-selected="false" data-ptab="guests"><svg class="i"><use href="#i-box"/></svg><span data-i18n="dash.guests"></span><span class="cnt" id="guestCount">0</span></button>
-          <span class="sp"></span><span class="src" data-i18n-title="dash.caddy_hint"><svg class="i"><use href="#i-grid"/></svg><span></span></span>
+          <input id="svcSearch" class="search" type="search" hidden data-i18n-placeholder="search.placeholder" data-i18n-aria="search.placeholder" autocomplete="off"><span class="sp"></span><span class="src" data-i18n-title="dash.caddy_hint"><svg class="i"><use href="#i-grid"/></svg><span></span></span>
         </div>
         <div data-pane="web" class="scroll"><div class="svcgrid" id="svcgrid"></div></div>
         <div data-pane="guests" class="scroll" hidden>
@@ -170,6 +171,9 @@
 </section>
 
 <div class="overlay" id="confirmLayer" hidden><div class="confirm"><h3 id="cTitle"></h3><div class="mute" id="cText"></div><div class="mbtns"><button class="btn ghost" type="button" id="cNo" data-i18n="confirm.cancel"></button><button class="btn danger" type="button" id="cYes"></button></div></div></div>
+<div class="overlay" id="helpLayer" hidden><div class="confirm help"><h3 data-i18n="help.title"></h3><table id="helpTable"></table><div class="mbtns"><button class="btn" type="button" id="helpClose" data-i18n="set.close"></button></div></div></div>
+<button class="demo-ribbon" type="button" id="demoRibbon" hidden data-i18n-title="demo.open"><span data-i18n="demo.ribbon"></span></button>
+<div class="overlay" id="demoLayer" hidden><div class="demo-panel glass" id="demoPanel"></div></div>
 <div class="toast" id="toast" hidden></div>
 
 <script type="module" src="/core/app.js"></script>

@@ -239,6 +239,12 @@ _real_weather = weather.get
 
 
 async def demo_weather(city, units="c"):
+    if STATE["weather"]:
+        k = STATE["weather"]
+        temp = {"snow": -4, "thunder": 19, "clear": 22, "fog": 7}.get(k, 12)
+        return {"city": city, "units": units, "kind": k, "temp": temp, "wind": 5, "humidity": 80, "is_day": True,
+                "days": [{"date": time.strftime("%Y-%m-%d", time.localtime(time.time() + 86400 * i)),
+                          "kind": k, "max": temp + 2, "min": temp - 5} for i in (1, 2, 3)]}
     try:
         return await asyncio.wait_for(_real_weather(city, units), 6)
     except Exception:
@@ -250,7 +256,7 @@ async def demo_weather(city, units="c"):
 async def demo_update_status(cfg):
     cur = update.installed()
     return {"enabled": True, "repo": "example/pve-seat", "channel": "release", "auto": False, "installed": cur,
-            "available": True, "checked": int(time.time()),
+            "available": STATE["update"], "checked": int(time.time()),
             "latest": {"ref": "v9.9.0", "version": "9.9.0", "commit": None, "url": "https://github.com/", "notes": "Demo release"}}
 
 
@@ -271,6 +277,124 @@ def demo_users(app):
 
 
 A_app = {}
+
+# ---------------------------------------------------------------- demo panel
+# The menu's demo panel adds systems and services to the in-memory world, changes the
+# weather and pretends an update exists. Everything added is marked so it can be removed.
+STATE = {"weather": "", "update": True, "added": []}
+_initial = None
+OS_TYPES = {"windows": ("win11", "Windows"), "ubuntu": ("l26", "Ubuntu"), "fedora": ("l26", "Fedora"),
+            "debian": ("l26", "Debian"), "macos": ("other", "macOS"), "linux": ("l26", "Linux")}
+APP_PORTS = {"jellyfin": 8096, "plex": 32400, "immich": 2283, "nextcloud": 80, "vaultwarden": 8080,
+             "home-assistant": 8123, "adguard-home": 3000, "grafana": 3000, "uptime-kuma": 3001, "portainer": 9443,
+             "paperless-ngx": 8000, "audiobookshelf": 13378, "syncthing": 8384, "n8n": 5678}
+
+
+def _snapshot():
+    import copy
+    return copy.deepcopy((WORLD, ROUTES, DISCOVERED))
+
+
+def _slug(s):
+    import re
+    return re.sub(r"[^a-z0-9]+", "-", (s or "").lower()).strip("-") or "app"
+
+
+def _free_id(start, stop):
+    return next(i for i in range(start, stop) if i not in WORLD)
+
+
+async def _refresh():
+    """Recompute right away so the next dashboard refresh already shows the change."""
+    for k in ("resources", "discovered", "services", "update"):
+        if k in A_app:
+            A_app[k].invalidate()
+            await A_app[k]._refresh()
+
+
+async def _json(req):
+    try:
+        return await req.json()
+    except Exception:
+        return {}
+
+
+@A.routes.get("/api/demo/state")
+async def demo_state(req):
+    added = [{"id": vmid, "type": WORLD[vmid]["type"], "name": WORLD[vmid]["name"],
+              "what": WORLD[vmid].get("demo_what", "")} for vmid in STATE["added"] if vmid in WORLD]
+    return web.json_response({"weather": STATE["weather"], "update": STATE["update"], "added": added,
+                              "os": list(OS_TYPES), "apps": sorted(APP_PORTS)})
+
+
+@A.routes.post("/api/demo/vm")
+async def demo_add_vm(req):
+    b = await _json(req)
+    os_key = b.get("os") if b.get("os") in OS_TYPES else "linux"
+    vmid = _free_id(104, 200)
+    WORLD[vmid] = dict(type="qemu", name=_slug(b.get("name") or f"{os_key}-{vmid}"), status="running" if b.get("running") else "stopped",
+                       tags="seat", cores=int(b.get("cores") or 4), mem=float(b.get("mem") or 8), ostype=OS_TYPES[os_key][0],
+                       vga="std" if b.get("gpu") else "virtio", hostpci=["0000:01:00"] if b.get("gpu") else [],
+                       started=time.time() if b.get("running") else None, demo_what=OS_TYPES[os_key][1])
+    STATE["added"].append(vmid)
+    await _refresh()
+    return web.json_response({"id": vmid})
+
+
+@A.routes.post("/api/demo/service")
+async def demo_add_service(req):
+    b = await _json(req)
+    icon = _slug(b.get("icon") or b.get("name"))
+    name = (b.get("name") or icon.replace("-", " ").title()).strip()
+    via = b.get("via") if b.get("via") in ("caddy", "port", "notes") else "caddy"
+    vmid = _free_id(207, 300)
+    port = APP_PORTS.get(icon, 8080)
+    WORLD[vmid] = dict(type="lxc", name=_slug(name), status="running", cores=2, mem=2, ip=f"10.0.1.{vmid - 200}",
+                       hostpci=[], started=time.time(), demo_what=f"{name} · {via}")
+    if via == "caddy":
+        key = _slug(name)
+        ROUTES.append((key, vmid, port))
+        A_app["cfg"]["services"][key] = {"name": name, "icon": icon}
+    else:
+        DISCOVERED.append((vmid, port, name, icon, via))
+    STATE["added"].append(vmid)
+    await _refresh()
+    return web.json_response({"id": vmid})
+
+
+@A.routes.post("/api/demo/remove")
+async def demo_remove(req):
+    vmid = int((await _json(req)).get("id", 0))
+    if vmid in STATE["added"]:
+        STATE["added"].remove(vmid)
+        WORLD.pop(vmid, None)
+        ROUTES[:] = [r for r in ROUTES if r[1] != vmid]
+        DISCOVERED[:] = [d for d in DISCOVERED if d[0] != vmid]
+        await _refresh()
+    return web.json_response({"ok": True})
+
+
+@A.routes.post("/api/demo/world")
+async def demo_world(req):
+    b = await _json(req)
+    if "weather" in b:
+        STATE["weather"] = b["weather"] if b["weather"] in ("clear", "partly", "overcast", "rain", "thunder", "snow", "fog") else ""
+    if "update" in b:
+        STATE["update"] = bool(b["update"])
+    await _refresh()
+    return web.json_response({"ok": True})
+
+
+@A.routes.post("/api/demo/reset")
+async def demo_reset(req):
+    world, routes, found = _initial
+    import copy
+    WORLD.clear(); WORLD.update(copy.deepcopy(world))
+    ROUTES[:] = copy.deepcopy(routes)
+    DISCOVERED[:] = copy.deepcopy(found)
+    STATE.update(weather="", update=True, added=[])
+    await _refresh()
+    return web.json_response({"ok": True})
 
 
 def make_app():
@@ -296,8 +420,11 @@ def make_app():
     app["demo"] = True
 
     async def remember(app):
-        A_app["resources"] = app["resources"]
+        for k in ("resources", "services", "discovered", "update", "cfg"):
+            A_app[k] = app[k]
     app.on_startup.append(remember)
+    global _initial
+    _initial = _snapshot()
     return app
 
 

@@ -7,13 +7,14 @@ import * as S from './settings.js';
 import * as nav from './nav.js';
 import * as vnc from './console.js';
 import * as tabs from './tabs.js';
+import { arrange, moved } from './order.js';
 import * as i18n from './i18n.js';
 import { $, $$, icon, esc, avatar, fmt, toast, confirmBox, keepFocus, t } from './ui.js';
 
 const st = {
   pub: null, me: null, prefs: null, screen: null,
   selUser: null, services: [], guests: [], systems: [],
-  wx: null, wxKey: '', wxAt: 0, lastInput: Date.now(), timers: [], loginLang: null,
+  wx: null, wxKey: '', wxAt: 0, lastInput: Date.now(), timers: [], loginLang: null, filter: '', sysView: [],
 };
 
 /* ---------------- app facade given to widgets & settings ---------------- */
@@ -25,6 +26,9 @@ const app = {
   me: () => st.me,
   loggedIn: () => !!st.me,
   services: () => st.services,
+  systems: () => st.systems,
+  updateStatus: () => upd,
+  showHelp: () => showHelp(),
   isNight: scene.isNight,
   avatarOf: (u) => avatar(u, u.avatar ?? st.prefs?.avatar),
   guestCounts: () => st.pub.guests,
@@ -53,7 +57,7 @@ async function useLang(code = wantedLang()) {
 
 // Everything that holds translated text is rebuilt from state.
 function rerender() {
-  tick(); paintWeather(); renderLoginLang();
+  tick(); paintWeather(); renderLoginLang(); paintAbout();
   if (upd?.available) $('#updPill span').textContent = t('upd.pill', { v: updLabel(upd) });
   if (st.me) {
     W.renderZone('side', st.prefs.layout.side || [], { app });
@@ -113,7 +117,9 @@ function applyPrefs({ relayout = false } = {}) {
   $('.scr-saver').classList.toggle('sv-clockless', !p.saver.clock);
   paintMe();
   if (relayout) W.renderZone('side', p.layout.side || [], { app });
-  renderServices();
+  const body = $('.scr-dash .body');
+  keepFocus(body, renderServices);
+  if (st.me) keepFocus(body, renderSystems);
 }
 
 function paintMe() {
@@ -259,47 +265,125 @@ const osOf = (vm) => OS.find(([re]) => re.test(`${vm.ostype} ${vm.name}`.replace
 
 function renderSystems() {
   const el = $('#systems');
-  if (!st.systems.length) {
+  const hidden = (st.prefs?.hidden_systems || []).map(String);
+  st.sysView = arrange('systems', st.systems.filter((v) => !hidden.includes(String(v.vmid))), st.prefs || {});
+  if (!st.sysView.length) {
     el.innerHTML = `<div class="glass empty">${esc(t('dash.no_systems', { tag: '«' + (st.pub.systems_tag || 'seat') + '»' }))}</div>`;
     return;
   }
-  el.innerHTML = st.systems.map((vm, i) => {
+  el.innerHTML = st.sysView.map((vm, i) => {
     const [, logo, art] = osOf(vm);
     const run = vm.status === 'running';
-    return `<div class="sys" style="--i:${i}"><div class="art" style="background:${art}"></div>
-      <img class="os" src="/icons/${logo}.svg" alt="" style="${logo === 'apple' ? 'filter:invert(1)' : ''}" onerror="this.style.visibility='hidden'">
+    return `<div class="sys" style="--i:${i}" draggable="true" data-drag="systems" data-key="${vm.vmid}"><div class="art" style="background:${art}"></div>
+      <img class="os" src="/icons/${logo}.svg" alt="" draggable="false" style="${logo === 'apple' ? 'filter:invert(1)' : ''}" onerror="this.style.visibility='hidden'">
       <span class="state"><span class="dot ${run ? 'ok' : 'off'}"></span>${run ? t('sys.running', { time: fmt.uptime(vm.uptime) }) : vm.suspended ? t('sys.suspended') : t('sys.stopped')}</span>
       <h5>${esc(vm.name)}</h5><div class="meta"><span>VM ${vm.vmid}</span><span>${t('cores', { n: vm.cores })} · ${t('gb', { n: Math.round(vm.memory / 1024) })}</span></div>
-      <button class="play${run ? ' go' : ''}" type="button" data-sys="${i}" title="${esc(t(run ? 'sys.go' : 'sys.start', { name: vm.name }))}">
+      <button class="play${run ? ' go' : ''}" type="button" data-sys="${i}" data-move="systems" data-key="${vm.vmid}" title="${esc(t(run ? 'sys.go' : 'sys.start', { name: vm.name }))}">
         <svg><use href="#${run ? 'i-arrow' : 'i-play'}"/></svg></button></div>`;
   }).join('');
-  $$('[data-sys]').forEach((b) => (b.onclick = () => { lastSysBtn = b; openLaunch(st.systems[+b.dataset.sys]); }));
+  $$('[data-sys]').forEach((b) => (b.onclick = () => { lastSysBtn = b; openLaunch(st.sysView[+b.dataset.sys]); }));
 }
 
 function renderServices() {
   if (!st.prefs) return;
   const hidden = st.prefs.hidden_services || [];
-  const list = st.services.filter((s) => !hidden.includes(s.key));
-  $('#svcCount').textContent = list.length;
+  const q = st.filter.trim().toLowerCase();
+  const visible = st.services.filter((s) => !hidden.includes(s.key));
+  const list = arrange('services', visible, st.prefs)
+    .filter((s) => !q || `${s.name} ${s.host} ${s.guest?.name || ''}`.toLowerCase().includes(q));
+  $('#svcCount').textContent = visible.length;
   const down = st.services.filter((s) => s.status && s.status !== 'running');
   $('#health').classList.toggle('warn', down.length > 0);
   $('#health').title = down.length ? t('top.health_down', { list: down.map((s) => s.name).join(', ') }) : t('top.health_ok');
-  if (!list.length) { $('#svcgrid').innerHTML = `<div class="mute" style="grid-column:1/-1;padding:1em">${esc(t('dash.no_services'))}</div>`; return; }
   const found = st.services.filter((s) => s.source === 'port' || s.source === 'notes').length;
   $('.ptabs .src span').textContent = t('svc.count', { caddy: st.services.filter((s) => s.source === 'caddy').length, found });
+  if (!list.length) {
+    $('#svcgrid').innerHTML = `<div class="mute" style="grid-column:1/-1;padding:1em">${esc(q ? t('search.none', { q: st.filter }) : t('dash.no_services'))}</div>`;
+    return;
+  }
   $('#svcgrid').innerHTML = list.map((s, i) => {
     const cls = s.status === 'running' ? '' : s.status ? ' down' : ' unknown';
     const gname = s.guest ? `${s.guest.type === 'lxc' ? 'CT' : s.guest.type === 'qemu' ? 'VM' : ''} ${s.guest.vmid || ''} ${s.guest.name || ''}`.trim() : '';
     const src = s.source === 'port' ? t('svc.src_port', { guest: gname, port: s.port })
       : s.source === 'notes' ? t('svc.src_notes', { guest: gname })
       : s.source === 'link' ? t('svc.src_link') : t('svc.src_caddy', { host: s.upstream || s.host });
-    return `<button type="button" class="svc${cls}" style="--i:${i + 3}" data-url="${esc(s.url)}" title="${esc([s.desc, src].filter(Boolean).join('\n'))}">
-      <span class="st"></span><span class="lg"><img src="/icons/${esc(s.icon || s.key)}.svg" alt=""
+    return `<button type="button" class="svc${cls}" style="--i:${i + 3}" draggable="${q ? 'false' : 'true'}" data-drag="services" data-move="services" data-key="${esc(s.key)}"
+      data-url="${esc(s.url)}" title="${esc([s.desc, src].filter(Boolean).join('\n'))}">
+      <span class="st"></span><span class="lg"><img src="/icons/${esc(s.icon || s.key)}.svg" alt="" draggable="false"
         onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'letter',textContent:'${esc(s.name[0])}'}))"></span>
       <span class="n">${esc(s.name)}</span><small>${esc(s.host)}</small></button>`;
   }).join('');
   $$('#svcgrid [data-url]').forEach((b) => (b.onclick = () => app.openUrl(b.dataset.url)));
 }
+
+/* ---------------- ordering: drag with the mouse, Alt+←/→ with the keyboard ---------------- */
+async function saveOrder(kind, keys) {
+  if (!keys) return;
+  st.prefs.order = { ...(st.prefs.order || {}), [kind]: keys };
+  st.prefs.sort = { ...(st.prefs.sort || {}), [kind]: 'manual' };
+  const body = $('.scr-dash .body');
+  keepFocus(body, kind === 'systems' ? renderSystems : renderServices);
+  try { await api.put('/api/prefs', st.prefs); } catch (e) { toast(e.message, true); }
+}
+app.saveOrder = saveOrder;
+
+const listOf = (kind) => (kind === 'systems' ? st.systems : st.services);
+let dragKey = null, dragKind = null;
+addEventListener('dragstart', (e) => {
+  const el = e.target.closest?.('[data-drag]');
+  if (!el) return;
+  dragKey = el.dataset.key; dragKind = el.dataset.drag;
+  el.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', dragKey);
+});
+addEventListener('dragover', (e) => {
+  const el = e.target.closest?.('[data-drag]');
+  if (!el || el.dataset.drag !== dragKind) return;
+  e.preventDefault();
+  $$('.drop-before').forEach((x) => x !== el && x.classList.remove('drop-before'));
+  el.classList.add('drop-before');
+});
+addEventListener('drop', (e) => {
+  const el = e.target.closest?.('[data-drag]');
+  if (!el || el.dataset.drag !== dragKind) return;
+  e.preventDefault();
+  if (el.dataset.key !== dragKey) saveOrder(dragKind, moved(dragKind, listOf(dragKind), st.prefs, dragKey, { beforeKey: el.dataset.key }));
+});
+addEventListener('dragend', () => {
+  $$('.dragging, .drop-before').forEach((x) => x.classList.remove('dragging', 'drop-before'));
+  dragKey = dragKind = null;
+});
+addEventListener('keydown', (e) => {
+  if (st.screen !== 'dash' || !e.altKey || e.ctrlKey || !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) return;
+  const el = document.activeElement?.closest?.('[data-move]');
+  if (!el || st.filter) return;
+  e.preventDefault();
+  const delta = e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 1;
+  saveOrder(el.dataset.move, moved(el.dataset.move, listOf(el.dataset.move), st.prefs, el.dataset.key, { delta }));
+});
+
+/* ---------------- search: just start typing on the dashboard ---------------- */
+function setFilter(v) {
+  st.filter = v;
+  const box = $('#svcSearch');
+  box.hidden = !v;
+  if (box.value !== v) box.value = v;
+  if (v) $$('[data-ptab]').forEach((x) => x.setAttribute('aria-selected', x.dataset.ptab === 'web')), $$('[data-pane]').forEach((p) => (p.hidden = p.dataset.pane !== 'web'));
+  renderServices();
+}
+$('#svcSearch').addEventListener('input', (e) => setFilter(e.target.value));
+$('#svcSearch').addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') { e.stopPropagation(); setFilter(''); nav.focusFirst(undefined, '#svcgrid .svc'); }
+  if (e.key === 'Enter') { const first = $('#svcgrid .svc'); if (first) first.click(); }
+});
+addEventListener('keydown', (e) => {
+  if (st.screen !== 'dash' || e.ctrlKey || e.altKey || e.metaKey || e.key.length !== 1 || e.key === ' ' || e.key === '?') return;
+  if (/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName)) return;
+  const box = $('#svcSearch');
+  box.hidden = false;
+  box.focus(); // the key lands in the search box
+}, true);
 
 function renderGuests() {
   $('#guestCount').textContent = st.guests.length;
@@ -516,6 +600,37 @@ function tick() {
   $$('[data-date]').forEach((e) => (e.textContent = d.toLocaleDateString(i18n.locale(), { weekday: 'long', day: 'numeric', month: 'long' })));
 }
 
+/* ---------------- keyboard help (?) ---------------- */
+const HELP = [
+  ['help.k_nav', '← → ↑ ↓'], ['help.k_tab', 'Tab · Shift+Tab'], ['help.k_open', 'Enter'], ['help.k_back', 'Esc'],
+  ['help.k_search', 'a…z'], ['help.k_move', 'Alt + ← →'], ['help.k_dock', 'Alt+Q'], ['help.k_console', 'Ctrl+Alt+Q'],
+  ['help.k_help', '?'],
+];
+function showHelp() {
+  $('#helpTable').innerHTML = HELP.map(([k, keys]) => `<tr><td>${esc(t(k))}</td><td><span class="kbd">${esc(keys)}</span></td></tr>`).join('');
+  $('#helpLayer').hidden = false;
+  $('#helpClose').focus();
+}
+const hideHelp = () => { $('#helpLayer').hidden = true; };
+$('#helpClose').onclick = hideHelp;
+addEventListener('keydown', (e) => {
+  if (e.key === '?' && !/^(INPUT|TEXTAREA)$/.test(document.activeElement?.tagName) && st.screen !== 'console') { e.preventDefault(); showHelp(); }
+  else if (e.key === 'Escape' && !$('#helpLayer').hidden) { e.stopImmediatePropagation(); hideHelp(); }
+}, true);
+
+/* ---------------- about ---------------- */
+let about = {};
+function paintAbout() {
+  const v = st.pub?.app?.version;
+  const who = about.author ? t('about.by', { name: about.author }) : '';
+  $$('[data-about]').forEach((el) => {
+    el.innerHTML = `<b>${esc(about.name || 'PVE Seat')}</b>${v ? ` <span>v${esc(v)}</span>` : ''}${who ? ` · ${esc(who)}` : ''}`
+      + ` · <button type="button" class="linklike" data-help>${esc(t('help.short'))}</button>`;
+  });
+  $$('[data-help]').forEach((b) => (b.onclick = showHelp));
+}
+app.about = () => about;
+
 /* ---------------- boot ---------------- */
 async function boot() {
   scene.init();
@@ -529,10 +644,11 @@ async function boot() {
   $$('[data-seat-name]').forEach((x) => (x.textContent = st.pub.seat.gpu_name));
   $$('[data-hostline]').forEach((x) => (x.textContent = `${st.pub.node} · Proxmox VE ${st.pub.version} · ${st.pub.ip}`));
   $$('[data-node]').forEach((x) => (x.textContent = st.pub.node));
+  try { about = await (await fetch('/about.json', { cache: 'no-cache' })).json(); } catch {}
   if (st.pub.demo) {
-    const b = document.createElement('div');
-    b.className = 'demo-badge'; b.dataset.i18n = 'demo.badge';
-    document.body.appendChild(b);
+    document.body.classList.add('demo');
+    const { initDemo } = await import('./demo-panel.js');
+    initDemo(app, { refresh: () => refreshDash(), weather: () => weather(true) });
   }
   S.init(app);
   tabs.watch(renderOpenTabs);

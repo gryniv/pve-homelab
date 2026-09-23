@@ -19,6 +19,10 @@ DEFAULT = {
     "launch": {"gpu": "auto", "ask": True, "pass_input": True},
     "saver": {"fx": True, "clock": True},
     "hidden_services": [],
+    "hidden_systems": [],
+    # manual = the user's own order (drag on the dashboard or ↑↓ in settings), name, status = running first
+    "sort": {"services": "manual", "systems": "manual"},
+    "order": {"services": [], "systems": []},
     "avatar": 0,
     "show_on_login": True,
     "note": "",

@@ -131,6 +131,7 @@ async def public(req):
     return web.json_response({
         "node": cfg["node"],
         "demo": app.get("demo", False),
+        "app": {"version": update.installed()["version"], "repo": update.settings(cfg)["repo"]},
         "version": app["pveversion"],
         "ip": app["host_ip"],
         "seat": {"id": seat, **cfg["seats"][seat], "gpu_name": await G.pretty_name(cfg["seats"][seat]["gpu"])},
