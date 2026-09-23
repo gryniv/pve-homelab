@@ -4,7 +4,7 @@
    @desc.en cold, blue
    @preview linear-gradient(180deg,#040816,#0f2c46 55%,#2b6c8c)
    @accent #4cc9f0 */
-.A[data-skin="ice"]{--acc:#4cc9f0;--acc2:#a0e7ff;--acc-ink:#04161d;--acc-text:#9be3fa;--acc-soft:rgba(76,201,240,.13);--acc-line:rgba(76,201,240,.7);
-  --glass:rgba(12,22,34,.6);--solid:radial-gradient(80em 50em at 80% 120%,#0f3346,#070d16 60%);--display:"Unbounded","Onest",sans-serif}
+.A[data-skin="ice"],.A [data-skin="ice"]{--acc:#4cc9f0;--acc2:#a0e7ff;--acc-ink:#04161d;--acc-text:#9be3fa;--acc-soft:rgba(76,201,240,.13);--acc-line:rgba(76,201,240,.7);
+  --glass:rgba(12,22,34,.6);--solid:radial-gradient(80em 50em at 80% 120%,#0f3346,#070d16 60%);--display:"Unbounded","Onest",sans-serif;--lf:saturate(1)}
 .A[data-skin="ice"] .clock{font-size:6.6em;letter-spacing:-.03em}
 .A[data-skin="ice"] .sv .clock{font-size:9em}

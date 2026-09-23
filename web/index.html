@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&family=Unbounded:wght@600;700&display=swap">
 <link rel="stylesheet" href="/core/base.css">
+<link rel="stylesheet" href="/core/backgrounds.css">
 </head>
 <body class="A" id="app" data-tod="dusk" data-wx="partly" data-skin="dusk" data-bg="scene">
 
@@ -43,7 +44,7 @@
   <symbol id="i-note" viewBox="0 0 24 24"><path d="M4 4h16v12l-4 4H4z"/><path d="M16 20v-4h4"/></symbol>
 </svg>
 
-<div class="bgx" aria-hidden="true"></div>
+<div id="bgHost" aria-hidden="true" style="display:contents"></div>
 <!-- scene: landscape; colours come from --s*/--m*/--cel tokens set by time of day -->
 <div class="land" aria-hidden="true">
   <svg viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMax slice">

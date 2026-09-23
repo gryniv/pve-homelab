@@ -5,4 +5,5 @@
    @preview linear-gradient(180deg,#14163a,#7b3a5e 55%,#ff8a3d)
    @accent #ff8a3d */
 /* Default theme: the values match base.css, so this only names them explicitly. */
-.A[data-skin="dusk"]{--acc:#ff8a3d;--acc2:#ffc15e;--acc-ink:#1f0e02;--acc-text:#ffb27a;--acc-soft:rgba(255,138,61,.13);--acc-line:rgba(255,138,61,.7)}
+.A[data-skin="dusk"],.A [data-skin="dusk"]{--acc:#ff8a3d;--acc2:#ffc15e;--acc-ink:#1f0e02;--acc-text:#ffb27a;--acc-soft:rgba(255,138,61,.13);--acc-line:rgba(255,138,61,.7);
+  --glass:rgba(16,22,31,.62);--solid:radial-gradient(80em 50em at 80% 120%,#3a1d10,#0b0f16 60%);--display:"Onest",system-ui,sans-serif;--lf:saturate(1)}

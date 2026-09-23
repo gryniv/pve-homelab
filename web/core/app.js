@@ -9,6 +9,7 @@ import * as vnc from './console.js';
 import * as tabs from './tabs.js';
 import { arrange, moved } from './order.js';
 import { rail } from './rail.js';
+import * as bg from './backgrounds.js';
 import * as i18n from './i18n.js';
 import { $, $$, icon, esc, avatar, fmt, toast, confirmBox, keepFocus, t } from './ui.js';
 
@@ -109,6 +110,7 @@ function paintWeather() {
 function applyLook(skin, background) {
   document.body.dataset.skin = skin || 'dusk';
   document.body.dataset.bg = background || 'scene';
+  bg.apply(background || 'scene');
 }
 
 function applyPrefs({ relayout = false } = {}) {

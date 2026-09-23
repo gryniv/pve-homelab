@@ -1,6 +1,7 @@
 // Per-user settings panel. Every change is applied live and saved to the user's file.
 
 import * as W from './widgets.js';
+import * as BG from './backgrounds.js';
 import { arrange, moved } from './order.js';
 import { current as currentLang } from './i18n.js';
 import { $, $$, icon, esc, AVATARS, toast, keepFocus, t } from './ui.js';
@@ -53,9 +54,11 @@ function orderEditor(kind, list, p, hidden, label) {
     </div>`).join('')}</div>`;
 }
 
-// Backgrounds: the landscape scene plus flat ones painted from the theme accent (base.css, .bgx).
-const BGS = ['scene', 'still', 'gradient', 'aurora', 'dots', 'grid', 'solid', 'black'];
-const skinOf = (p) => app.pub().themes.find((th) => th.id === p.skin) || app.pub().themes[0] || {};
+// Theme and background tiles are tiny monitors showing the real result (backgrounds.js).
+const clockNow = () => new Date().toLocaleTimeString(currentLang(), { hour: '2-digit', minute: '2-digit' });
+const bgTile = (k, p) => `
+  <button type="button" class="skin${(p.background || 'scene') === k ? ' sel' : ''}" data-bgk="${k}">
+    ${BG.mini(k, p.skin || 'dusk', clockNow())}<span>${t('set.look.bg_' + k)}</span></button>`;
 
 const views = {
   look(p) {
@@ -63,14 +66,12 @@ const views = {
     return `<h3>${t('set.s.look')}</h3>${lead('set.look.lead')}
       <div class="grp"><div class="gl">${t('set.look.language')}</div>
         ${seg('langSeg', lang, app.pub().languages.map((l) => [l.code, l.name]))}</div>
-      <div class="grp"><div class="gl">${t('set.look.theme')}</div><div class="skins">${app.pub().themes.map((th) => `
-        <button type="button" class="skin${p.skin === th.id ? ' sel' : ''}" data-skin="${th.id}">
-          <div class="pv" style="background:${esc(th.preview)}"><i style="background:${esc(th.accent)}"></i></div>
+      <div class="grp"><div class="gl">${t('set.look.theme')}</div><div class="skins looks">${app.pub().themes.map((th) => `
+        <button type="button" class="skin${p.skin === th.id ? ' sel' : ''}" data-skinpick="${th.id}">
+          ${BG.mini(p.background || 'scene', th.id, clockNow())}
           <span>${esc(pick(th.name, lang))}<small>${esc(pick(th.desc, lang))}</small></span></button>`).join('')}</div></div>
-      <div class="grp"><div class="gl">${t('set.look.background')}</div><div class="skins bgs">${BGS.map((k) => `
-        <button type="button" class="skin${(p.background || 'scene') === k ? ' sel' : ''}" data-bgk="${k}">
-          <div class="pv"><b class="bgpv" data-k="${k}" style="--pv:${esc(skinOf(p).preview || '')}"></b></div>
-          <span>${t('set.look.bg_' + k)}</span></button>`).join('')}</div></div>
+      <div class="grp"><div class="gl">${t('set.look.bg_scapes')}</div><div class="skins looks">${BG.LANDSCAPES.map((k) => bgTile(k, p)).join('')}</div></div>
+      <div class="grp"><div class="gl">${t('set.look.bg_simple')}</div><div class="skins looks">${BG.FLAT.map((k) => bgTile(k, p)).join('')}</div></div>
       <div class="grp"><div class="gl">${t('set.look.behaviour')}</div>
         ${tgl('pWx', p.weather_react, 'set.look.wx', 'set.look.wx_sub')}
         ${tgl('pSky', p.sky_by_time, 'set.look.sky', 'set.look.sky_sub')}</div>`;
@@ -143,7 +144,8 @@ const views = {
 };
 
 function bind(p) {
-  $$('[data-skin]', $('#settingsBox')).forEach((b) => (b.onclick = () => save({ skin: b.dataset.skin })));
+  $$('[data-skinpick]', $('#settingsBox')).forEach((b) => (b.onclick = () => { save({ skin: b.dataset.skinpick }); render(); }));
+  BG.fillLand($('#settingsBox'));
   const segBind = (id, fn) => $$(`#${id} button`).forEach((b) => (b.onclick = () => { fn(b.dataset.v); render(); }));
   segBind('langSeg', (v) => { save({ lang: v }); app.useLang(v); });
   $$('[data-bgk]', $('#settingsBox')).forEach((b) => (b.onclick = () => { save({ background: b.dataset.bgk }); render(); }));

@@ -4,7 +4,7 @@
    @desc.en monochrome, mono font
    @preview linear-gradient(180deg,#0c0c0c,#303030 55%,#6a6a6a)
    @accent #e9e9e9 */
-.A[data-skin="graphite"]{--acc:#e9e9e9;--acc2:#a9a9a9;--acc-ink:#111;--acc-text:#f2f2f2;--acc-soft:rgba(255,255,255,.1);--acc-line:rgba(255,255,255,.55);
+.A[data-skin="graphite"],.A [data-skin="graphite"]{--acc:#e9e9e9;--acc2:#a9a9a9;--acc-ink:#111;--acc-text:#f2f2f2;--acc-soft:rgba(255,255,255,.1);--acc-line:rgba(255,255,255,.55);
   --glass:rgba(18,18,18,.72);--solid:#0e0e0e;--display:"JetBrains Mono",monospace;--lf:grayscale(1) contrast(1.1)}
 .A[data-skin="graphite"] .clock{font-size:6.6em;letter-spacing:-.03em}
 .A[data-skin="graphite"] .sv .clock{font-size:9em}
