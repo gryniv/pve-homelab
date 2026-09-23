@@ -1,5 +1,6 @@
 import asyncio
 import glob
+import json
 import os
 import re
 import secrets
@@ -10,7 +11,7 @@ from urllib.parse import quote
 import aiohttp
 from aiohttp import web
 
-from . import caddy, config, gpus as G, icons, prefs, weather
+from . import caddy, config, gpus as G, i18n, icons, prefs, weather
 from .ddc import DDC
 from .host import HostStats
 from .launch import Launcher
@@ -45,6 +46,7 @@ async def session(req):
 
 @web.middleware
 async def errors(req, handler):
+    i18n.lang.set(i18n.pick(req.headers.get("X-Lang")) or req.app["cfg"]["language"])
     try:
         return await handler(req)
     except PVEError as e:
@@ -75,7 +77,7 @@ def pve_users(app):
                 name = first or uid.split("@")[0]
                 users.append({"id": uid, "name": name, "full": " ".join(x for x in (first, last) if x),
                               "avatar": pr["avatar"], "skin": pr["skin"], "background": pr["background"],
-                              "login": pr["layout"].get("login", [])})
+                              "login": pr["layout"].get("login", []), "lang": pr["lang"]})
     except OSError:
         pass
     return users
@@ -88,14 +90,34 @@ def list_dir_modules(sub, pattern):
 
 
 def themes():
+    """Theme metadata from the CSS header: @name.uk Сутінки / @name.en Dusk / @preview … / @accent …"""
     out = []
     for path in sorted(glob.glob(os.path.join(config.WEB_DIR, "themes", "*.css"))):
         with open(path, encoding="utf-8") as f:
-            head = f.read(600)
-        meta = dict(re.findall(r"@(\w+)\s+([^\n*]+)", head))
+            head = f.read(800)
         tid = os.path.splitext(os.path.basename(path))[0]
-        out.append({"id": tid, "name": meta.get("name", tid).strip(), "desc": meta.get("desc", "").strip(),
-                    "preview": meta.get("preview", "").strip(), "accent": meta.get("accent", "").strip()})
+        meta = {"id": tid, "name": {}, "desc": {}, "preview": "", "accent": ""}
+        for key, code, val in re.findall(r"@(\w+)(?:\.(\w+))?\s+([^\n*]+)", head):
+            if key in ("name", "desc"):
+                meta[key][code or "en"] = val.strip()
+            elif key in ("preview", "accent"):
+                meta[key] = val.strip()
+        meta["name"] = meta["name"] or {"en": tid}
+        out.append(meta)
+    return out
+
+
+def languages():
+    """Every web/i18n/<code>.json is a language; its "_name" is shown in the picker."""
+    out = []
+    for path in sorted(glob.glob(os.path.join(config.WEB_DIR, "i18n", "*.json"))):
+        code = os.path.splitext(os.path.basename(path))[0]
+        try:
+            with open(path, encoding="utf-8") as f:
+                name = json.load(f).get("_name", code)
+        except (OSError, ValueError):
+            continue
+        out.append({"code": code, "name": name})
     return out
 
 
@@ -115,6 +137,9 @@ async def public(req):
         "guests": {"running": sum(g.get("status") == "running" for g in guests),
                    "stopped": sum(g.get("status") != "running" for g in guests)},
         "users": pve_users(app),
+        "language": cfg["language"],
+        "languages": languages(),
+        "systems_tag": cfg["systems_tag"],
         "weather": cfg["weather"],
         "saver_after_min": cfg["saver"]["after_min"],
         "lock_after_min": cfg["lock_after_min"],

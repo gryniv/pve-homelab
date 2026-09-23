@@ -1,6 +1,6 @@
 // Two jobs:
 //  1. In the menu page: a bridge, so the menu can open/switch/close service tabs (window.postMessage <-> extension).
-//  2. In every service page: a dock ("⌂ Меню", open services, reload, close) reachable by mouse, Tab or Alt+Q.
+//  2. In every service page: a dock ("⌂ Menu", open services, reload, close) reachable by mouse, Tab or Alt+Q.
 (() => {
   if (window.top !== window) return;
   const MENU = 'http://127.0.0.1:8900/';
@@ -21,6 +21,13 @@
     return;
   }
 
+  // The dock follows the menu's language (stored by the background when the menu changes it).
+  const TEXT = {
+    uk: { menu: '⌂ Меню', menu_title: 'Повернутись у меню (сервіс лишиться відкритим)', reload: '↻ Оновити', reload_title: 'Оновити сторінку',
+          close: '✕ Закрити', close_title: 'Закрити цей сервіс', help: '← → вибір · Enter · Esc назад' },
+    en: { menu: '⌂ Menu', menu_title: 'Back to the menu (the service stays open)', reload: '↻ Reload', reload_title: 'Reload the page',
+          close: '✕ Close', close_title: 'Close this service', help: '← → select · Enter · Esc back' },
+  };
   let tabs = [];
   let returnTo = null; // where focus was on the site before the dock took it
   const host = document.createElement('div');
@@ -49,15 +56,24 @@
       .t{overflow:hidden;text-overflow:ellipsis}
     </style>
     <div class="dock mini" role="toolbar" aria-label="PVE Seat">
-      <button class="home" data-a="menu" title="Повернутись у меню (сервіс лишиться відкритим)">⌂ Меню</button>
+      <button class="home" data-a="menu" data-t="menu"></button>
       <span class="more">
         <span class="sep"></span><span id="tabs" style="display:contents"></span><span class="sep"></span>
-        <button data-a="reload" title="Оновити сторінку">↻ Оновити</button>
-        <button class="close" data-a="close" title="Закрити цей сервіс">✕ Закрити</button>
+        <button data-a="reload" data-t="reload"></button>
+        <button class="close" data-a="close" data-t="close"></button>
       </span>
-      <span class="hint short">Alt+Q</span><span class="hint full">← → вибір · Enter · Esc назад</span>
+      <span class="hint short">Alt+Q</span><span class="hint full" data-t="help"></span>
     </div>`;
   const dock = root.querySelector('.dock');
+  function localize(lang) {
+    const d = TEXT[lang] || TEXT.en;
+    root.querySelectorAll('[data-t]').forEach((e) => {
+      e.textContent = d[e.dataset.t];
+      if (d[e.dataset.t + '_title']) e.title = d[e.dataset.t + '_title'];
+    });
+  }
+  localize((navigator.language || 'en').slice(0, 2));
+  chrome.storage.local.get('lang').then((v) => v.lang && localize(v.lang)).catch(() => {});
   const buttons = () => [...root.querySelectorAll('button')].filter((b) => b.getClientRects().length);
   const inDock = () => document.activeElement === host;
 
@@ -123,6 +139,7 @@
   chrome.runtime.onMessage.addListener((m) => {
     if (m.type === 'dock') inDock() ? closeDock() : openDock();
     if (m.type === 'tabs') { tabs = m.tabs; renderTabs(); }
+    if (m.type === 'lang') localize(m.lang);
   });
   const mount = () => (document.body || document.documentElement).appendChild(host);
   document.readyState === 'loading' ? document.addEventListener('DOMContentLoaded', mount) : mount();

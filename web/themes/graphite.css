@@ -1,5 +1,7 @@
-/* @name Графіт
-   @desc монохром, моно-шрифт
+/* @name.uk Графіт
+   @name.en Graphite
+   @desc.uk монохром, моно-шрифт
+   @desc.en monochrome, mono font
    @preview linear-gradient(180deg,#0c0c0c,#303030 55%,#6a6a6a)
    @accent #e9e9e9 */
 .A[data-skin="graphite"]{--acc:#e9e9e9;--acc2:#a9a9a9;--acc-ink:#111;--acc-text:#f2f2f2;--acc-soft:rgba(255,255,255,.1);--acc-line:rgba(255,255,255,.55);

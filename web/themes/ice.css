@@ -1,5 +1,7 @@
-/* @name Північ
-   @desc холодний, блакитний
+/* @name.uk Північ
+   @name.en North
+   @desc.uk холодний, блакитний
+   @desc.en cold, blue
    @preview linear-gradient(180deg,#040816,#0f2c46 55%,#2b6c8c)
    @accent #4cc9f0 */
 .A[data-skin="ice"]{--acc:#4cc9f0;--acc2:#a0e7ff;--acc-ink:#04161d;--acc-text:#9be3fa;--acc-soft:rgba(76,201,240,.13);--acc-line:rgba(76,201,240,.7);

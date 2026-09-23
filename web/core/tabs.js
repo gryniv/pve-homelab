@@ -31,4 +31,6 @@ export function open(url) { return bridge ? call({ cmd: 'open', url }) : Promise
 export const list = () => call({ cmd: 'list' });
 export const switchTo = (id) => call({ cmd: 'switch', id });
 export const close = (id) => call({ cmd: 'close', id });
+// The dock on service pages is translated by the extension; tell it the current language.
+export const setLang = (lang) => call({ cmd: 'lang', lang });
 export function watch(fn) { onTabs = fn; list().then((l) => Array.isArray(l) && fn(l)); }

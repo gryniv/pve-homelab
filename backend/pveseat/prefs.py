@@ -9,6 +9,7 @@ import yaml
 from .config import STATE_DIR
 
 DEFAULT = {
+    "lang": "",                   # empty = the screen's default language
     "skin": "dusk",
     "background": "scene",        # scene | still | solid
     "weather_react": True,

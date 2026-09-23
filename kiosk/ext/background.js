@@ -44,6 +44,11 @@ async function handle(msg, sender) {
     case 'open': return open(msg.url);
     case 'switch': return activate(await chrome.tabs.get(msg.id));
     case 'reload': return chrome.tabs.reload(msg.id ?? sender.tab.id);
+    case 'lang': {
+      await chrome.storage.local.set({ lang: msg.lang });
+      for (const t of await chrome.tabs.query({})) chrome.tabs.sendMessage(t.id, { type: 'lang', lang: msg.lang }).catch(() => {});
+      return true;
+    }
     case 'close': {
       const id = msg.id ?? sender.tab?.id;
       const t = id && (await chrome.tabs.get(id).catch(() => null));

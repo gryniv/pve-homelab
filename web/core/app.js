@@ -7,12 +7,13 @@ import * as S from './settings.js';
 import * as nav from './nav.js';
 import * as vnc from './console.js';
 import * as tabs from './tabs.js';
-import { $, $$, icon, esc, avatar, fmt, toast, confirmBox, keepFocus } from './ui.js';
+import * as i18n from './i18n.js';
+import { $, $$, icon, esc, avatar, fmt, toast, confirmBox, keepFocus, t } from './ui.js';
 
 const st = {
   pub: null, me: null, prefs: null, screen: null,
   selUser: null, services: [], guests: [], systems: [],
-  wx: null, wxKey: '', wxAt: 0, lastInput: Date.now(), timers: [],
+  wx: null, wxKey: '', wxAt: 0, lastInput: Date.now(), timers: [], loginLang: null,
 };
 
 /* ---------------- app facade given to widgets & settings ---------------- */
@@ -30,8 +31,49 @@ const app = {
   openSettings: (s) => { S.open(s); go('settings'); },
   openUrl: (url) => tabs.open(url),
   pveUrl: () => (st.services.find((s) => s.key === 'pve')?.url) || `https://${st.pub.ip}:8006`,
-  applyPrefs, weather,
+  applyPrefs, weather, useLang: (code) => useLang(code), t,
 };
+
+/* ---------------- language ---------------- */
+// Signed in: the user's choice. Sign-in screen: the switcher, else the selected user's language. Else config default.
+function wantedLang() {
+  if (st.me) return st.prefs?.lang || st.loginLang || st.pub.language;
+  const u = st.pub?.users.find((x) => x.id === st.selUser);
+  return st.loginLang || u?.lang || st.pub?.language || 'en';
+}
+
+async function useLang(code = wantedLang()) {
+  if (await i18n.setLang(code)) {
+    rerender();
+    // City names come back from the geocoder in the requested language.
+    if (st.pub) weather(true).then(() => st.me ? W.renderZone('side', st.prefs.layout.side || [], { app }) : keepFocus($('#loginForm'), renderUsers)).catch(() => {});
+  }
+  tabs.setLang(i18n.current());
+}
+
+// Everything that holds translated text is rebuilt from state.
+function rerender() {
+  tick(); paintWeather(); renderLoginLang();
+  if (st.me) {
+    W.renderZone('side', st.prefs.layout.side || [], { app });
+    const body = $('.scr-dash .body');
+    keepFocus(body, renderSystems); keepFocus(body, renderServices); keepFocus(body, renderGuests);
+    if (st.screen === 'settings') S.render();
+  } else if (st.pub) {
+    keepFocus($('#loginForm'), renderUsers);
+  }
+}
+
+function renderLoginLang() {
+  const el = $('#loginLang');
+  if (!el || !st.pub) return;
+  el.hidden = st.pub.languages.length < 2;
+  keepFocus(el, () => {
+    el.innerHTML = st.pub.languages.map((l) =>
+      `<button type="button" data-v="${l.code}" aria-pressed="${l.code === i18n.current()}" title="${esc(l.name)}">${l.code.toUpperCase()}</button>`).join('');
+  });
+  $$('button', el).forEach((b) => (b.onclick = () => { st.loginLang = b.dataset.v; useLang(); }));
+}
 
 /* ---------------- weather ---------------- */
 async function weather(force = false) {
@@ -53,7 +95,7 @@ function paintWeather() {
   const src = `/assets/wx/${{ clear: night ? 'clear-night' : 'clear-day', partly: night ? 'partly-cloudy-night' : 'partly-cloudy-day', overcast: night ? 'overcast-night' : 'overcast-day', rain: 'rain', thunder: 'thunderstorms', snow: 'snow', fog: 'fog' }[w.kind]}.svg`;
   $$('[data-wx-icon]').forEach((i) => (i.src = src));
   $$('[data-temp]').forEach((x) => (x.textContent = w.temp + (w.units === 'f' ? '°F' : '°')));
-  $$('[data-wx-text]').forEach((x) => (x.textContent = w.text));
+  $$('[data-wx-text]').forEach((x) => (x.textContent = t('wx.' + w.kind)));
   $$('[data-city]').forEach((x) => (x.textContent = w.city));
 }
 
@@ -123,7 +165,7 @@ function renderUsers() {
       <span class="nm">${esc(u.name)}</span><small>${esc(u.id)}</small></button>`;
   }).join('') + `<button class="user${st.selUser === '' ? ' sel' : ''}" type="button" data-user="">
       <span class="avw"><span class="av" style="background:rgba(255,255,255,.08)"><svg viewBox="0 0 24 24"><use href="#i-user"/></svg></span></span>
-      <span class="nm">Інший</span><small>будь-який користувач</small></button>`;
+      <span class="nm">${t('login.other')}</span><small>${t('login.other_sub')}</small></button>`;
   $$('[data-user]').forEach((b) => (b.onclick = () => selectUser(b.dataset.user)));
   selectUser(st.selUser ?? '', true);
 }
@@ -133,9 +175,10 @@ function selectUser(id, initial = false) {
   $$('[data-user]').forEach((b) => b.classList.toggle('sel', b.dataset.user === id));
   const u = st.pub.users.find((x) => x.id === id);
   $('#otherRow').hidden = !!u;
-  $('#pwLabel').textContent = u ? `Пароль для ${u.id}` : 'Пароль';
+  $('#pwLabel').textContent = u ? t('login.password_for', { user: u.id }) : t('login.password');
   $('#loginErr').hidden = true;
   applyLook(u?.skin, u?.background);
+  if (!initial) useLang();
   W.renderZone('login', u?.login?.length ? u.login : ['weather', 'host'], { app });
   if (!initial) { $('#pw').value = ''; (u ? $('#pw') : $('#otherUser')).focus(); }
 }
@@ -161,6 +204,9 @@ async function enter(userid, prefs) {
   const u = st.pub.users.find((x) => x.id === userid) || { id: userid, name: userid.split('@')[0] };
   st.me = { ...u };
   st.prefs = prefs;
+  await i18n.setLang(wantedLang());
+  tabs.setLang(i18n.current());
+  rerender();
   applyPrefs();
   W.stopZone('login');
   W.renderZone('side', prefs.layout.side || [], { app });
@@ -179,6 +225,7 @@ async function logout() {
   try { await api.post('/api/logout'); } catch {}
   st.me = null; st.prefs = null;
   try { st.pub = await api.get('/api/public'); } catch {}
+  await useLang();
   renderUsers();
   go('login');
 }
@@ -193,7 +240,7 @@ async function refreshDash() {
   if (svc.status === 'fulfilled') { st.services = svc.value; keepFocus(body, renderServices); }
   if (gst.status === 'fulfilled') { st.guests = gst.value; keepFocus(body, renderGuests); }
   const bad = [sys, svc, gst].find((r) => r.status === 'rejected');
-  if (bad?.reason?.status === 401) { toast('Сесія завершилась, увійди ще раз', true); logout(); }
+  if (bad?.reason?.status === 401) { toast(t('dash.session_over'), true); logout(); }
 }
 
 const OS = [
@@ -209,7 +256,7 @@ const osOf = (vm) => OS.find(([re]) => re.test(`${vm.ostype} ${vm.name}`.replace
 function renderSystems() {
   const el = $('#systems');
   if (!st.systems.length) {
-    el.innerHTML = `<div class="glass empty">Систем для запуску немає. Додай VM тег <b>seat</b> у Proxmox, і вона з'явиться тут.</div>`;
+    el.innerHTML = `<div class="glass empty">${esc(t('dash.no_systems', { tag: '«' + (st.pub.systems_tag || 'seat') + '»' }))}</div>`;
     return;
   }
   el.innerHTML = st.systems.map((vm, i) => {
@@ -217,9 +264,9 @@ function renderSystems() {
     const run = vm.status === 'running';
     return `<div class="sys" style="--i:${i}"><div class="art" style="background:${art}"></div>
       <img class="os" src="/icons/${logo}.svg" alt="" style="${logo === 'apple' ? 'filter:invert(1)' : ''}" onerror="this.style.visibility='hidden'">
-      <span class="state"><span class="dot ${run ? 'ok' : 'off'}"></span>${run ? `працює · ${fmt.uptime(vm.uptime)}` : vm.suspended ? 'приспана' : 'вимкнена'}</span>
-      <h5>${esc(vm.name)}</h5><div class="meta"><span>VM ${vm.vmid}</span><span>${vm.cores} ядер · ${Math.round(vm.memory / 1024)} ГБ</span></div>
-      <button class="play${run ? ' go' : ''}" type="button" data-sys="${i}" title="${run ? 'Перейти до' : 'Запустити'} ${esc(vm.name)}">
+      <span class="state"><span class="dot ${run ? 'ok' : 'off'}"></span>${run ? t('sys.running', { time: fmt.uptime(vm.uptime) }) : vm.suspended ? t('sys.suspended') : t('sys.stopped')}</span>
+      <h5>${esc(vm.name)}</h5><div class="meta"><span>VM ${vm.vmid}</span><span>${t('cores', { n: vm.cores })} · ${t('gb', { n: Math.round(vm.memory / 1024) })}</span></div>
+      <button class="play${run ? ' go' : ''}" type="button" data-sys="${i}" title="${esc(t(run ? 'sys.go' : 'sys.start', { name: vm.name }))}">
         <svg><use href="#${run ? 'i-arrow' : 'i-play'}"/></svg></button></div>`;
   }).join('');
   $$('[data-sys]').forEach((b) => (b.onclick = () => { lastSysBtn = b; openLaunch(st.systems[+b.dataset.sys]); }));
@@ -232,7 +279,8 @@ function renderServices() {
   $('#svcCount').textContent = list.length;
   const down = st.services.filter((s) => s.status && s.status !== 'running');
   $('#health').classList.toggle('warn', down.length > 0);
-  $('#health').title = down.length ? `Не працює: ${down.map((s) => s.name).join(', ')}` : 'усе в нормі';
+  $('#health').title = down.length ? t('top.health_down', { list: down.map((s) => s.name).join(', ') }) : t('top.health_ok');
+  if (!list.length) { $('#svcgrid').innerHTML = `<div class="mute" style="grid-column:1/-1;padding:1em">${esc(t('dash.no_services'))}</div>`; return; }
   $('#svcgrid').innerHTML = list.map((s, i) => {
     const cls = s.status === 'running' ? '' : s.status ? ' down' : ' unknown';
     return `<button type="button" class="svc${cls}" style="--i:${i + 3}" data-url="${esc(s.url)}" title="${esc(s.desc || s.name)}">
@@ -251,12 +299,12 @@ function renderGuests() {
     const run = g.status === 'running', svc = svcBy[g.vmid];
     const logo = svc ? `<img src="/icons/${esc(svc.icon)}.svg" alt="" onerror="this.style.visibility='hidden'">` : `<span class="gen">${icon('i-box')}</span>`;
     return `<tr><td class="nm"><span>${logo}${esc(g.name)}</span></td><td>${g.vmid}</td><td><span class="type">${g.type === 'qemu' ? 'VM' : 'CT'}</span></td>
-      <td>${run ? '<span class="stp"><span class="dot ok"></span>працює</span>' : '<span class="stp mute"><span class="dot off"></span>зупинено</span>'}</td>
+      <td>${run ? `<span class="stp"><span class="dot ok"></span>${t('guest.running')}</span>` : `<span class="stp mute"><span class="dot off"></span>${t('guest.stopped')}</span>`}</td>
       <td>${run ? fmt.pct((g.cpu || 0) * 100) : '—'}</td><td>${run ? fmt.bytes(g.mem) : '—'}</td>
       <td>${svc ? `<button class="lnk" type="button" data-url="${esc(svc.url)}">${esc(svc.key)} ${icon('i-ext')}</button>` : ''}</td>
-      <td><div class="acts"><button type="button" data-act="${g.type}|${g.vmid}|${run ? 'shutdown' : 'start'}|${esc(g.name)}" title="${run ? 'Вимкнути' : 'Запустити'}">${icon(run ? 'i-stop' : 'i-start')}</button>
-        ${run ? `<button type="button" data-act="${g.type}|${g.vmid}|reboot|${esc(g.name)}" title="Перезапустити">${icon('i-restart')}</button>` : ''}
-        <button type="button" data-console="${g.type}|${g.vmid}|${esc(g.name)}" title="Консоль">${icon('i-term')}</button></div></td></tr>`;
+      <td><div class="acts"><button type="button" data-act="${g.type}|${g.vmid}|${run ? 'shutdown' : 'start'}|${esc(g.name)}" title="${t(run ? 'guest.shutdown' : 'guest.start')}">${icon(run ? 'i-stop' : 'i-start')}</button>
+        ${run ? `<button type="button" data-act="${g.type}|${g.vmid}|reboot|${esc(g.name)}" title="${t('guest.reboot')}">${icon('i-restart')}</button>` : ''}
+        <button type="button" data-console="${g.type}|${g.vmid}|${esc(g.name)}" title="${t('guest.console')}">${icon('i-term')}</button></div></td></tr>`;
   }).join('');
   $$('#guestrows [data-url]').forEach((b) => (b.onclick = () => app.openUrl(b.dataset.url)));
   $$('#guestrows [data-console]').forEach((b) => (b.onclick = () => {
@@ -266,12 +314,12 @@ function renderGuests() {
   $$('#guestrows [data-act]').forEach((b) => (b.onclick = async () => {
     const [t, id, act, name] = b.dataset.act.split('|');
     if (act !== 'start') {
-      const ok = await confirmBox(act === 'reboot' ? `Перезапустити ${name}?` : `Вимкнути ${name}?`,
-        act === 'reboot' ? 'Система коректно перезапуститься.' : 'Системі буде надіслано команду коректного вимкнення.',
-        act === 'reboot' ? 'Перезапустити' : 'Вимкнути');
+      const r = act === 'reboot';
+      const ok = await confirmBox(t(r ? 'guest.confirm_reboot' : 'guest.confirm_shutdown', { name }),
+        t(r ? 'guest.confirm_reboot_text' : 'guest.confirm_shutdown_text'), t(r ? 'guest.reboot' : 'guest.shutdown'));
       if (!ok) return;
     }
-    try { await api.post(`/api/guests/${t}/${id}/${act}`); toast(`${name}: команду надіслано`); setTimeout(refreshDash, 1500); }
+    try { await api.post(`/api/guests/${t}/${id}/${act}`); toast(t('guest.sent', { name })); setTimeout(refreshDash, 1500); }
     catch (e) { toast(e.message, true); }
   }));
 }
@@ -292,9 +340,9 @@ function openLaunch(vm) {
   $('#mLogo').src = `/icons/${logo}.svg`;
   $('#mLogo').style.filter = logo === 'apple' ? 'invert(1)' : '';
   $('#mTitle').textContent = vm.name;
-  $('#mSub').textContent = `VM ${vm.vmid} · ${vm.cores} ядер · ${Math.round(vm.memory / 1024)} ГБ`;
+  $('#mSub').textContent = `VM ${vm.vmid} · ${t('cores', { n: vm.cores })} · ${t('gb', { n: Math.round(vm.memory / 1024) })}`;
   $('#mSteps').hidden = true; $('#mErr').hidden = true; $('#mOpts').hidden = false;
-  $('#mStart').disabled = false; $('#mCancel').textContent = 'Скасувати';
+  $('#mStart').disabled = false; $('#mCancel').textContent = t('launch.cancel');
 
   // A running VM can only be joined where it already is: its passthrough GPU, or the menu (VirGL / no GPU).
   const opts = !run ? vm.options
@@ -308,27 +356,25 @@ function openLaunch(vm) {
 
   const noteOf = (o) => {
     if (!usable(o)) return o.disabled;
-    if (o.mode === 'virgl') return vm.suspended
-      ? 'екран системи відкриється в цьому меню; 3D через VirGL запрацює після першого повного вимкнення'
-      : 'ділиться з меню: 3D через VirGL, екран системи відкриється тут же, на весь екран';
-    return o.is_seat_gpu ? 'вбудована, меню на цьому моніторі згасне' : 'віддається системі повністю, монітор перемкнеться на її вхід';
+    if (o.mode === 'virgl') return t(vm.suspended ? 'launch.note_virgl_suspended' : 'launch.note_virgl');
+    return t(o.is_seat_gpu ? 'launch.note_seat' : 'launch.note_discrete');
   };
   const info = run
-    ? (vm.gpus.length ? 'Система вже працює. Монітор перемкнеться на неї, а меню лишиться працювати на своєму вході.' : 'Система вже працює. Її екран відкриється тут.')
-    : 'Дискретна карта: монітор перемкнеться на неї і повернеться до меню, коли вимкнеш систему. Radeon (VirGL): система працює у вікні цього меню.';
+    ? t(vm.gpus.length ? 'launch.info_running_gpu' : 'launch.info_running_menu')
+    : t('launch.info');
   $('#mOpts').innerHTML = (opts.length ? opts.map((o) => {
     const color = o.vendor === 'nvidia' ? 'rgba(118,185,0,.16);color:#8fd400' : 'rgba(255,90,90,.14);color:#ff8f8f';
-    const pill = o.mode === 'virgl' ? '<span class="pill dim">VirGL</span>' : o.is_seat_gpu ? '<span class="pill dim">iGPU</span>' : '<span class="pill here">цей монітор</span>';
+    const pill = o.mode === 'virgl' ? '<span class="pill dim">VirGL</span>' : o.is_seat_gpu ? '<span class="pill dim">iGPU</span>' : `<span class="pill here">${t('launch.pill_monitor')}</span>`;
     return `<button class="opt${o.pci === launchGpu ? ' sel' : ''}" type="button" data-gpu="${o.pci}" ${usable(o) ? '' : 'disabled'}>
       <span class="radio"></span><span class="chip" style="background:${color}">${icon(o.integrated ? 'i-chip' : 'i-gpu')}</span>
       <b>${esc(o.name)}</b>${pill}<small>${o.pci.slice(5)} · ${esc(noteOf(o))}</small></button>`;
-  }).join('') : '<div class="errbox">До цього монітора не підключено жодної відеокарти, яку можна віддати системі.</div>')
+  }).join('') : `<div class="errbox">${esc(t('launch.no_gpus'))}</div>`)
     + `<div class="warnbox">${icon('i-info')}<span>${info}</span></div>`;
   $$('#mOpts [data-gpu]').forEach((b) => (b.onclick = () => {
     launchGpu = b.dataset.gpu;
     $$('#mOpts [data-gpu]').forEach((x) => x.classList.toggle('sel', x === b));
   }));
-  $('#mStart').querySelector('span').textContent = run ? 'Перейти' : 'Запустити';
+  $('#mStart').querySelector('span').textContent = t(run ? 'launch.go' : 'launch.start');
   $('#mStart').querySelector('use').setAttribute('href', run ? '#i-arrow' : '#i-play');
   $('#mStart').querySelector('svg').style.cssText = run ? '' : 'fill:currentColor;stroke:none';
   $('#mStart').disabled = !launchGpu;
@@ -353,7 +399,7 @@ async function startLaunch() {
           clearInterval(polling);
           if (j.error) fail(j.error);
           else if (j.result?.console) openConsole(launchVm);
-          else { $('#mCancel').textContent = 'Закрити'; setTimeout(() => { if (st.screen === 'launch') go('dash'); refreshDash(); }, 2500); }
+          else { $('#mCancel').textContent = t('launch.close'); setTimeout(() => { if (st.screen === 'launch') go('dash'); refreshDash(); }, 2500); }
         }
       } catch (e) { clearInterval(polling); fail(e.message); }
     }, 500);
@@ -379,10 +425,10 @@ $('#mStart').onclick = startLaunch;
 function renderOpenTabs(list) {
   const el = $('#openTabs');
   keepFocus(el, () => {
-    el.innerHTML = list.map((t) => `
-      <span class="otab"><button class="go" type="button" data-tab="${t.id}" title="${esc(t.url)}">
-        ${t.icon ? `<img src="${esc(t.icon)}" alt="">` : icon('i-ext')}<span>${esc(t.title)}</span></button>
-        <button class="x" type="button" data-tabx="${t.id}" title="Закрити ${esc(t.title)}">${icon('i-x')}</button></span>`).join('');
+    el.innerHTML = list.map((tab) => `
+      <span class="otab"><button class="go" type="button" data-tab="${tab.id}" title="${esc(tab.url)}">
+        ${tab.icon ? `<img src="${esc(tab.icon)}" alt="">` : icon('i-ext')}<span>${esc(tab.title)}</span></button>
+        <button class="x" type="button" data-tabx="${tab.id}" title="${esc(t('tabs.close', { name: tab.title }))}">${icon('i-x')}</button></span>`).join('');
   });
   $$('[data-tab]', el).forEach((b) => (b.onclick = () => tabs.switchTo(+b.dataset.tab)));
   $$('[data-tabx]', el).forEach((b) => (b.onclick = () => tabs.close(+b.dataset.tabx)));
@@ -431,8 +477,8 @@ setInterval(() => {
 
 function tick() {
   const d = new Date();
-  $$('[data-clock]').forEach((e) => (e.textContent = d.toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' })));
-  $$('[data-date]').forEach((e) => (e.textContent = d.toLocaleDateString('uk-UA', { weekday: 'long', day: 'numeric', month: 'long' })));
+  $$('[data-clock]').forEach((e) => (e.textContent = d.toLocaleTimeString(i18n.locale(), { hour: '2-digit', minute: '2-digit' })));
+  $$('[data-date]').forEach((e) => (e.textContent = d.toLocaleDateString(i18n.locale(), { weekday: 'long', day: 'numeric', month: 'long' })));
 }
 
 /* ---------------- boot ---------------- */
@@ -451,6 +497,7 @@ async function boot() {
   S.init(app);
   tabs.watch(renderOpenTabs);
   await W.load(st.pub.widgets);
+  await useLang();
   tick(); setInterval(tick, 10000);
   weather().catch(() => {});
   setInterval(() => weather(true).catch(() => {}), 900000);
@@ -465,6 +512,6 @@ async function boot() {
 }
 
 boot().catch((e) => {
-  toast(`Не вдалося завантажити: ${e.message}`, true);
+  toast(t('error.load', { msg: e.message }), true);
   setTimeout(() => location.reload(), 5000);
 });

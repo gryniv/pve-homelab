@@ -5,6 +5,7 @@ import itertools
 import re
 
 from . import gpus as G
+from .i18n import _
 from .pve import PVEError
 from .util import log, run
 
@@ -94,13 +95,13 @@ class Launcher:
             }
             if virgl:
                 if vm["status"] == "running" and vm["gpus"]:
-                    opt["disabled"] = "система вже працює на іншій відеокарті"
+                    opt["disabled"] = _("running_elsewhere")
             elif busy_vm:
-                opt["disabled"] = f"зайнята VM {busy_vm}"
+                opt["disabled"] = _("busy", vm=busy_vm)
             elif vm.get("suspended") and pci not in vm["gpus"]:
-                opt["disabled"] = "система приспана на диск, відеокарту їй зараз змінити не можна"
+                opt["disabled"] = _("suspended")
             elif not self.cfg["launch"]["assign_gpu"] and pci not in vm["gpus"]:
-                opt["disabled"] = "VM налаштована на іншу відеокарту"
+                opt["disabled"] = _("other_gpu")
             opts.append(opt)
         return opts
 
@@ -124,11 +125,11 @@ class Launcher:
         pve, node = self.app["pve"], self.cfg["node"]
         vm = next((s for s in await self.systems(t) if s["vmid"] == vmid), None)
         if not vm:
-            raise PVEError(404, "Систему не знайдено")
+            raise PVEError(404, _("no_system"))
         opts = {o["pci"]: o for o in await self.options(seat_id, vm)}
         opt = opts.get(gpu)
         if not opt:
-            raise PVEError(400, "Ця відеокарта не підключена до твого монітора")
+            raise PVEError(400, _("not_wired"))
         seat_gpu = self.cfg["seats"][seat_id]["gpu"]
         mon = self.app["ddc"].monitor_for_gpu(seat_gpu)
 
@@ -137,26 +138,26 @@ class Launcher:
 
         if vm["status"] == "running":
             if gpu not in vm["gpus"]:
-                raise PVEError(409, "Система вже працює на іншій відеокарті")
+                raise PVEError(409, _("running_elsewhere"))
 
             async def switch(job):
                 job.step(0)
                 await self.app["ddc"].switch_to_gpu(mon, gpu)
                 self.watch[vmid] = (mon, seat_gpu)
-            return self.start_job(switch, [f"Перемикаю монітор на {opt['name']}"])
+            return self.start_job(switch, [_("step_switch", gpu=opt["name"])])
 
         if opt["disabled"]:
-            raise PVEError(409, f"{opt['name']}: {opt['disabled']}")
+            raise PVEError(409, _("gpu_disabled", name=opt["name"], why=opt["disabled"]))
         if not await pve.can(t, f"/vms/{vmid}", "VM.PowerMgmt"):
-            raise PVEError(403, "Недостатньо прав, щоб запускати цю систему")
+            raise PVEError(403, _("no_power"))
         need_assign = gpu not in vm["gpus"]
         if need_assign and not await pve.can(t, f"/vms/{vmid}", "VM.Config.HWType"):
-            raise PVEError(403, "Недостатньо прав, щоб змінити відеокарту цієї системи")
+            raise PVEError(403, _("no_hw_gpu"))
 
         steps = []
         if need_assign:
-            steps.append(f"Призначаю {opt['name']} системі {vm['name']}")
-        steps += [f"Стартую {vm['name']} (VM {vmid})", f"Перемикаю монітор на {opt['name']}"]
+            steps.append(_("step_assign", gpu=opt["name"], vm=vm["name"]))
+        steps += [_("step_start", vm=vm["name"], id=vmid), _("step_switch", gpu=opt["name"])]
 
         async def go(job):
             i = 0
@@ -179,24 +180,24 @@ class Launcher:
         """Run the VM on the seat's own GPU via VirGL and show it inside the menu (noVNC)."""
         pve, node, vmid = self.app["pve"], self.cfg["node"], vm["vmid"]
         if opt["disabled"]:
-            raise PVEError(409, f"{opt['name']}: {opt['disabled']}")
+            raise PVEError(409, _("gpu_disabled", name=opt["name"], why=opt["disabled"]))
         if vm["status"] == "running":
             async def show(job):
                 job.step(0)
                 job.result = {"console": vmid}
-            return self.start_job(show, [f"Відкриваю екран {vm['name']}"])
+            return self.start_job(show, [_("step_show", vm=vm["name"])])
 
         if not await pve.can(t, f"/vms/{vmid}", "VM.PowerMgmt"):
-            raise PVEError(403, "Недостатньо прав, щоб запускати цю систему")
+            raise PVEError(403, _("no_power"))
         # A hibernated VM must wake up with the hardware it slept with.
         reconfigure = not vm["suspended"] and (vm["vga"] != "virtio-gl" or vm["gpus"])
         if reconfigure and not await pve.can(t, f"/vms/{vmid}", "VM.Config.HWType"):
-            raise PVEError(403, "Недостатньо прав, щоб змінити відеоадаптер цієї системи")
+            raise PVEError(403, _("no_hw_vga"))
 
         steps = []
         if reconfigure:
-            steps.append(f"Вмикаю 3D через {opt['name']} (VirGL)")
-        steps += [f"{'Розбуджую' if vm['suspended'] else 'Стартую'} {vm['name']} (VM {vmid})", "Відкриваю екран системи"]
+            steps.append(_("step_virgl", gpu=opt["name"]))
+        steps += [_("step_wake" if vm["suspended"] else "step_start", vm=vm["name"], id=vmid), _("step_show_short")]
 
         async def go(job):
             i = 0

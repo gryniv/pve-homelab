@@ -1,4 +1,7 @@
 // Small shared helpers used by the core and by widgets.
+import { t, locale } from './i18n.js';
+
+export { t, locale };
 
 export const $ = (s, r = document) => r.querySelector(s);
 export const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -20,16 +23,17 @@ export function avatar(user, idx) {
 export const fmt = {
   bytes(n) {
     if (!n) return '0';
-    const u = ['Б', 'КБ', 'МБ', 'ГБ', 'ТБ'];
+    const u = ['unit.b', 'unit.kb', 'unit.mb', 'unit.gb', 'unit.tb'];
     let i = 0;
     while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
-    return `${n >= 10 || i === 0 ? Math.round(n) : n.toFixed(1)} ${u[i]}`;
+    return `${n >= 10 || i === 0 ? Math.round(n) : n.toFixed(1)} ${t(u[i])}`;
   },
   gb: (n) => (n / 1024 ** 3).toFixed(n >= 10 * 1024 ** 3 ? 0 : 1),
   pct: (x) => `${Math.round(x)}%`,
   uptime(s) {
     const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60);
-    return d ? `${d} д ${h} год` : h ? `${h} год ${m} хв` : `${m} хв`;
+    const [D, H, M] = [t('unit.d'), t('unit.h'), t('unit.min')];
+    return d ? `${d} ${D} ${h} ${H}` : h ? `${h} ${H} ${m} ${M}` : `${m} ${M}`;
   },
   ago(s) {
     if (!s) return '';

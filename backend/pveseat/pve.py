@@ -8,6 +8,8 @@ from urllib.parse import quote
 
 import aiohttp
 
+from .i18n import _
+
 API = "https://127.0.0.1:8006/api2/json"
 
 
@@ -48,7 +50,7 @@ class PVE:
         s = await self.http()
         async with s.post(f"{API}/access/ticket", data={"username": username, "password": password}) as r:
             if r.status != 200:
-                raise PVEError(401, "Невірний користувач або пароль")
+                raise PVEError(401, _("bad_login"))
             d = (await r.json())["data"]
         return Ticket(d["username"], d["ticket"], d["CSRFPreventionToken"])
 
@@ -71,7 +73,7 @@ class PVE:
             if r.status >= 400:
                 msg = (body or {}).get("message") or r.reason
                 if r.status == 403:
-                    msg = "Недостатньо прав"
+                    msg = _("forbidden")
                 raise PVEError(r.status, msg.strip())
             return (body or {}).get("data")
 
@@ -88,10 +90,10 @@ class PVE:
             st = await self.get(t, f"/nodes/{node}/tasks/{quote(upid, safe='')}/status")
             if st.get("status") == "stopped":
                 if st.get("exitstatus") != "OK":
-                    raise PVEError(500, st.get("exitstatus") or "Задача завершилась з помилкою")
+                    raise PVEError(500, st.get("exitstatus") or _("task_failed"))
                 return
             await asyncio.sleep(0.7)
-        raise PVEError(504, "Задача виконується надто довго")
+        raise PVEError(504, _("task_slow"))
 
     async def can(self, t, path, priv):
         perms = await self.get(t, "/access/permissions", path=path)

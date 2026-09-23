@@ -1,4 +1,5 @@
-// Thin wrapper over the backend. The seat id travels with every request.
+// Thin wrapper over the backend. The seat id and UI language travel with every request.
+import { current as lang, t } from './i18n.js';
 
 export const SEAT = new URLSearchParams(location.search).get('seat') || 'igpu';
 
@@ -18,13 +19,13 @@ async function call(method, path, body) {
   try {
     r = await fetch(path, {
       method,
-      headers: { 'Content-Type': 'application/json', 'X-Seat': SEAT },
+      headers: { 'Content-Type': 'application/json', 'X-Seat': SEAT, 'X-Lang': lang() },
       body: body === undefined ? undefined : JSON.stringify(body),
       credentials: 'same-origin',
     });
   } catch (e) {
     backendLost();
-    throw new Error('Немає зв\'язку з бекендом, перепідключаюсь…');
+    throw new Error(t('error.backend'));
   }
   const data = await r.json().catch(() => ({}));
   if (!r.ok) {

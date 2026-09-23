@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="uk">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -82,7 +82,7 @@
 
 <!-- SAVER -->
 <section class="scr scr-saver" data-scr="saver" hidden>
-  <div class="sv-hint">Торкнись або натисни будь-яку клавішу</div>
+  <div class="sv-hint" data-i18n="saver.hint"></div>
   <div class="sv-seat"><svg class="i"><use href="#i-monitor"/></svg><span data-seat-name></span></div>
   <div class="sv">
     <div class="sv-clock"><div class="clock" data-clock></div><div class="date" data-date></div></div>
@@ -99,29 +99,29 @@
     <div class="zone-login" data-zone="login"></div>
   </div>
   <form class="glass who" id="loginForm" autocomplete="off">
-    <h3>Хто входить?</h3>
+    <h3 data-i18n="login.who"></h3>
     <div class="users" id="users"></div>
-    <div class="other" id="otherRow" hidden><input id="otherUser" placeholder="користувач@realm" aria-label="Користувач"></div>
+    <div class="other" id="otherRow" hidden><input id="otherUser" data-i18n-placeholder="login.user_placeholder" data-i18n-aria="login.user"></div>
     <div class="pwlabel" id="pwLabel"></div>
-    <div class="pwrow"><input id="pw" type="password" aria-label="Пароль"><button class="btn" type="submit" id="loginBtn">Увійти</button></div>
+    <div class="pwrow"><input id="pw" type="password" data-i18n-aria="login.password"><button class="btn" type="submit" id="loginBtn" data-i18n="login.submit"></button></div>
     <div class="loginerr" id="loginErr" hidden></div>
-    <div class="seatnote"><svg class="i"><use href="#i-monitor"/></svg><span>Цей монітор підключено до <b data-seat-name></b></span></div>
+    <div class="seatnote"><svg class="i"><use href="#i-monitor"/></svg><span><span data-i18n="login.seat"></span> <b data-seat-name></b></span></div>
   </form>
-  <div class="power"><button class="chipbtn" type="button" data-go="saver"><svg class="i"><use href="#i-moon"/></svg>Заставка</button></div>
+  <div class="power"><div class="seg langseg" id="loginLang" role="group" data-i18n-aria="login.language"></div><button class="chipbtn" type="button" data-go="saver"><svg class="i"><use href="#i-moon"/></svg><span data-i18n="saver.button"></span></button></div>
 </section>
 
 <!-- DASHBOARD -->
 <section class="scr scr-dash" data-scr="dash" hidden>
   <div class="top">
-    <div class="brand"><img src="/icons/proxmox.svg" alt=""><span data-node></span><span class="health" id="health" title="усе в нормі"></span></div>
+    <div class="brand"><img src="/icons/proxmox.svg" alt=""><span data-node></span><span class="health" id="health" ></span></div>
     <div class="opentabs" id="openTabs"></div>
     <div class="tr">
       <span class="tw"><img data-wx-icon alt=""><span data-temp></span><span class="city" data-city></span></span>
       <span class="tw clock-s" data-clock></span>
       <span class="vsep"></span>
-      <button class="me" type="button" data-go="settings" title="Мої налаштування"><span class="av" data-me-av></span><span data-whoami></span></button>
-      <button class="ibtn" type="button" data-go="settings" title="Налаштування"><svg class="i"><use href="#i-gear"/></svg></button>
-      <button class="ibtn" type="button" id="logoutBtn" title="Вийти"><svg class="i"><use href="#i-logout"/></svg></button>
+      <button class="me" type="button" data-go="settings" data-i18n-title="top.my_settings"><span class="av" data-me-av></span><span data-whoami></span></button>
+      <button class="ibtn" type="button" data-go="settings" data-i18n-title="top.settings"><svg class="i"><use href="#i-gear"/></svg></button>
+      <button class="ibtn" type="button" id="logoutBtn" data-i18n-title="top.logout"><svg class="i"><use href="#i-logout"/></svg></button>
     </div>
   </div>
   <div class="body">
@@ -130,13 +130,13 @@
       <div class="systems" id="systems"></div>
       <div class="glass tabp">
         <div class="ptabs" role="tablist">
-          <button role="tab" aria-selected="true" data-ptab="web"><svg class="i"><use href="#i-ext"/></svg>Вебсервіси<span class="cnt" id="svcCount">0</span></button>
-          <button role="tab" aria-selected="false" data-ptab="guests"><svg class="i"><use href="#i-box"/></svg>Контейнери та VM<span class="cnt" id="guestCount">0</span></button>
-          <span class="sp"></span><span class="src" title="Список сервісів береться з Caddy"><img src="/icons/caddy.svg" alt="">Caddy</span>
+          <button role="tab" aria-selected="true" data-ptab="web"><svg class="i"><use href="#i-ext"/></svg><span data-i18n="dash.web"></span><span class="cnt" id="svcCount">0</span></button>
+          <button role="tab" aria-selected="false" data-ptab="guests"><svg class="i"><use href="#i-box"/></svg><span data-i18n="dash.guests"></span><span class="cnt" id="guestCount">0</span></button>
+          <span class="sp"></span><span class="src" data-i18n-title="dash.caddy_hint"><img src="/icons/caddy.svg" alt="">Caddy</span>
         </div>
         <div data-pane="web" class="scroll"><div class="svcgrid" id="svcgrid"></div></div>
         <div data-pane="guests" class="scroll" hidden>
-          <table><thead><tr><th>Назва</th><th>ID</th><th>Тип</th><th>Стан</th><th>CPU</th><th>RAM</th><th>Сайт</th><th></th></tr></thead><tbody id="guestrows"></tbody></table>
+          <table><thead><tr><th data-i18n="col.name"></th><th data-i18n="col.id"></th><th data-i18n="col.type"></th><th data-i18n="col.state"></th><th data-i18n="col.cpu"></th><th data-i18n="col.ram"></th><th data-i18n="col.site"></th><th></th></tr></thead><tbody id="guestrows"></tbody></table>
         </div>
       </div>
     </div>
@@ -149,7 +149,7 @@
         <div class="opts" id="mOpts"></div>
         <ol class="steps" id="mSteps" hidden></ol>
         <div class="errbox" id="mErr" hidden></div>
-        <div class="mbtns"><button class="btn ghost" type="button" data-go="dash" id="mCancel">Скасувати</button><button class="btn" type="button" id="mStart"><svg class="i" style="fill:currentColor;stroke:none"><use href="#i-play"/></svg><span>Запустити</span></button></div>
+        <div class="mbtns"><button class="btn ghost" type="button" data-go="dash" id="mCancel" data-i18n="launch.cancel"></button><button class="btn" type="button" id="mStart"><svg class="i" style="fill:currentColor;stroke:none"><use href="#i-play"/></svg><span data-i18n="launch.start"></span></button></div>
       </div>
     </div>
   </div>
@@ -163,12 +163,12 @@
 <section class="scr scr-console" data-scr="console" hidden>
   <div id="vnc"></div>
   <div class="cbar">
-    <button class="chipbtn" type="button" id="consoleBack"><svg class="i"><use href="#i-arrow" transform="rotate(180 12 12)"/></svg>Меню</button>
+    <button class="chipbtn" type="button" id="consoleBack"><svg class="i"><use href="#i-arrow" transform="rotate(180 12 12)"/></svg><span data-i18n="console.back"></span></button>
     <span id="consoleName"></span><span class="kbd">Ctrl+Alt+Q</span><span id="consoleState" class="mute"></span>
   </div>
 </section>
 
-<div class="overlay" id="confirmLayer" hidden><div class="confirm"><h3 id="cTitle"></h3><div class="mute" id="cText"></div><div class="mbtns"><button class="btn ghost" type="button" id="cNo">Скасувати</button><button class="btn danger" type="button" id="cYes"></button></div></div></div>
+<div class="overlay" id="confirmLayer" hidden><div class="confirm"><h3 id="cTitle"></h3><div class="mute" id="cText"></div><div class="mbtns"><button class="btn ghost" type="button" id="cNo" data-i18n="confirm.cancel"></button><button class="btn danger" type="button" id="cYes"></button></div></div></div>
 <div class="toast" id="toast" hidden></div>
 
 <script type="module" src="/core/app.js"></script>

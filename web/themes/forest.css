@@ -1,5 +1,7 @@
-/* @name Ліс
-   @desc зелений, спокійний
+/* @name.uk Ліс
+   @name.en Forest
+   @desc.uk зелений, спокійний
+   @desc.en green, calm
    @preview linear-gradient(180deg,#0e2016,#24523a 55%,#8bbf6a)
    @accent #5fd08a */
 .A[data-skin="forest"]{--acc:#5fd08a;--acc2:#c4f07a;--acc-ink:#06180d;--acc-text:#9ee8b6;--acc-soft:rgba(95,208,138,.13);--acc-line:rgba(95,208,138,.7);

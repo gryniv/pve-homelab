@@ -4,6 +4,8 @@ import time
 
 import aiohttp
 
+from .i18n import _, lang
+
 GEO = "https://geocoding-api.open-meteo.com/v1/search"
 FC = "https://api.open-meteo.com/v1/forecast"
 TTL = 900
@@ -28,23 +30,22 @@ def kind(code):
     return "rain"
 
 
-TEXT = {"clear": "ясно", "partly": "мінлива хмарність", "overcast": "хмарно", "fog": "туман",
-        "rain": "дощ", "snow": "сніг", "thunder": "гроза"}
 
 
 async def get(city, units="c"):
-    key = (city.lower(), units)
+    key = (city.lower(), units, lang.get())
     hit = _cache.get(key)
     if hit and time.time() - hit[0] < TTL:
         return hit[1]
     async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10)) as s:
-        if city.lower() not in _geo:
-            async with s.get(GEO, params={"name": city, "count": 1, "language": "uk"}) as r:
+        geo_key = (city.lower(), lang.get())
+        if geo_key not in _geo:
+            async with s.get(GEO, params={"name": city, "count": 1, "language": lang.get()}) as r:
                 res = (await r.json()).get("results") or []
             if not res:
-                raise ValueError(f"Місто «{city}» не знайдено")
-            _geo[city.lower()] = res[0]
-        g = _geo[city.lower()]
+                raise ValueError(_("city_not_found", city=city))
+            _geo[geo_key] = res[0]
+        g = _geo[geo_key]
         params = {
             "latitude": g["latitude"], "longitude": g["longitude"], "timezone": "auto",
             "current": "temperature_2m,weather_code,wind_speed_10m,relative_humidity_2m,is_day",
@@ -63,7 +64,6 @@ async def get(city, units="c"):
         "city": g.get("name", city),
         "units": units,
         "kind": k,
-        "text": TEXT[k],
         "temp": round(cur["temperature_2m"]),
         "wind": round(cur["wind_speed_10m"]),
         "humidity": cur["relative_humidity_2m"],

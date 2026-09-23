@@ -2,6 +2,7 @@
 
 import re
 
+from .i18n import _
 from .util import log, run
 
 
@@ -18,7 +19,7 @@ class DDC:
             out = await run("ddcutil", "detect", "--brief", timeout=40)
             buses = re.findall(r"I2C bus:\s*/dev/i2c-(\d+)", out)
             if not buses:
-                raise RuntimeError("DDC: монітор не знайдено")
+                raise RuntimeError(_("ddc_no_monitor"))
             self._bus[mon_id] = int(buses[0])
         return self._bus[mon_id]
 

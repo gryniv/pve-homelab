@@ -1,10 +1,18 @@
 // Widget loader. A widget is web/widgets/<id>/widget.js exporting:
-//   { title, zones: ['login','side'], public?: true, source?: '/api/..' | (ctx) => Promise,
-//     every?: seconds, css?: true, render(data, ctx) -> html, after?(el, data, ctx) }
+//   { zones: ['login','side'], public?: true, source?: '/api/..' | (ctx) => Promise,
+//     every?: seconds, css?: true, render(data, ctx) -> html, after?(el, data, ctx),
+//     i18n: { uk: { title: '…', … }, en: { title: '…', … } } }
+// Inside render, ctx.t('key') reads the widget's own strings first, then the global dictionary.
 // `public` widgets may appear on the login screen (before anyone has logged in).
 
 import { api } from './api.js';
 import * as ui from './ui.js';
+import { extend, t } from './i18n.js';
+
+const wt = (id) => (key, vars) => {
+  const own = t(`w.${id}.${key}`, vars);
+  return own === `w.${id}.${key}` ? t(key, vars) : own;
+};
 
 const registry = {};
 const timers = {};
@@ -13,7 +21,8 @@ export async function load(ids) {
   await Promise.all(ids.map(async (id) => {
     try {
       const mod = (await import(`/widgets/${id}/widget.js`)).default;
-      registry[id] = { id, zones: ['side'], ...mod };
+      extend(`w.${id}.`, mod.i18n);
+      registry[id] = { id, zones: ['side'], ...mod, t: wt(id), get title() { return wt(id)('title'); } };
       if (mod.css) {
         const l = document.createElement('link');
         l.rel = 'stylesheet'; l.href = `/widgets/${id}/widget.css`;
@@ -44,7 +53,7 @@ export function renderZone(zone, ids, ctx) {
     box.dataset.w = id;
     box.style.setProperty('--i', el.children.length + 1);
     el.appendChild(box);
-    const wctx = { ...ctx, zone, ui };
+    const wctx = { ...ctx, zone, ui, t: w.t };
     const refresh = async () => {
       try {
         const data = w.source ? await (typeof w.source === 'function' ? w.source(wctx) : api.get(w.source)) : null;
