@@ -1,0 +1,6 @@
+/* @name Ліс
+   @desc зелений, спокійний
+   @preview linear-gradient(180deg,#0e2016,#24523a 55%,#8bbf6a)
+   @accent #5fd08a */
+.A[data-skin="forest"]{--acc:#5fd08a;--acc2:#c4f07a;--acc-ink:#06180d;--acc-text:#9ee8b6;--acc-soft:rgba(95,208,138,.13);--acc-line:rgba(95,208,138,.7);
+  --glass:rgba(12,24,18,.6);--solid:radial-gradient(80em 50em at 80% 120%,#16402a,#08110c 60%);--lf:hue-rotate(-38deg) saturate(.9)}

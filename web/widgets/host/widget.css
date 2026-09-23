@@ -1,0 +1,12 @@
+.A .w[data-w="host"] .rings{display:flex;justify-content:space-between;gap:.4em}
+.A .w[data-w="host"] .ring{position:relative;width:4.6em;height:4.6em;flex:none}
+.A .zone-side .w[data-w="host"] .ring{width:4.2em;height:4.2em}
+.A .w[data-w="host"] .ring svg{width:100%;height:100%;transform:rotate(-90deg)}
+.A .w[data-w="host"] .ring circle{fill:none;stroke-width:4.5}
+.A .w[data-w="host"] .ring .bg{stroke:rgba(255,255,255,.08)}
+.A .w[data-w="host"] .ring .fg{stroke-linecap:round}
+.A .w[data-w="host"] .ring span{position:absolute;inset:0;display:grid;place-items:center;text-align:center;font-size:.95em;font-weight:700;line-height:1.05;font-variant-numeric:tabular-nums}
+.A .w[data-w="host"] .ring small{display:block;font-size:.62em;font-weight:500;color:var(--mute);letter-spacing:.05em}
+.A .w[data-w="host"] .foot-line{display:flex;justify-content:space-between;margin-top:.9em;padding-top:.8em;border-top:1px solid var(--edge);font-size:.85em}
+.A .w[data-w="host"] .spark{width:100%;height:2.8em;display:block;margin:.5em 0 0}
+.A .w[data-w="host"] .spark-wait{height:2.8em;margin-top:.5em;display:grid;place-items:center;font-size:.78em;color:var(--mute);border-top:1px dashed var(--edge)}

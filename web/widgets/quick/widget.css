@@ -1,0 +1,3 @@
+.A .w[data-w="quick"] .qa{display:grid;grid-template-columns:1fr 1fr;gap:.5em}
+.A .w[data-w="quick"] .qa button{background:rgba(255,255,255,.05);border:1px solid var(--edge);border-radius:.6em;padding:.6em .5em;font-size:.82em;display:flex;flex-direction:column;align-items:center;gap:.3em;text-align:center}
+.A .w[data-w="quick"] .qa button svg{width:1.3em;height:1.3em;color:var(--acc-text)}

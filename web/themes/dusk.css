@@ -1,0 +1,6 @@
+/* @name Сутінки
+   @desc теплий, помаранчевий
+   @preview linear-gradient(180deg,#14163a,#7b3a5e 55%,#ff8a3d)
+   @accent #ff8a3d */
+/* Тема за замовчуванням: значення збігаються з base.css, тож тут лише явне ім'я. */
+.A[data-skin="dusk"]{--acc:#ff8a3d;--acc2:#ffc15e;--acc-ink:#1f0e02;--acc-text:#ffb27a;--acc-soft:rgba(255,138,61,.13);--acc-line:rgba(255,138,61,.7)}

@@ -1,0 +1,5 @@
+.A .w[data-w="gpus"] .gpu{display:grid;grid-template-columns:2.4em 1fr;gap:.1em .7em;padding:.6em 0;border-top:1px solid var(--edge);font-size:.88em;align-items:center}
+.A .w[data-w="gpus"] .gpu:first-of-type{border-top:0;padding-top:0}
+.A .w[data-w="gpus"] .chip{grid-row:span 2;width:2.4em;height:2.4em;border-radius:.55em;display:grid;place-items:center}
+.A .w[data-w="gpus"] .chip svg{width:1.4em;height:1.4em}
+.A .w[data-w="gpus"] small{color:var(--mute);font-family:var(--mono);font-size:.78em}

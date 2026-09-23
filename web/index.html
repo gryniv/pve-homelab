@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PVE Seat</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&family=Unbounded:wght@600;700&display=swap">
+<link rel="stylesheet" href="/core/base.css">
+</head>
+<body class="A" id="app" data-tod="dusk" data-wx="partly" data-skin="dusk" data-bg="scene">
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-power" viewBox="0 0 24 24"><path d="M12 2v10"/><path d="M18.4 6.6a9 9 0 1 1-12.8 0"/></symbol>
+  <symbol id="i-restart" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></symbol>
+  <symbol id="i-logout" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4l14 8-14 8z"/></symbol>
+  <symbol id="i-stop" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></symbol>
+  <symbol id="i-start" viewBox="0 0 24 24"><path d="M7 5l12 7-12 7z"/></symbol>
+  <symbol id="i-term" viewBox="0 0 24 24"><path d="m4 17 6-6-6-6"/><path d="M12 19h8"/></symbol>
+  <symbol id="i-ext" viewBox="0 0 24 24"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></symbol>
+  <symbol id="i-up" viewBox="0 0 24 24"><path d="m18 15-6-6-6 6"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></symbol>
+  <symbol id="i-monitor" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></symbol>
+  <symbol id="i-box" viewBox="0 0 24 24"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5"/><path d="M12 13v8"/></symbol>
+  <symbol id="i-gpu" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="9" cy="12" r="3"/><circle cx="17" cy="12" r="2"/><path d="M5 18v3M9 18v3M13 18v3"/></symbol>
+  <symbol id="i-chip" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/></symbol>
+  <symbol id="i-palette" viewBox="0 0 24 24"><path d="M12 22a10 10 0 1 1 10-10c0 2.8-2.2 4-4 4h-2a2 2 0 0 0-1.4 3.4A1.9 1.9 0 0 1 12 22z"/><circle cx="7.5" cy="10.5" r="1"/><circle cx="12" cy="7.5" r="1"/><circle cx="16.5" cy="10.5" r="1"/></symbol>
+  <symbol id="i-layout" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M9 12h12"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></symbol>
+  <symbol id="i-cloud" viewBox="0 0 24 24"><path d="M17.5 19H8a6 6 0 1 1 5.7-8h1.8a4.5 4.5 0 0 1 0 9z"/></symbol>
+  <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+  <symbol id="i-note" viewBox="0 0 24 24"><path d="M4 4h16v12l-4 4H4z"/><path d="M16 20v-4h4"/></symbol>
+</svg>
+
+<!-- scene: landscape; colours come from --s*/--m*/--cel tokens set by time of day -->
+<div class="land" aria-hidden="true">
+  <svg viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMax slice">
+    <defs>
+      <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:var(--s1)"/><stop offset=".55" style="stop-color:var(--s2)"/><stop offset=".78" style="stop-color:var(--s3)"/></linearGradient>
+      <radialGradient id="glow"><stop offset="0" style="stop-color:var(--cel);stop-opacity:.55"/><stop offset="1" style="stop-color:var(--cel);stop-opacity:0"/></radialGradient>
+      <linearGradient id="fogg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset="1" style="stop-color:var(--fog)"/></linearGradient>
+      <linearGradient id="fogh" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d9dee6" stop-opacity="0"/><stop offset=".5" stop-color="#d9dee6" stop-opacity=".55"/><stop offset="1" stop-color="#d9dee6" stop-opacity=".8"/></linearGradient>
+    </defs>
+    <rect width="1600" height="1000" fill="url(#sky)"/>
+    <g id="stars"></g>
+    <g id="celg"><circle id="celglow" cx="1180" cy="520" r="220" fill="url(#glow)"/><circle id="cel" cx="1180" cy="520" r="58" style="fill:var(--cel)"/></g>
+    <g class="clouds" style="fill:var(--cloud)">
+      <g class="cloud"><ellipse cx="200" cy="230" rx="140" ry="22"/><ellipse cx="260" cy="214" rx="80" ry="24"/></g>
+      <g class="cloud c2"><ellipse cx="600" cy="150" rx="190" ry="20"/><ellipse cx="660" cy="136" rx="90" ry="22"/></g>
+      <g class="cloud c3"><ellipse cx="1000" cy="300" rx="160" ry="18"/><ellipse cx="940" cy="288" rx="70" ry="18"/></g>
+      <g class="cloud c4"><ellipse cx="300" cy="90" rx="260" ry="28"/><ellipse cx="380" cy="70" rx="120" ry="30"/></g>
+    </g>
+    <path style="fill:var(--m1)" d="M0 610 L90 575 L170 590 L260 520 L340 560 L430 470 L520 540 L610 500 L700 555 L790 450 L880 520 L960 490 L1060 560 L1150 470 L1240 530 L1330 480 L1420 545 L1510 505 L1600 540 V1000 H0Z"/>
+    <g id="caps" fill="#eef3f8" opacity="0">
+      <path d="M430 470 L472 503 L458 500 L448 510 L436 499 L420 507 L406 496 L392 502Z"/>
+      <path d="M790 450 L838 490 L822 486 L810 497 L796 486 L780 495 L766 484 L748 492Z"/>
+      <path d="M1150 470 L1196 507 L1180 503 L1168 512 L1154 502 L1138 510 L1124 499 L1108 505Z"/>
+      <path d="M260 520 L290 543 L278 541 L268 549 L256 540 L242 546 L232 536Z"/>
+      <path d="M1330 480 L1364 507 L1350 504 L1340 512 L1328 503 L1316 509 L1302 500Z"/>
+    </g>
+    <rect y="480" width="1600" height="220" fill="url(#fogg)"/>
+    <path style="fill:var(--m2)" d="M0 720 L110 650 L200 690 L320 600 L430 680 L540 620 L660 700 L780 630 L900 705 L1010 640 L1120 690 L1250 610 L1370 690 L1480 650 L1600 700 V1000 H0Z"/>
+    <rect y="620" width="1600" height="200" fill="url(#fogg)"/>
+    <g id="trees" style="fill:var(--m3)"></g>
+    <path style="fill:var(--m3)" d="M0 830 C180 780 330 815 470 790 S760 745 910 790 S1210 835 1360 790 S1530 775 1600 800 V1000 H0Z"/>
+    <rect id="fogl" y="420" width="1600" height="580" fill="url(#fogh)" opacity="0"/>
+  </svg>
+</div>
+<div class="shade"></div>
+<canvas id="fx" aria-hidden="true"></canvas>
+<div id="flash"></div>
+
+<!-- SAVER -->
+<section class="scr scr-saver" data-scr="saver" hidden>
+  <div class="sv-hint">Торкнись або натисни будь-яку клавішу</div>
+  <div class="sv-seat"><svg class="i"><use href="#i-monitor"/></svg><span data-seat-name></span></div>
+  <div class="sv">
+    <div class="sv-clock"><div class="clock" data-clock></div><div class="date" data-date></div></div>
+    <div class="sv-wx"><div><div class="t" data-temp></div><div class="d"><span data-wx-text></span> · <span data-city></span></div></div><img data-wx-icon alt=""></div>
+  </div>
+</section>
+
+<!-- LOGIN -->
+<section class="scr scr-login" data-scr="login" hidden>
+  <div>
+    <div class="host"><img src="/icons/proxmox.svg" alt=""><span data-hostline></span></div>
+    <div class="clock" data-clock></div>
+    <div class="date" data-date></div>
+    <div class="zone-login" data-zone="login"></div>
+  </div>
+  <form class="glass who" id="loginForm" autocomplete="off">
+    <h3>Хто входить?</h3>
+    <div class="users" id="users"></div>
+    <div class="other" id="otherRow" hidden><input id="otherUser" placeholder="користувач@realm" aria-label="Користувач"></div>
+    <div class="pwlabel" id="pwLabel"></div>
+    <div class="pwrow"><input id="pw" type="password" aria-label="Пароль"><button class="btn" type="submit" id="loginBtn">Увійти</button></div>
+    <div class="loginerr" id="loginErr" hidden></div>
+    <div class="seatnote"><svg class="i"><use href="#i-monitor"/></svg><span>Цей монітор підключено до <b data-seat-name></b></span></div>
+  </form>
+  <div class="power"><button class="chipbtn" type="button" data-go="saver"><svg class="i"><use href="#i-moon"/></svg>Заставка</button></div>
+</section>
+
+<!-- DASHBOARD -->
+<section class="scr scr-dash" data-scr="dash" hidden>
+  <div class="top">
+    <div class="brand"><img src="/icons/proxmox.svg" alt=""><span data-node></span><span class="health" id="health" title="усе в нормі"></span></div>
+    <div class="opentabs" id="openTabs"></div>
+    <div class="tr">
+      <span class="tw"><img data-wx-icon alt=""><span data-temp></span><span class="city" data-city></span></span>
+      <span class="tw clock-s" data-clock></span>
+      <span class="vsep"></span>
+      <button class="me" type="button" data-go="settings" title="Мої налаштування"><span class="av" data-me-av></span><span data-whoami></span></button>
+      <button class="ibtn" type="button" data-go="settings" title="Налаштування"><svg class="i"><use href="#i-gear"/></svg></button>
+      <button class="ibtn" type="button" id="logoutBtn" title="Вийти"><svg class="i"><use href="#i-logout"/></svg></button>
+    </div>
+  </div>
+  <div class="body">
+    <div class="zone-side" data-zone="side"></div>
+    <div class="main">
+      <div class="systems" id="systems"></div>
+      <div class="glass tabp">
+        <div class="ptabs" role="tablist">
+          <button role="tab" aria-selected="true" data-ptab="web"><svg class="i"><use href="#i-ext"/></svg>Вебсервіси<span class="cnt" id="svcCount">0</span></button>
+          <button role="tab" aria-selected="false" data-ptab="guests"><svg class="i"><use href="#i-box"/></svg>Контейнери та VM<span class="cnt" id="guestCount">0</span></button>
+          <span class="sp"></span><span class="src" title="Список сервісів береться з Caddy"><img src="/icons/caddy.svg" alt="">Caddy</span>
+        </div>
+        <div data-pane="web" class="scroll"><div class="svcgrid" id="svcgrid"></div></div>
+        <div data-pane="guests" class="scroll" hidden>
+          <table><thead><tr><th>Назва</th><th>ID</th><th>Тип</th><th>Стан</th><th>CPU</th><th>RAM</th><th>Сайт</th><th></th></tr></thead><tbody id="guestrows"></tbody></table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="overlay" data-layer="launch" hidden>
+    <div class="modal">
+      <div class="mhead"><div class="art" id="mArt"></div><img id="mLogo" alt=""><div><h3 id="mTitle"></h3><div class="sub" id="mSub"></div></div></div>
+      <div class="mbody">
+        <div class="opts" id="mOpts"></div>
+        <ol class="steps" id="mSteps" hidden></ol>
+        <div class="errbox" id="mErr" hidden></div>
+        <div class="mbtns"><button class="btn ghost" type="button" data-go="dash" id="mCancel">Скасувати</button><button class="btn" type="button" id="mStart"><svg class="i" style="fill:currentColor;stroke:none"><use href="#i-play"/></svg><span>Запустити</span></button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="settings" data-layer="settings" hidden>
+    <div class="glass sbox" id="settingsBox"></div>
+  </div>
+</section>
+
+<!-- CONSOLE: VM screen shown inside the menu (VirGL on this GPU) -->
+<section class="scr scr-console" data-scr="console" hidden>
+  <div id="vnc"></div>
+  <div class="cbar">
+    <button class="chipbtn" type="button" id="consoleBack"><svg class="i"><use href="#i-arrow" transform="rotate(180 12 12)"/></svg>Меню</button>
+    <span id="consoleName"></span><span class="kbd">Ctrl+Alt+Q</span><span id="consoleState" class="mute"></span>
+  </div>
+</section>
+
+<div class="overlay" id="confirmLayer" hidden><div class="confirm"><h3 id="cTitle"></h3><div class="mute" id="cText"></div><div class="mbtns"><button class="btn ghost" type="button" id="cNo">Скасувати</button><button class="btn danger" type="button" id="cYes"></button></div></div></div>
+<div class="toast" id="toast" hidden></div>
+
+<script type="module" src="/core/app.js"></script>
+</body>
+</html>
