@@ -1,16 +1,16 @@
 #!/bin/bash
-# Прибирає PVE Seat з хоста. Налаштування в /etc/pve-seat лишаються (видали вручну, якщо треба).
+# Removes PVE Homelab from the host. Settings in /etc/pve-homelab stay (delete them by hand if you want).
 set -euo pipefail
-[ "$(id -u)" = 0 ] || { echo "Потрібен root"; exit 1; }
+[ "$(id -u)" = 0 ] || { echo "Run as root"; exit 1; }
 
-for u in $(systemctl list-units --all --plain --no-legend 'pve-seat-kiosk@*' | awk '{print $1}'); do
+for u in $(systemctl list-units --all --plain --no-legend 'pve-homelab-kiosk@*' | awk '{print $1}'); do
   systemctl disable --now "$u" || true
 done
-systemctl disable --now pve-seat.service pve-seat-update.timer 2>/dev/null || true
-rm -rf /etc/systemd/system/pve-seat-update.service /etc/systemd/system/pve-seat-update.timer
-rm -rf /etc/systemd/system/pve-seat.service /etc/systemd/system/pve-seat-kiosk@.service /etc/systemd/system/pve-seat-kiosk@*.service.d
-rm -f /etc/modules-load.d/pve-seat.conf
-rm -rf /opt/pve-seat /var/cache/pve-seat /var/log/pve-seat
+systemctl disable --now pve-homelab.service pve-homelab-update.timer 2>/dev/null || true
+rm -rf /etc/systemd/system/pve-homelab-update.service /etc/systemd/system/pve-homelab-update.timer
+rm -rf /etc/systemd/system/pve-homelab.service /etc/systemd/system/pve-homelab-kiosk@.service /etc/systemd/system/pve-homelab-kiosk@*.service.d
+rm -f /etc/modules-load.d/pve-homelab.conf /etc/chromium/policies/managed/pve-homelab.json
+rm -rf /opt/pve-homelab /var/cache/pve-homelab /var/log/pve-homelab
 systemctl daemon-reload
 chvt 1 || true
-echo "PVE Seat прибрано. Пакети (cage, chromium, ddcutil) і користувач pveseat лишились."
+echo "PVE Homelab removed. Packages (cage, chromium, ddcutil) and the pvehomelab user are left in place."

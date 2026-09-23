@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "PVE Seat: service tabs",
+  "name": "PVE Homelab: service tabs",
   "version": "2.1",
   "description": "Services open as tabs next to the menu; a dock on every page switches between them.",
   "permissions": [

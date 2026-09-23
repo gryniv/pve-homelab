@@ -4,10 +4,10 @@ import socket
 
 import yaml
 
-CONFIG_PATH = os.environ.get("PVESEAT_CONFIG", "/etc/pve-seat/config.yaml")
-STATE_DIR = os.environ.get("PVESEAT_STATE", "/etc/pve-seat")
-WEB_DIR = os.environ.get("PVESEAT_WEB", "/opt/pve-seat/web")
-CACHE_DIR = os.environ.get("PVESEAT_CACHE", "/var/cache/pve-seat")
+CONFIG_PATH = os.environ.get("PVEHOMELAB_CONFIG", "/etc/pve-homelab/config.yaml")
+STATE_DIR = os.environ.get("PVEHOMELAB_STATE", "/etc/pve-homelab")
+WEB_DIR = os.environ.get("PVEHOMELAB_WEB", "/opt/pve-homelab/web")
+CACHE_DIR = os.environ.get("PVEHOMELAB_CACHE", "/var/cache/pve-homelab")
 
 DEFAULTS = {
     "listen": "127.0.0.1:8900",
@@ -24,7 +24,7 @@ DEFAULTS = {
     "caddy": {"ct": None, "admin": "http://localhost:2019", "prefer_suffix": "", "hide": []},
     "discovery": {"ports": True, "vms": True, "notes": True, "ignore": []},
     "services": {},
-    "weather": {"city": "Київ", "units": "c"},
+    "weather": {"city": "Kyiv", "units": "c"},
     "users": {"hide": []},
     "saver": {"after_min": 5},
     "lock_after_min": 15,

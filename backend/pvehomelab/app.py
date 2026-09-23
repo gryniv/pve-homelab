@@ -18,7 +18,7 @@ from .launch import Launcher
 from .pve import PVE, PVEError
 from .util import Cached, log, pvesh, run
 
-COOKIE = "pveseat_sid"
+COOKIE = "pvehomelab_sid"
 routes = web.RouteTableDef()
 
 
@@ -413,9 +413,9 @@ async def update_apply(req):
     s = await session(req)
     if not await req.app["pve"].can(s["ticket"], "/", "Sys.Modify"):
         raise PVEError(403, i18n._("forbidden"))
-    # A transient unit, so restarting pve-seat during install.sh doesn't kill the update itself.
-    await run("systemd-run", "--unit=pve-seat-update-now", "--collect", "--quiet",
-              "--setenv=PYTHONPATH=/opt/pve-seat/backend", "/usr/bin/python3", "-m", "pveseat.update", "apply")
+    # A transient unit, so restarting pve-homelab during install.sh doesn't kill the update itself.
+    await run("systemd-run", "--unit=pve-homelab-update-now", "--collect", "--quiet",
+              "--setenv=PYTHONPATH=/opt/pve-homelab/backend", "/usr/bin/python3", "-m", "pvehomelab.update", "apply")
     log.info("update started by %s", s["user"])
     return web.json_response({"ok": True})
 

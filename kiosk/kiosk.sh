@@ -1,13 +1,13 @@
 #!/bin/sh
 # Kiosk for one seat: cage (Wayland) + Chromium, drawing only on this seat's GPU.
-# Usage: kiosk.sh <seat-id>   (run by pve-seat-kiosk@<seat-id>.service)
+# Usage: kiosk.sh <seat-id>   (run by pve-homelab-kiosk@<seat-id>.service)
 set -eu
 SEAT="$1"
 URL="http://127.0.0.1:8900/?seat=$SEAT"
 read -r GPU DEBUG_PORT <<EOF
 $(python3 -c "
 import yaml, sys
-c = yaml.safe_load(open('/etc/pve-seat/config.yaml'))
+c = yaml.safe_load(open('/etc/pve-homelab/config.yaml'))
 print(c['seats'][sys.argv[1]]['gpu'], int((c.get('kiosk') or {}).get('debug_port') or 0))" "$SEAT")
 EOF
 DEBUG_ARGS=""
@@ -37,7 +37,7 @@ exec cage -s -- chromium \
   --ozone-platform=wayland \
   --kiosk "$URL" \
   --user-data-dir="$PROFILE" \
-  --load-extension=/opt/pve-seat/kiosk/ext \
+  --load-extension=/opt/pve-homelab/kiosk/ext \
   --no-first-run --noerrdialogs --disable-infobars --disable-session-crashed-bubble \
   --password-store=basic \
   --disable-features=Translate,MediaRouter,HardwareMediaKeyHandling,DisableLoadExtensionCommandLineSwitch \

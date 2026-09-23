@@ -1,11 +1,11 @@
 #!/bin/bash
-# PVE Seat installer for a Proxmox VE host. Run as root from the repository:
+# PVE Homelab installer for a Proxmox VE host. Run as root from the repository:
 #
 #   ./install.sh               install or update
 #   ./install.sh --no-kiosk    backend only (no menu on the local screens)
 #   ./install.sh --city Lviv --lang en    hints for the first-run config
 #
-# Safe to re-run: /etc/pve-seat/config.yaml and per-user settings are never overwritten.
+# Safe to re-run: /etc/pve-homelab/config.yaml and per-user settings are never overwritten.
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -26,6 +26,31 @@ command -v pveversion >/dev/null || { echo "This is not a Proxmox VE host"; exit
 PVE_MAJOR=$(pveversion | sed -n 's#^pve-manager/\([0-9]*\).*#\1#p')
 [ "${PVE_MAJOR:-0}" -ge 8 ] || { echo "Proxmox VE 8 or newer is required (found $(pveversion))"; exit 1; }
 
+# Up to 0.3 this project was called "PVE Seat" (pve-seat units, /etc/pve-seat, user pveseat).
+# Move its settings over once and remove the old units, files and kiosk user.
+if [ -d /etc/pve-seat ] && [ ! -e /etc/pve-homelab ]; then
+  echo "==> Migrating from PVE Seat"
+  for u in $(systemctl list-units --all --plain --no-legend 'pve-seat-kiosk@*' | awk '{print $1}'); do
+    systemctl disable --now "$u" >/dev/null 2>&1 || true
+  done
+  systemctl disable --now pve-seat-update.timer >/dev/null 2>&1 || true
+  # the old backend is stopped last: this very script may be running from its update unit
+  systemctl disable --now pve-seat.service >/dev/null 2>&1 || true
+  cp -a /etc/pve-seat /etc/pve-homelab
+  mv /etc/pve-seat /etc/pve-seat.migrated
+  [ -d /var/log/pve-seat ] && mv /var/log/pve-seat /var/log/pve-homelab
+  rm -rf /etc/systemd/system/pve-seat.service /etc/systemd/system/pve-seat-kiosk@.service \
+         /etc/systemd/system/pve-seat-kiosk@*.service.d /etc/systemd/system/pve-seat-update.service \
+         /etc/systemd/system/pve-seat-update.timer /opt/pve-seat /var/cache/pve-seat \
+         /etc/modules-load.d/pve-seat.conf /etc/chromium/policies/managed/pve-seat.json
+  if id pveseat >/dev/null 2>&1; then
+    pkill -u pveseat 2>/dev/null || true; sleep 1
+    userdel -r pveseat >/dev/null 2>&1 || true
+  fi
+  systemctl daemon-reload
+  echo "    settings moved to /etc/pve-homelab (the old folder is kept as /etc/pve-seat.migrated)"
+fi
+
 echo "==> Packages"
 export DEBIAN_FRONTEND=noninteractive
 PKGS="python3-aiohttp python3-yaml ddcutil"
@@ -33,61 +58,61 @@ PKGS="python3-aiohttp python3-yaml ddcutil"
 apt-get install -y --no-install-recommends $PKGS >/dev/null
 
 echo "==> Kiosk user"
-if ! id pveseat >/dev/null 2>&1; then
-  useradd --system --create-home --home-dir /var/lib/pve-seat --shell /usr/sbin/nologin pveseat
+if ! id pvehomelab >/dev/null 2>&1; then
+  useradd --system --create-home --home-dir /var/lib/pve-homelab --shell /usr/sbin/nologin pvehomelab
 fi
-usermod -aG video,render,input pveseat
+usermod -aG video,render,input pvehomelab
 
-echo "==> Program files -> /opt/pve-seat"
-install -d /opt/pve-seat /etc/pve-seat/users /var/cache/pve-seat
-rm -rf /opt/pve-seat/backend /opt/pve-seat/web /opt/pve-seat/kiosk
-cp -r backend web kiosk /opt/pve-seat/
-[ -f VERSION ] && cp VERSION /opt/pve-seat/
-# What is installed and where it came from, for the updater (see backend/pveseat/update.py).
-COMMIT="${PVESEAT_COMMIT:-$(git rev-parse HEAD 2>/dev/null || true)}"
-REPO="${PVESEAT_REPO:-$(git remote get-url origin 2>/dev/null || true)}"
-echo "$COMMIT" > /opt/pve-seat/COMMIT
-[ -n "$REPO" ] && echo "$REPO" > /opt/pve-seat/REPO
-chown -R root:root /opt/pve-seat
-chmod -R u=rwX,go=rX /opt/pve-seat
-chmod 755 /opt/pve-seat/kiosk/kiosk.sh
-find /opt/pve-seat -name __pycache__ -prune -exec rm -rf {} +
+echo "==> Program files -> /opt/pve-homelab"
+install -d /opt/pve-homelab /etc/pve-homelab/users /var/cache/pve-homelab
+rm -rf /opt/pve-homelab/backend /opt/pve-homelab/web /opt/pve-homelab/kiosk
+cp -r backend web kiosk /opt/pve-homelab/
+[ -f VERSION ] && cp VERSION /opt/pve-homelab/
+# What is installed and where it came from, for the updater (see backend/pvehomelab/update.py).
+COMMIT="${PVEHOMELAB_COMMIT:-$(git rev-parse HEAD 2>/dev/null || true)}"
+REPO="${PVEHOMELAB_REPO:-$(git remote get-url origin 2>/dev/null || true)}"
+echo "$COMMIT" > /opt/pve-homelab/COMMIT
+[ -n "$REPO" ] && echo "$REPO" > /opt/pve-homelab/REPO
+chown -R root:root /opt/pve-homelab
+chmod -R u=rwX,go=rX /opt/pve-homelab
+chmod 755 /opt/pve-homelab/kiosk/kiosk.sh
+find /opt/pve-homelab -name __pycache__ -prune -exec rm -rf {} +
 
 echo "==> DDC (monitor input switching)"
-echo i2c-dev > /etc/modules-load.d/pve-seat.conf
+echo i2c-dev > /etc/modules-load.d/pve-homelab.conf
 modprobe i2c-dev || true
 
-if [ ! -f /etc/pve-seat/config.yaml ]; then
+if [ ! -f /etc/pve-homelab/config.yaml ]; then
   echo "==> First run: detecting GPUs, monitors and Caddy"
-  (cd /opt/pve-seat/backend && python3 -m pveseat.setup --write /etc/pve-seat/config.yaml "${SETUP_ARGS[@]}")
+  (cd /opt/pve-homelab/backend && python3 -m pvehomelab.setup --write /etc/pve-homelab/config.yaml "${SETUP_ARGS[@]}")
 fi
-chmod 644 /etc/pve-seat/config.yaml
+chmod 644 /etc/pve-homelab/config.yaml
 
 if [ "$KIOSK" = 1 ]; then
   echo "==> Chromium policy (system DNS, no sign-in, no translate)"
   install -d /etc/chromium/policies/managed
-  cp kiosk/chromium-policy.json /etc/chromium/policies/managed/pve-seat.json
+  cp kiosk/chromium-policy.json /etc/chromium/policies/managed/pve-homelab.json
 fi
 
 echo "==> Services"
-cp systemd/pve-seat.service systemd/pve-seat-kiosk@.service systemd/pve-seat-update.service systemd/pve-seat-update.timer /etc/systemd/system/
+cp systemd/pve-homelab.service systemd/pve-homelab-kiosk@.service systemd/pve-homelab-update.service systemd/pve-homelab-update.timer /etc/systemd/system/
 SEATS=$(python3 -c "
 import yaml
-c = yaml.safe_load(open('/etc/pve-seat/config.yaml')) or {}
+c = yaml.safe_load(open('/etc/pve-homelab/config.yaml')) or {}
 for sid, s in (c.get('seats') or {}).items():
     if s.get('kiosk'): print(sid, s.get('tty', 7))
 ")
 systemctl daemon-reload
-systemctl enable --now pve-seat.service >/dev/null
-systemctl enable --now pve-seat-update.timer >/dev/null 2>&1
-# An update installed from the menu runs inside pve-seat-update-now; restarting the backend
+systemctl enable --now pve-homelab.service >/dev/null
+systemctl enable --now pve-homelab-update.timer >/dev/null 2>&1
+# An update installed from the menu runs inside pve-homelab-update-now; restarting the backend
 # must not kill that run, so the restart happens without waiting for it.
-systemctl restart --no-block pve-seat.service
+systemctl restart --no-block pve-homelab.service
 
 if [ "$KIOSK" = 1 ]; then
   while read -r sid tty; do
     [ -n "$sid" ] || continue
-    d=/etc/systemd/system/pve-seat-kiosk@$sid.service.d
+    d=/etc/systemd/system/pve-homelab-kiosk@$sid.service.d
     install -d "$d"
     cat > "$d/seat.conf" <<EOF
 [Unit]
@@ -102,13 +127,13 @@ EOF
   systemctl daemon-reload
   while read -r sid tty; do
     [ -n "$sid" ] || continue
-    systemctl enable pve-seat-kiosk@"$sid".service >/dev/null 2>&1
-    systemctl restart pve-seat-kiosk@"$sid".service
+    systemctl enable pve-homelab-kiosk@"$sid".service >/dev/null 2>&1
+    systemctl restart pve-homelab-kiosk@"$sid".service
     echo "    menu on seat '$sid' (tty$tty)"
   done <<< "$SEATS"
-  [ -n "$(echo "$SEATS" | tr -d '[:space:]')" ] || echo "    no seats in /etc/pve-seat/config.yaml: no GPU with a monitor was found"
+  [ -n "$(echo "$SEATS" | tr -d '[:space:]')" ] || echo "    no seats in /etc/pve-homelab/config.yaml: no GPU with a monitor was found"
 fi
 
 echo
 echo "Done. Text console: Ctrl+Alt+F1, menu: Ctrl+Alt+F7."
-echo "Config: /etc/pve-seat/config.yaml   Logs: journalctl -u pve-seat -u 'pve-seat-kiosk@*' -f"
+echo "Config: /etc/pve-homelab/config.yaml   Logs: journalctl -u pve-homelab -u 'pve-homelab-kiosk@*' -f"

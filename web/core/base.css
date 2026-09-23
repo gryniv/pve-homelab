@@ -1,5 +1,5 @@
-/* PVE Seat: базові стилі. Кольори й шрифти беруться тільки з токенів (--acc, --glass, --display...),
-   тому тема (themes/*.css) змінює вигляд, не чіпаючи компонентів. */
+/* PVE Homelab: base styles. Colours and fonts come only from tokens (--acc, --glass, --display…),
+   so a theme (themes/*.css) changes the look without touching the components. */
 
 html,body{margin:0;height:100%;background:#05080e}
 .A{position:fixed;inset:0;font-size:min(1.25vw,2.15vh);line-height:1.4;overflow:hidden;color:#e8edf3;

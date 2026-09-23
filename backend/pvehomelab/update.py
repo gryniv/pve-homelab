@@ -1,12 +1,12 @@
 """Updates from GitHub.
 
-    python3 -m pveseat.update check          # print installed vs latest
-    python3 -m pveseat.update apply          # download and install the latest version
-    python3 -m pveseat.update auto           # apply only if update.auto is true (systemd timer)
+    python3 -m pvehomelab.update check          # print installed vs latest
+    python3 -m pvehomelab.update apply          # download and install the latest version
+    python3 -m pvehomelab.update auto           # apply only if update.auto is true (systemd timer)
 
 Channel "release": the latest GitHub release (tag vX.Y.Z). Channel "main": the newest commit
 of a branch. Git is not needed on the host: the source archive comes from codeload.github.com
-and install.sh runs from it; /etc/pve-seat is never touched.
+and install.sh runs from it; /etc/pve-homelab is never touched.
 """
 
 import argparse
@@ -25,9 +25,11 @@ import aiohttp
 
 from . import config
 
-INSTALL_DIR = os.environ.get("PVESEAT_INSTALL", "/opt/pve-seat")
+INSTALL_DIR = os.environ.get("PVEHOMELAB_INSTALL", "/opt/pve-homelab")
 API = "https://api.github.com/repos/{repo}"
-UA = {"User-Agent": "pve-seat-updater", "Accept": "application/vnd.github+json"}
+# Where new versions come from unless config.yaml (update.repo) or the git clone says otherwise.
+DEFAULT_REPO = "gryniv/pve-homelab"
+UA = {"User-Agent": "pve-homelab-updater", "Accept": "application/vnd.github+json"}
 
 
 def _read(name, default=""):
@@ -48,7 +50,7 @@ def settings(cfg):
     u.setdefault("branch", "main")
     u.setdefault("auto", False)
     u.setdefault("check_hours", 6)
-    u["repo"] = _repo_slug(u.get("repo") or installed()["repo"])
+    u["repo"] = _repo_slug(u.get("repo") or installed()["repo"] or DEFAULT_REPO)
     return u
 
 
@@ -114,7 +116,7 @@ def apply(cfg, ref=None):
     ref = ref or (st["latest"] or {}).get("ref")
     if not ref:
         sys.exit("nothing to install")
-    work = tempfile.mkdtemp(prefix="pve-seat-update-")
+    work = tempfile.mkdtemp(prefix="pve-homelab-update-")
     try:
         archive = os.path.join(work, "src.tar.gz")
         url = f"https://codeload.github.com/{u['repo']}/tar.gz/{ref}"
@@ -126,7 +128,7 @@ def apply(cfg, ref=None):
             except TypeError:  # Python < 3.11.4 (PVE 8): no extraction filters
                 t.extractall(work)
         src = next(os.path.join(work, d) for d in os.listdir(work) if os.path.isdir(os.path.join(work, d)))
-        env = dict(os.environ, PVESEAT_COMMIT=(st["latest"] or {}).get("commit") or ref, PVESEAT_REPO=u["repo"])
+        env = dict(os.environ, PVEHOMELAB_COMMIT=(st["latest"] or {}).get("commit") or ref, PVEHOMELAB_REPO=u["repo"])
         print(f"installing {ref} from {src}")
         subprocess.run(["bash", os.path.join(src, "install.sh")], check=True, env=env, cwd=src)
     finally:

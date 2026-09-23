@@ -1,9 +1,0 @@
-[Unit]
-Description=PVE Seat: install the latest version from GitHub (if update.auto is on)
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-Type=oneshot
-Environment=PYTHONPATH=/opt/pve-seat/backend
-ExecStart=/usr/bin/python3 -m pveseat.update auto

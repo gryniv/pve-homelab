@@ -1,7 +1,7 @@
-# PVE Seat configuration: /etc/pve-seat/config.yaml
+# PVE Homelab configuration: /etc/pve-homelab/config.yaml
 # install.sh generates this file on first run by detecting your hardware
-# (python3 -m pveseat.setup). This example shows every option.
-# After editing: systemctl restart pve-seat 'pve-seat-kiosk@*'
+# (python3 -m pvehomelab.setup). This example shows every option.
+# After editing: systemctl restart pve-homelab 'pve-homelab-kiosk@*'
 
 listen: 127.0.0.1:8900
 node: ""                      # empty = this host's name
@@ -76,8 +76,8 @@ kiosk:
 # Updates from GitHub. The menu shows "Update vX.Y.Z" in the top bar and reminds after sign-in;
 # users with Sys.Modify on / can install it from there. Git is not needed on the host.
 update:
-  repo: ""                    # owner/name; empty = the repository this was installed from (git clone)
+  repo: ""                    # owner/name; empty = the repository this was installed from, else gryniv/pve-homelab
   channel: release            # release = latest GitHub release (tag vX.Y.Z); main = newest commit of `branch`
   branch: main
-  auto: false                 # true = install new versions by itself every night (pve-seat-update.timer)
+  auto: false                 # true = install new versions by itself every night (pve-homelab-update.timer)
   check_hours: 6

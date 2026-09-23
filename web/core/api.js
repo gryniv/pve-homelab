@@ -30,7 +30,7 @@ async function call(method, path, body) {
   }
   const data = await r.json().catch(() => ({}));
   if (!r.ok) {
-    const e = new Error(data.error || `Помилка ${r.status}`);
+    const e = new Error(data.error || `Error ${r.status}`);
     e.status = r.status;
     // 4xx are answers for the user (wrong password, no rights); 5xx are faults worth a record
     if (r.status >= 500) report('api', `${method} ${path.split('?')[0]} → ${r.status}: ${e.message}`);

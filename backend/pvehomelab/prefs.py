@@ -1,4 +1,4 @@
-"""Per-user settings: /etc/pve-seat/users/<userid>.yaml"""
+"""Per-user settings: /etc/pve-homelab/users/<userid>.yaml"""
 
 import copy
 import os
@@ -18,7 +18,7 @@ DEFAULT = {
     "sky_by_time": True,
     "layout": {"login": ["weather", "host"], "side": ["host", "gpus"]},
     "widget_opts": {},            # {<widget id>: {<option>: value}}, see "options" in web/widgets/<id>/widget.js
-    "weather": {"city": "", "units": ""},   # порожньо = як у config.yaml
+    "weather": {"city": "", "units": ""},   # empty = as in config.yaml
     "launch": {"gpu": "auto", "ask": True, "pass_input": True},
     "saver": {"fx": True, "clock": True},
     "hidden_services": [],
@@ -40,7 +40,7 @@ def public(pr):
             "widget_opts": {k: v for k, v in pr["widget_opts"].items() if k in pr["layout"].get("login", [])}}
 
 
-# Sign-in screen of the whole host (not per user): /etc/pve-seat/login.yaml, edited by admins.
+# Sign-in screen of the whole host (not per user): /etc/pve-homelab/login.yaml, edited by admins.
 LOGIN_DEFAULT = {
     "title": "",             # a line above the clock, e.g. "Home server"
     "other_user": True,      # the "someone else" tile for typing a user name

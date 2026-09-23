@@ -1,8 +1,9 @@
 {
-  "name": "PVE Seat",
+  "name": "PVE Homelab",
+  "tagline": "Local graphical console for a Proxmox-powered home workstation",
   "author": "Ihor Hryniv",
-  "author_url": "",
-  "repo": "",
+  "author_url": "https://github.com/gryniv",
+  "repo": "https://github.com/gryniv/pve-homelab",
   "license": "",
   "year": 2026
 }

@@ -12,19 +12,19 @@ import os
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-# Must be set before pveseat is imported: it reads these paths at import time.
-# Per-user settings written during a dry run go to /tmp, never to /etc/pve-seat/users.
-os.environ["PVESEAT_STATE"] = "/tmp/pve-seat-dryrun"
-os.environ.setdefault("PVESEAT_WEB", os.path.join(HERE, "..", "web"))
-for p in (os.path.join(HERE, "..", "backend"), "/opt/pve-seat/backend"):
+# Must be set before pvehomelab is imported: it reads these paths at import time.
+# Per-user settings written during a dry run go to /tmp, never to /etc/pve-homelab/users.
+os.environ["PVEHOMELAB_STATE"] = "/tmp/pve-homelab-dryrun"
+os.environ.setdefault("PVEHOMELAB_WEB", os.path.join(HERE, "..", "web"))
+for p in (os.path.join(HERE, "..", "backend"), "/opt/pve-homelab/backend"):
     if os.path.isdir(p):
         sys.path.insert(0, p)
         break
 
 from aiohttp import web  # noqa: E402
 
-from pveseat import app as A, ddc as D, launch as L, pve as P  # noqa: E402
-from pveseat.util import pvesh  # noqa: E402
+from pvehomelab import app as A, ddc as D, launch as L, pve as P  # noqa: E402
+from pvehomelab.util import pvesh  # noqa: E402
 
 
 class DryPVE(P.PVE):

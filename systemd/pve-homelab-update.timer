@@ -1,5 +1,5 @@
 [Unit]
-Description=PVE Seat: nightly update check
+Description=PVE Homelab: nightly update check
 
 [Timer]
 OnCalendar=*-*-* 04:30

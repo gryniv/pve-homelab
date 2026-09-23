@@ -1,4 +1,4 @@
-// PVE Seat front end: screens, login, dashboard, launching systems.
+// PVE Homelab front end: screens, login, dashboard, launching systems.
 
 import { api, SEAT } from './api.js';
 import * as scene from './scene.js';
@@ -174,7 +174,7 @@ function go(screen) {
 }
 
 /* ---------------- login ---------------- */
-const LAST = 'pveseat.last.' + SEAT;
+const LAST = 'pvehomelab.last.' + SEAT;
 const lastUser = () => { try { return localStorage.getItem(LAST) || ''; } catch { return ''; } };
 
 function paintLoginChrome() {
@@ -656,7 +656,7 @@ function paintAbout() {
   const v = st.pub?.app?.version;
   const who = about.author ? t('about.by', { name: about.author }) : '';
   $$('[data-about]').forEach((el) => {
-    el.innerHTML = `<b>${esc(about.name || 'PVE Seat')}</b>${v ? ` <span>v${esc(v)}</span>` : ''}${who ? ` · ${esc(who)}` : ''}`
+    el.innerHTML = `<b>${esc(about.name || 'PVE Homelab')}</b>${v ? ` <span>v${esc(v)}</span>` : ''}${who ? ` · ${esc(who)}` : ''}`
       + ` · <button type="button" class="linklike" data-help>${esc(t('help.short'))}</button>`;
   });
   $$('[data-help]').forEach((b) => (b.onclick = showHelp));

@@ -3,7 +3,7 @@ import json
 import logging
 import time
 
-log = logging.getLogger("pveseat")
+log = logging.getLogger("pvehomelab")
 
 
 async def run(*args, timeout=30, check=True):

@@ -1,9 +1,9 @@
 """Error journal: warnings and errors from the backend and from the screens' browsers.
 
-Everything logged at WARNING or above on the "pveseat" logger lands here, and so do reports
+Everything logged at WARNING or above on the "pvehomelab" logger lands here, and so do reports
 the browser sends to /api/client-log (JS errors, failed widgets, server errors it saw).
 Entries go to a small in-memory ring (shown in Settings → About) and to a rotating file,
-one JSON object per line: /var/log/pve-seat/errors.log (in demo: <state>/logs/errors.log).
+one JSON object per line: /var/log/pve-homelab/errors.log (in demo: <state>/logs/errors.log).
 The same messages also reach the systemd journal through the normal logging setup.
 """
 
@@ -18,7 +18,7 @@ import traceback
 
 from .config import STATE_DIR
 
-LOG_DIR = os.environ.get("PVESEAT_LOGS") or ("/var/log/pve-seat" if STATE_DIR == "/etc/pve-seat" else os.path.join(STATE_DIR, "logs"))
+LOG_DIR = os.environ.get("PVEHOMELAB_LOGS") or ("/var/log/pve-homelab" if STATE_DIR == "/etc/pve-homelab" else os.path.join(STATE_DIR, "logs"))
 LOG_FILE = os.path.join(LOG_DIR, "errors.log")
 
 RING = collections.deque(maxlen=300)
@@ -37,7 +37,7 @@ def _open_file():
         h.setFormatter(logging.Formatter("%(message)s"))
         _file = h
     except OSError as e:
-        logging.getLogger("pveseat").info("error log file unavailable: %s", e)
+        logging.getLogger("pvehomelab").info("error log file unavailable: %s", e)
 
 
 def _write(entry):
@@ -99,7 +99,7 @@ def setup():
     _open_file()
     _load_tail()
     h = _Handler(level=logging.WARNING)
-    logging.getLogger("pveseat").addHandler(h)
+    logging.getLogger("pvehomelab").addHandler(h)
 
 
 def client(report, seat, user):
@@ -114,7 +114,7 @@ def client(report, seat, user):
     kind = str(report.get("kind") or "js")[:20]
     e = add("error", "client:" + kind, str(report.get("msg") or ""), str(report.get("stack") or ""),
             seat=seat, user=user or "", where=str(report.get("where") or ""))
-    logging.getLogger("pveseat").warning("browser %s on %s: %s", kind, seat, e["msg"], extra={"from_client": True})
+    logging.getLogger("pvehomelab").warning("browser %s on %s: %s", kind, seat, e["msg"], extra={"from_client": True})
     return e
 
 

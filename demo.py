@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the PVE Seat menu on any computer, no Proxmox needed.
+"""Run the PVE Homelab menu on any computer, no Proxmox needed.
 
     pip install -r requirements-demo.txt
     python demo.py                 # opens http://127.0.0.1:8900 in your browser
@@ -28,12 +28,12 @@ def main():
     ap.add_argument("--no-browser", action="store_true")
     a = ap.parse_args()
 
-    # Paths must be set before pveseat is imported.
-    os.environ["PVESEAT_CONFIG"] = os.path.join(ROOT, "etc", "demo.yaml")
-    os.environ["PVESEAT_WEB"] = os.path.join(ROOT, "web")
-    os.environ["PVESEAT_STATE"] = os.path.join(ROOT, ".demo", "state")
-    os.environ["PVESEAT_CACHE"] = os.path.join(ROOT, ".demo", "cache")
-    os.environ["PVESEAT_INSTALL"] = ROOT
+    # Paths must be set before pvehomelab is imported.
+    os.environ["PVEHOMELAB_CONFIG"] = os.path.join(ROOT, "etc", "demo.yaml")
+    os.environ["PVEHOMELAB_WEB"] = os.path.join(ROOT, "web")
+    os.environ["PVEHOMELAB_STATE"] = os.path.join(ROOT, ".demo", "state")
+    os.environ["PVEHOMELAB_CACHE"] = os.path.join(ROOT, ".demo", "cache")
+    os.environ["PVEHOMELAB_INSTALL"] = ROOT
     sys.path.insert(0, os.path.join(ROOT, "backend"))
 
     try:
@@ -42,7 +42,7 @@ def main():
     except ImportError:
         sys.exit("Missing packages. Run:  pip install -r requirements-demo.txt")
 
-    from pveseat import config, demo
+    from pvehomelab import config, demo
 
     lang = a.lang or ("uk" if (locale.getlocale()[0] or "").lower().startswith(("uk", "ukrainian")) else "en")
     real_load = config.load
@@ -54,7 +54,7 @@ def main():
     config.load = load
 
     url = f"http://{a.host}:{a.port}/?seat=igpu"
-    print(f"PVE Seat demo: {url}  (any password, Ctrl+C to stop)")
+    print(f"PVE Homelab demo: {url}  (any password, Ctrl+C to stop)")
     if not a.no_browser:
         threading.Timer(1.5, lambda: webbrowser.open(url)).start()
     demo.run(a.host, a.port)

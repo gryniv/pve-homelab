@@ -1,11 +1,11 @@
 [Unit]
-Description=PVE Seat kiosk на місці %i
-After=pve-seat.service systemd-user-sessions.service
-Wants=pve-seat.service
+Description=PVE Homelab kiosk on seat %i
+After=pve-homelab.service systemd-user-sessions.service
+Wants=pve-homelab.service
 
 [Service]
 # TTYPath and Conflicts=getty@ttyN come from the per-seat drop-in written by install.sh
-User=pveseat
+User=pvehomelab
 PAMName=login
 TTYReset=yes
 TTYVHangup=yes
@@ -15,7 +15,7 @@ StandardOutput=journal
 StandardError=journal
 UtmpIdentifier=%I
 UtmpMode=user
-ExecStart=/opt/pve-seat/kiosk/kiosk.sh %i
+ExecStart=/opt/pve-homelab/kiosk/kiosk.sh %i
 Restart=always
 RestartSec=3
 

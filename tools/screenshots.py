@@ -45,7 +45,7 @@ CHECK = r"""
 async def run(out, base, sizes, lang):
     os.makedirs(out, exist_ok=True)
     proc = subprocess.Popen(["chromium", "--headless=new", "--no-sandbox", "--disable-gpu", "--hide-scrollbars",
-                             "--remote-debugging-port=9333", "--user-data-dir=/tmp/pve-seat-shots-prof", "about:blank"],
+                             "--remote-debugging-port=9333", "--user-data-dir=/tmp/pve-homelab-shots-prof", "about:blank"],
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     report = {}
     try:
@@ -115,7 +115,7 @@ async def run(out, base, sizes, lang):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--out", default="/tmp/pve-seat-shots")
+    ap.add_argument("--out", default="/tmp/pve-homelab-shots")
     ap.add_argument("--url", default="http://127.0.0.1:8901/?seat=igpu")
     ap.add_argument("--sizes", default=",".join(SIZES))
     ap.add_argument("--lang", default="")

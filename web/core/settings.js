@@ -229,7 +229,7 @@ const views = {
     const a = app.about(), pub = app.pub(), u = app.updateStatus();
     const row = (k, v) => `<div class="kv"><span class="mute">${esc(t(k))}</span><b>${v}</b></div>`;
     const repo = a.repo || (pub.app.repo ? `https://github.com/${pub.app.repo}` : '');
-    return `<h3>${esc(a.name || 'PVE Seat')}</h3>${lead('about.lead')}
+    return `<h3>${esc(a.name || 'PVE Homelab')}</h3>${lead('about.lead')}
       <div class="grp about-box">
         ${row('about.version', `v${esc(pub.app.version)}${u?.available ? ` · <span class="acc-text">${esc(t('about.update_new', { v: u.latest.version ? 'v' + u.latest.version : (u.latest.commit || '').slice(0, 7) }))}</span>` : u?.enabled ? ` · ${esc(t('about.update_ok'))}` : ''}`)}
         ${a.author ? row('about.author', a.author_url ? `<a href="${esc(a.author_url)}" target="_blank" rel="noopener">${esc(a.author)}</a>` : esc(a.author)) : ''}

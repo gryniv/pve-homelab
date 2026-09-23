@@ -1,4 +1,4 @@
-/* PVE Seat: background engine. The backgrounds themselves are drop-in files in
+/* PVE Homelab: background engine. The backgrounds themselves are drop-in files in
    web/backgrounds/<id>.css (see README: "Add a background"); this file holds what they share:
    the palette, sun/moon, stars, clouds, fog and weather veil, and the settings mini monitor.
 

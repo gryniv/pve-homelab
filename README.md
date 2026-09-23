@@ -1,223 +1,377 @@
-# PVE Seat
+<div align="center">
 
-Екран для монітора, підключеного прямо до хоста Proxmox VE. Замість чорної консолі тут вхід для користувачів Proxmox, панель зі станом хоста, контейнерами, VM і вебсервісами, а також запуск «десктопних» VM на відеокарті твого монітора.
+# PVE Homelab
 
-*English version below.*
+**Local graphical console for a Proxmox-powered home workstation**
 
-## Швидкий старт
+Plug a monitor into your Proxmox VE host and get a beautiful sign-in screen, a live dashboard
+of your homelab, your web services one click away, and a launcher that boots your desktop VMs
+straight onto the GPU that monitor is wired to.
 
-### A. Подивитися на своєму комп'ютері (без Proxmox)
+![version](https://img.shields.io/badge/version-0.4.0-ff8a3d)
+![Proxmox VE](https://img.shields.io/badge/Proxmox%20VE-8%20%7C%209-e57000)
+![python](https://img.shields.io/badge/python-3.10%2B-3776ab)
+![no build step](https://img.shields.io/badge/frontend-no%20build%20step-4cc9f0)
+![languages](https://img.shields.io/badge/UI-English%20%7C%20Українська-5fd08a)
 
-Потрібен лише Python 3.10 або новіший ([python.org](https://www.python.org/downloads/); на Windows під час встановлення постав галочку «Add python.exe to PATH»).
+[Features](#features) · [Screenshots](#screenshots) · [Try it in 1 minute](#try-it-without-proxmox) · [Install](#install-on-a-proxmox-host) · [Configure](#configuration) · [Extend](#extending-it) · [Українською](README.uk.md)
 
-| Система | Що зробити |
+![PVE Homelab sign-in screen](docs/screenshots/login.jpg)
+
+</div>
+
+---
+
+## Why
+
+A Proxmox box under the desk is usually two things at once: a server for containers and VMs,
+and the computer you actually sit at. Its own monitor, though, shows a black text console.
+
+PVE Homelab turns that console into the front door of the machine:
+
+- **Walk up, sign in** with your Proxmox account, and see what the host is doing.
+- **Pick a system** (Windows for games, Linux for work) and it starts on *your* GPU. The monitor
+  switches its input by itself, and when you shut the VM down it switches back to the menu.
+- **Open any service** (Home Assistant, Jellyfin, Immich, Grafana and the rest) without
+  bookmarks, because PVE Homelab finds them on its own.
+- **Leave it**, and it turns into a calm, weather-aware screensaver.
+
+No new accounts and no new permission model: everything runs with the Proxmox ticket of whoever
+signed in, so each person sees and controls exactly what PVE allows them to.
+
+## Features
+
+### Sign-in and people
+- **Proxmox users are the users.** Sign in with `user@pve` or `root@pam`. Every call to the PVE
+  API uses that person's own ticket, so Proxmox permissions apply as they are.
+- **A visual user picker** with avatars. You choose who appears there and how it looks:
+  compact avatars, a title line above the clock, "remember who signed in last", and an optional
+  "someone else" tile.
+- **Everything is per user:** language, theme, background, fonts, clock, widgets, order of
+  systems and services, and weather city.
+
+### Seats: one menu per GPU and monitor
+- Every GPU the host drives with a monitor attached becomes a **seat** with its own menu and its
+  own sign-in. A second GPU gives you a second, independent seat.
+- The menu runs as a kiosk (`cage` + Chromium) on its own virtual terminal. The text console
+  stays one keypress away on **Ctrl+Alt+F1**.
+
+### Launch systems on your GPU
+- VMs tagged `seat` in Proxmox appear as big cards at the top of the dashboard: one row,
+  Netflix-style, that scrolls when there are more than four.
+- **On a discrete GPU:** PVE Homelab assigns the GPU to the VM, starts it and switches the
+  monitor input over **DDC/CI**. When the VM stops, the monitor comes back to the menu.
+- **On the integrated GPU:** the VM starts with **VirGL** and its screen opens right inside the
+  menu over a built-in noVNC relay. **Ctrl+Alt+Q** brings you back.
+- Each step (assign GPU, start, switch monitor) shows as a clear checklist while it happens.
+
+### Web services, found by themselves
+Your services are collected from three places and merged:
+1. **Caddy** (admin API): your real domain names.
+2. **Open ports of containers**, read by the host straight from `/proc` without entering the
+   guest, plus common web ports of VMs. Every candidate is checked with a `GET /`; only real
+   HTML pages make the list, and the page title and container name decide the name and logo.
+3. **Links in guest notes** in Proxmox (`[Grafana](http://10.0.0.5:3000)`).
+
+Each tile shows whether its guest is up. Services open as **tabs next to the menu**, and a small
+dock on every page (**Alt+Q**) takes you back. You can type to search, drag tiles to reorder them,
+or sort by name or status.
+
+### Containers and VMs
+A compact list of every guest you're allowed to see, with state, CPU and memory, and start,
+shut down, reboot and console where your rights allow it.
+
+### Looks: themes, backgrounds, fonts, clocks
+- **4 themes** (Dusk, Forest, Graphite, North) that recolour everything, including the landscapes.
+- **14 backgrounds.** There is a live SVG landscape and six landscapes in pure CSS (Mountains, Sea,
+  Dunes, Night city, Hills, Starry night). They all follow the **time of day** (the sun rises and
+  sets, and at night the moon and stars come out) and the **weather** (clouds, rain, snow,
+  lightning, fog, snow settling on the peaks). There are also six simple ones: gradient, aurora,
+  dots, grid, theme and black.
+- **14 fonts** with Cyrillic support, set separately for the interface and for the clock and headings.
+- **6 clock designs:** digital, thin (with a seconds line), stacked, flip cards, analog and neon.
+- **Previews that tell the truth.** Every theme, background and clock tile is a tiny monitor
+  showing the real sign-in screen in that look. Hover it and it plays *clear → storm → night →
+  dashboard windows*, with real rain and lightning.
+
+### Widgets
+Per-user widget columns for the sign-in screen and the dashboard, each with its own
+settings form (⚙) and a live preview:
+
+| Widget | Shows | Settings |
+|---|---|---|
+| Weather | now + forecast (Open-Meteo, no API key) | forecast days, wind and humidity |
+| Host | CPU, memory and temperature rings, 30-minute CPU graph | which rings, graph |
+| GPUs | which GPU drives which monitor, and which is free | |
+| Clock | any clock design | design, date |
+| World clock | several time zones | zones, 12-hour format |
+| Calendar | this month | week start, week numbers |
+| Countdown | days to an event | title, date |
+| Guests | running VMs and containers with load | running or all, types, rows |
+| Services | how many services are up, and which are down | list style |
+| Network | traffic, address, load | fields |
+| Storage | how full each storage is | which storages, used or free |
+| Links | your own bookmarks, opened as tabs | links |
+| Note | your text | heading, text |
+| Quick actions | PVE web UI, screensaver, reboot, shut down | buttons |
+
+### Screensaver
+After a few idle minutes the sign-in screen dims into a big clock over the living landscape,
+with the current weather and particle effects. Any key brings it back.
+
+### Built for a keyboard, a remote, or a mouse
+Arrow keys move like a TV remote: they always pick the nearest thing in the direction you press.
+Tab never escapes an open dialog, and Esc closes it. Press **?** for the full list of keys.
+A mouse works everywhere, but you never need one.
+
+### Runs itself
+- **Updates from GitHub.** A badge in the top bar and a reminder after sign-in. Admins install it with one
+  click, and nightly auto-update is optional. No git is needed on the host.
+- **Error journal.** Backend warnings and the screens' own errors (JavaScript, failed widgets,
+  server errors) are collected in *Settings → About*, and also in `/var/log/pve-homelab/errors.log`.
+- **English and Ukrainian.** A new language is one JSON file.
+
+## Screenshots
+
+<table>
+<tr>
+<td width="50%"><img src="docs/screenshots/dashboard.jpg" alt="Dashboard"><br><sub><b>Dashboard.</b> Systems on top, web services found automatically, host and GPU widgets, world clock.</sub></td>
+<td width="50%"><img src="docs/screenshots/launch.jpg" alt="Launching a system"><br><sub><b>Launch.</b> The GPU is assigned to the VM, the VM starts, the monitor switches its input.</sub></td>
+</tr>
+<tr>
+<td><img src="docs/screenshots/guests.jpg" alt="Containers and VMs"><br><sub><b>Containers and VMs</b> with state, load and quick actions.</sub></td>
+<td><img src="docs/screenshots/screensaver.jpg" alt="Screensaver"><br><sub><b>Screensaver:</b> a big clock, the weather, and the landscape reacting to both.</sub></td>
+</tr>
+<tr>
+<td><img src="docs/screenshots/settings-backgrounds.jpg" alt="Background settings"><br><sub><b>Backgrounds.</b> Every tile is a tiny monitor; hovering plays clear → storm → night → windows.</sub></td>
+<td><img src="docs/screenshots/settings-widgets.jpg" alt="Widget settings"><br><sub><b>Widgets.</b> A settings form for each, with a live preview.</sub></td>
+</tr>
+<tr>
+<td><img src="docs/screenshots/settings-clock.jpg" alt="Clock designs"><br><sub><b>Clock designs</b>, previewed on the real sign-in screen.</sub></td>
+<td><img src="docs/screenshots/settings-login.jpg" alt="Sign-in screen settings"><br><sub><b>Sign-in screen settings:</b> your own, and host-wide ones for admins.</sub></td>
+</tr>
+</table>
+
+### One screen, many moods
+
+Backgrounds follow the time of day and the real weather. Themes recolour them.
+
+<table>
+<tr>
+<td width="50%"><img src="docs/screenshots/look-mountains.jpg" alt="Mountains, day"><br><sub>Mountains · Dusk theme · day</sub></td>
+<td width="50%"><img src="docs/screenshots/look-sea.jpg" alt="Sea, dawn"><br><sub>Sea · Forest theme · dawn · thin clock</sub></td>
+</tr>
+<tr>
+<td><img src="docs/screenshots/look-city.jpg" alt="Night city"><br><sub>Night city · North theme · night · flip clock</sub></td>
+<td><img src="docs/screenshots/look-rain.jpg" alt="Hills in the rain"><br><sub>Hills · Graphite theme · rain · analog clock</sub></td>
+</tr>
+<tr>
+<td><img src="docs/screenshots/look-snow.jpg" alt="Starry night with snow"><br><sub>Starry night · North theme · snow · neon clock</sub></td>
+<td><img src="docs/screenshots/settings-theme.jpg" alt="Themes"><br><sub>Themes, each previewed with your background</sub></td>
+</tr>
+</table>
+
+## Try it without Proxmox
+
+The demo runs the **real** app over a made-up host with 4 VMs, 7 containers, two GPUs and a
+handful of services. Nothing real is touched. All you need is Python 3.10+.
+
+| System | Do this |
 |---|---|
-| **Windows** | Двічі клацни `demo.bat` у папці проєкту |
-| **Linux / macOS** | У терміналі в папці проєкту: `./demo.sh` |
+| **Windows** | double-click `demo.bat` |
+| **Linux / macOS** | `./demo.sh` |
 
-Перший запуск триває з хвилину: скрипт готує середовище в `.demo/` і ставить дві бібліотеки. Потім браузер сам відкриє **http://127.0.0.1:8900**.
+The first start takes about a minute: it prepares `.demo/` and installs two libraries. Then
+**http://127.0.0.1:8900** opens by itself. Pick **Ihor**, **Guest** (limited rights) or **root**,
+type **any password**, and explore.
 
-Далі:
-1. Обери будь-якого користувача (**Ihor**, **Guest** з обмеженими правами або **root**), введи **будь-який пароль** і натисни Enter.
-2. Спробуй усе: ▶ на системі, вебсервіси, вкладку «Контейнери та VM», шестерню налаштувань (мова, тема, віджети), позначку «Оновлення» вгорі.
-3. Щоб зупинити, закрий вікно консолі або натисни Ctrl+C.
+The diagonal **DEMO** ribbon in the corner opens a panel that adds pretend systems and services
+(through Caddy, a container port or guest notes), changes the weather and fakes an available update.
 
-Усе вигадане: 4 VM, 7 контейнерів, дві відеокарти, сервіси «з Caddy». Жоден справжній сервер не змінюється, а твої налаштування в демо зберігаються в `.demo/`.
+Options: `--lang en|uk`, `--port 9000`, `--no-browser`.
 
-Додаткові параметри (для `demo.bat`, `demo.sh` або `python demo.py`): `--lang uk` чи `--lang en`, `--port 9000`, `--no-browser`.
+## Install on a Proxmox host
 
-### B. Встановити на хост Proxmox
+Requirements:
+- **Proxmox VE 8 or 9.**
+- **A monitor** on a GPU the host itself uses (the integrated one is fine). Without one, install
+  just the backend with `--no-kiosk`.
+- **Internet** on the host, for apt packages, the weather and service logos.
+- **Optional:** Caddy with its admin API on `localhost:2019`, and monitors with DDC/CI for input switching.
 
-```bash
-git clone <URL репозиторію> /root/pve-seat && cd /root/pve-seat && ./install.sh
-```
-
-Подробиці нижче, у розділі [Встановлення](#встановлення).
-
-## Можливості
-
-- **Вхід користувачами Proxmox.** Усі дії виконуються з квитком самого користувача, тож кожен бачить і може рівно те, що дозволяють його права в PVE.
-- **Місця (seats).** Кожна відеокарта з монітором, яку тримає хост, отримує власне меню з окремим входом. Друга відеокарта означає друге незалежне місце.
-- **Запуск систем.** VM з тегом `seat` можна запустити:
-  - на дискретній відеокарті, підключеній до твого монітора. Меню саме пропише карту у VM і перемкне вхід монітора через DDC/CI, а після вимкнення VM поверне монітор назад;
-  - на вбудованій карті через VirGL. Екран VM тоді відкривається прямо в меню (noVNC).
-- **Вебсервіси знаходяться самі** з трьох джерел:
-  - Caddy (admin API): гарні домени;
-  - відкриті порти контейнерів, які хост читає напряму з `/proc` без входу в гостя, та типові вебпорти VM. Кожен кандидат перевіряється запитом `GET /`: у список потрапляють лише сторінки з HTML, а назву й логотип визначає заголовок сторінки та ім'я контейнера;
-  - посилання в нотатках гостя в Proxmox.
-
-  Біля кожного сервісу видно, чи працює його гість. Сервіси відкриваються вкладками поруч із меню, а панель на сторінці (Alt+Q) повертає назад.
-- **Керування з клавіатури.** Стрілки працюють як на пульті телевізора, Tab не виходить за межі відкритого вікна, Esc закриває. Миша не обов'язкова.
-- **Погода й заставка.** Погода з Open-Meteo (без ключа). Живий пейзаж реагує на час доби й погоду: дощ, сніг, туман, грозу.
-- **Налаштування для кожного.** Мова, тема, тло, розкладка віджетів, погода, поведінка запуску зберігаються окремо для кожного користувача.
-- **Оновлення з GitHub** з нагадуванням у меню, за бажанням автоматичні.
-- **Мови:** українська, англійська. Нова мова — це один файл.
-
-## Вимоги
-
-- Proxmox VE 8 або 9.
-- Монітор, підключений до відеокарти, яку використовує хост (вбудована підійде). Без монітора працює лише бекенд, а меню можна не ставити (`--no-kiosk`).
-- Інтернет на хості: пакети apt, погода й логотипи сервісів.
-- За бажанням: Caddy в контейнері з admin API на `localhost:2019` (без нього сервіси знаходяться за портами й нотатками), монітор із DDC/CI для перемикання входів.
-
-## Встановлення
-
-На хості Proxmox, від root:
+As root on the host:
 
 ```bash
-git clone <URL цього репозиторію> /root/pve-seat
-cd /root/pve-seat
+git clone https://github.com/gryniv/pve-homelab.git /root/pve-homelab
+cd /root/pve-homelab
 ./install.sh
 ```
 
-Інсталятор:
-1. ставить `cage`, `chromium`, `ddcutil`, `python3-aiohttp`;
-2. створює системного користувача `pveseat` для кіоску;
-3. копіює програму в `/opt/pve-seat`;
-4. під час першого запуску визначає залізо і пише `/etc/pve-seat/config.yaml`: відеокарти з моніторами, монітори з DDC та їхні входи, контейнер із Caddy, місто за часовим поясом;
-5. вмикає служби `pve-seat` (бекенд на `127.0.0.1:8900`) і `pve-seat-kiosk@<місце>` (меню на tty7, tty8…).
+The installer:
+1. installs `cage`, `chromium`, `ddcutil`, `python3-aiohttp`, `python3-yaml`;
+2. creates the system user `pvehomelab` for the kiosk;
+3. copies the program to `/opt/pve-homelab`;
+4. on the first run, detects your hardware and writes `/etc/pve-homelab/config.yaml`: GPUs with
+   monitors, DDC monitors and their inputs, the Caddy container, and a weather city from your time zone;
+5. enables `pve-homelab` (the backend on `127.0.0.1:8900`) and `pve-homelab-kiosk@<seat>` (the menu
+   on tty7, tty8, …).
 
-Параметри: `--no-kiosk` (лише бекенд), `--city Lviv`, `--lang uk|en` (для першого конфігу).
+Installer options: `--no-kiosk`, `--city Lviv`, `--lang en|uk`.
+Your config and user settings are never overwritten by a re-install or an update.
 
-Консоль лишається доступною на **Ctrl+Alt+F1**, меню на **Ctrl+Alt+F7**.
+The text console stays on **Ctrl+Alt+F1** and the menu is on **Ctrl+Alt+F7**. To remove everything
+except your settings, run `./uninstall.sh`.
 
-Видалення: `./uninstall.sh` (налаштування в `/etc/pve-seat` лишаються).
+> **Upgrading from PVE Seat 0.3** (the old name) is automatic: `install.sh` moves
+> `/etc/pve-seat` to `/etc/pve-homelab`, keeps a copy as `/etc/pve-seat.migrated`, and replaces
+> the old units and kiosk user.
 
-## Оновлення
+## Configuration
 
-Меню кожні кілька годин перевіряє GitHub. Коли є нова версія:
-- у верхній панелі з'являється позначка «Оновлення vX.Y.Z»;
-- після входу вискакує нагадування;
-- користувач із правом `Sys.Modify` на `/` встановлює її кнопкою в меню;
-- решта бачать, що оновлення є, але поставити його може лише адміністратор.
+After installing:
 
-Git на хості не потрібен: оновлювач завантажує архів з GitHub і запускає з нього `install.sh`. Конфіг і налаштування користувачів не змінюються.
-
-Налаштування в `/etc/pve-seat/config.yaml`:
-
-```yaml
-update:
-  repo: ""          # owner/name; порожньо = репозиторій, з якого встановлено (git clone)
-  channel: release  # release = останній реліз або тег vX.Y.Z; main = найновіший коміт гілки
-  auto: false       # true = ставити нові версії самостійно щоночі о 04:30
-```
-
-Вручну: `python3 -m pveseat.update check|apply` (з `PYTHONPATH=/opt/pve-seat/backend`), або `./update.sh` у клоні репозиторію.
-
-**Як випустити версію:** зміни `VERSION`, закоміть, потім виконай `git tag v0.3.1 && git push --tags`. Реліз на GitHub необов'язковий, досить тегу.
-
-## Після встановлення
-
-1. **Системи.** Додай VM тег `seat` у Proxmox, і вона з'явиться в меню. VM, які не можна позначити тегом (наприклад, приспані на диск), додаються через `systems_extra: [100]`.
-2. **Дискретна відеокарта на тому ж моніторі.** Допиши її вхід у розділ `monitors` конфігу. Коди входів показує `ddcutil capabilities | grep -A8 'Feature: 60'`:
+1. **Systems.** Tag a VM `seat` in Proxmox and it appears in the menu. VMs you can't tag (for
+   example ones hibernated to disk) go into `systems_extra: [100]`.
+2. **A discrete GPU on the same monitor.** Add its input to `monitors`. The input codes come from
+   `ddcutil capabilities | grep -A8 'Feature: 60'`:
    ```yaml
    monitors:
      mon0:
        ddc_bus: 4
        inputs:
-         "0000:79:00.0": 0x11   # HDMI-1, меню
-         "0000:02:00.0": 0x0f   # DisplayPort-1, відеокарта для VM
+         "0000:79:00.0": 0x11   # HDMI-1: the menu (integrated GPU)
+         "0000:02:00.0": 0x0f   # DisplayPort-1: the GPU for VMs
    ```
-3. **Вебсервіси.** Більшість знайдеться сама. Щоб додати посилання вручну, впиши його в нотатки гостя в Proxmox (`[Назва](http://адреса:порт)`) або в `links:` конфігу. Щоб прибрати зайве, допиши його в `discovery.ignore` або сховай у налаштуваннях меню.
-4. Після змін виконай `systemctl restart pve-seat 'pve-seat-kiosk@*'`.
+3. **Web services.** Most are found automatically. To add one by hand, write it into the guest's
+   notes (`[Name](http://address:port)`) or under `links:`. To hide one, add it to `discovery.ignore`
+   or switch it off in the menu settings.
+4. Apply the changes with `systemctl restart pve-homelab 'pve-homelab-kiosk@*'`.
 
-Повний перелік параметрів із поясненнями є в [`etc/config.example.yaml`](etc/config.example.yaml).
+Every option is explained in [`etc/config.example.yaml`](etc/config.example.yaml).
 
-## Клавіші
+### Updates
 
-| Де | Клавіші |
+The menu checks GitHub every few hours: the latest release, else the highest `vX.Y.Z` tag, or the
+newest commit of a branch with `channel: main`. When there is something new:
+
+- an **"Update vX.Y.Z"** badge appears in the top bar, with a reminder after sign-in;
+- anyone with `Sys.Modify` on `/` installs it with one click;
+- `update.auto: true` installs new versions every night at 04:30.
+
+```yaml
+update:
+  repo: ""          # owner/name; empty = where it was cloned from, else gryniv/pve-homelab
+  channel: release  # release | main
+  auto: false
+```
+
+By hand: `./update.sh` in the clone, or `PYTHONPATH=/opt/pve-homelab/backend python3 -m pvehomelab.update check|apply`.
+
+## Keys
+
+| Where | Keys |
 |---|---|
-| Меню | стрілки: навігація · Tab / Shift+Tab · Enter · Esc: закрити вікно |
-| Відкритий сервіс | **Alt+Q**: панель (← → вибір, Enter, Esc назад) |
-| Екран VM у меню | **Ctrl+Alt+Q**: назад у меню (VM працює далі) |
-| Хост | Ctrl+Alt+F1: консоль · Ctrl+Alt+F7: меню |
+| Menu | arrows move · Tab / Shift+Tab · Enter · Esc closes · **?** shows all keys |
+| Dashboard | just type to search services · **Alt+← →** moves a tile or a system |
+| An open service | **Alt+Q** shows the dock (← → pick, Enter, Esc back) |
+| A VM screen inside the menu | **Ctrl+Alt+Q** goes back to the menu (the VM keeps running) |
+| Host | Ctrl+Alt+F1 text console · Ctrl+Alt+F7 the menu |
 
-## Як розширювати
+## Extending it
 
-**Віджет** — це папка `web/widgets/<id>/` з файлом `widget.js` (і за бажанням `widget.css`):
+Everything visual is a **drop-in file**. The backend finds it, and its name comes from the file's
+first comment (`@name.en …`, `@name.uk …`, `@order 10`). After `install.sh` it shows up in the
+settings, with a live preview.
+
+| Module | File | Contract |
+|---|---|---|
+| Widget | `web/widgets/<id>/widget.js` (+ `widget.css`) | `zones`, `public`, `source`, `every`, `options`, `render(data, ctx)`, `after(el, data, ctx)`, own `i18n` |
+| Theme | `web/themes/<id>.css` | only tokens (`--acc`, `--acc2`, `--glass`, `--solid`, `--display`, `--lf` …) |
+| Background | `web/backgrounds/<id>.css` | `@group scape\|flat`; paint `.bgx[data-k="<id>"]` and layers `.l1`–`.l4` from the `--sky1..3 --far --mid --ink` palette. The engine adds sun, moon, stars, clouds, fog and weather |
+| Clock | `web/clocks/<id>.js` | `export const css` + `export function render(el, {h, m, s, text})`, called every second |
+| Font | `web/fonts/<id>.css` | `@family "Name", sans-serif` in the header + an `@import` of the web font |
+| Language | `web/i18n/<code>.json` | the same keys as `en.json`, plus `"_name"` |
+
+A widget with settings looks like this:
 
 ```js
 export default {
-  zones: ['side', 'login'],          // де його можна ставити
-  public: true,                      // можна показувати на екрані входу
-  source: '/api/host', every: 5,     // звідки брати дані і як часто оновлювати (сек)
-  i18n: { uk: { title: 'Мережа' }, en: { title: 'Network' } },
-  options: [                         // налаштування віджета (кнопка ⚙ біля нього в «Налаштуваннях»)
-    { key: 'iface', type: 'text', label: 'opt_iface', default: '' },
+  zones: ['side', 'login'],          // where it may be placed
+  public: true,                      // allowed on the sign-in screen
+  source: '/api/host', every: 5,     // data and refresh interval (s)
+  options: [                         // gets a ⚙ form and a live preview in Settings
     { key: 'graph', type: 'toggle', label: 'opt_graph', default: true },
-  ],                                 // типи: toggle, select, checks, number, text, date, list, textarea
-  render: (data, { t, ui, opts }) => `<h4>${t('title')}</h4>…`,   // opts.graph, opts.iface
+  ],                                 // toggle · select · checks · number · text · date · list · textarea
+  i18n: { en: { title: 'Network', opt_graph: 'Graph' }, uk: { title: 'Мережа', opt_graph: 'Графік' } },
+  render: (h, { t, opts }) => `<h4>${t('title')}</h4>${opts.graph ? '…' : ''}`,
 };
 ```
 
-Після `install.sh` віджет з'явиться в меню «Налаштування → Панель» або «Екран входу» → «Додати».
-
-Теми, фони, годинники й шрифти працюють однаково: **один файл = один модуль**. Бекенд сам знаходить файли в теці, а назву й решту метаданих бере з першого коментаря файлу (`@name.uk …`, `@name.en …`, `@desc.uk …`, `@order 10`). Після `install.sh` новий модуль з'являється в «Налаштування → Вигляд» із живим прев'ю.
-
-**Тема**: `web/themes/<id>.css`, лише змінні (`--acc`, `--acc2`, `--glass`, `--solid`, `--display`, `--lf`…) для `.A[data-skin="<id>"],.A [data-skin="<id>"]`.
-
-**Фон / заставка**: `web/backgrounds/<id>.css`. `@group scape` — пейзаж (сонце, місяць, зорі, хмари, туман і сніг рушій малює сам), `@group flat` — простий фон (отримує лише погодну вуаль). `@tod night` закріплює певну пору доби. Малюєш сам `.bgx[data-k="<id>"]` і потрібні шари `.l1`…`.l4`, кольори береш із палітри `--sky1 --sky2 --sky3 --far --mid --ink` (вона вже враховує тему й пору доби). Під погоду чи пору доби підлаштовуєшся через `.bgx[data-k="<id>"][data-wx="snow"]` або `[data-tod="night"]`. Приклад: `web/backgrounds/mountains.css`.
-
-**Годинник**: `web/clocks/<id>.js`, де `export const css` (стилі для `.clock[data-clockk="<id>"]`) і `export function render(el, t)`. Функція викликається щосекунди з `t = {h, m, s, text, date}` і має змінювати лише те, що змінилось. Приклад: `web/clocks/neon.js`.
-
-**Шрифт**: `web/fonts/<id>.css` з `@family "Назва", sans-serif` у заголовку й `@import` вебшрифту. Завантажується лише тоді, коли його вибрано або відкрито прев'ю.
-
-**Мова** — це один файл `web/i18n/<code>.json` з тими самими ключами, що в `en.json`, і полем `"_name"`. Переклади віджетів лежать у їхніх `i18n`, повідомлення бекенда в `backend/pveseat/i18n.py`, панель сервісів у `kiosk/ext/content.js`.
-
-## Як це влаштовано
+## How it works
 
 ```
-backend/pveseat/   aiohttp: API Proxmox (квиток користувача), стан хоста, відеокарти, DDC,
-                   Caddy, погода, запуск систем, проксі noVNC
-web/               інтерфейс без збирання: core/, widgets/, themes/, i18n/, vendor/novnc
-kiosk/             kiosk.sh (cage + Chromium на відеокарті місця), розширення вкладок і панелі,
-                   політика Chromium (системний DNS)
-systemd/           pve-seat.service, pve-seat-kiosk@.service, pve-seat-update.{service,timer}
-tools/             dryrun.py (тестовий бекенд на хості), screenshots.py (знімки на 10 роздільностях)
-demo.py            меню поверх вигаданого хоста, без Proxmox (backend/pveseat/demo.py)
+backend/pvehomelab/  aiohttp on 127.0.0.1:8900: Proxmox API with the user's ticket, host stats,
+                     GPUs and DDC/CI, Caddy + port + notes discovery, weather, launcher,
+                     noVNC relay, updater, error journal, demo world
+web/                 the UI, plain ES modules with no build step: core/, widgets/, themes/,
+                     backgrounds/, clocks/, fonts/, i18n/, vendor/novnc
+kiosk/               kiosk.sh (cage + Chromium on the seat's GPU), an MV3 extension for service
+                     tabs and the Alt+Q dock, Chromium policy (system DNS)
+systemd/             pve-homelab.service, pve-homelab-kiosk@.service, pve-homelab-update.{service,timer}
+tools/               dryrun.py (a safe backend next to the real one), screenshots.py (layout checks
+                     at 10 resolutions), readme_shots.py (the pictures above)
+demo.py              the real app over an in-memory fake host
 ```
 
-## Розробка
+## Development
 
-На хості, поруч зі справжньою службою:
+On the host, next to the real service:
 
 ```bash
-python3 tools/dryrun.py --port 8901        # справжні дані, вхід з паролем "test", усі дії лише в журнал
+python3 tools/dryrun.py --port 8901        # real data, password "test", actions only logged
 python3 tools/screenshots.py --out /tmp/shots --lang en
 ```
 
-`screenshots.py` проходить вхід, панель, контейнери, запуск і налаштування на 10 поширених роздільностях (від 1024×768 до 3840×2160 та 3440×1440) і повідомляє про горизонтальну прокрутку, елементи за краєм екрана й обрізаний текст.
+`screenshots.py` walks through sign-in, the dashboard, guests, launch and settings at 10 common
+resolutions, from 1024×768 up to 3840×2160 and 3440×1440. It reports horizontal scrolling,
+off-screen elements and clipped text.
 
-Щоб підключатися до Chromium кіоску через DevTools, задай `kiosk.debug_port: 9222` у конфігу. Порт слухає лише `127.0.0.1`.
-
-## Якщо щось не так
-
-- **Журнали:** `journalctl -u pve-seat -u 'pve-seat-kiosk@*' -f`
-- **Журнал помилок:** «Налаштування → Про програму → Журнал помилок» (бачать користувачі з правом `Sys.Audit`). Там збираються попередження й помилки бекенда та самих екранів: помилки JS, віджети, що не змогли намалюватись, і збої API. Файл лежить у `/var/log/pve-seat/errors.log`, по одному JSON у рядку; це до 4 МБ із ротацією.
-- **Сервіси відкриваються з «connection refused».** Імена мають резолвитись у внутрішню адресу. Кіоск використовує системний DNS (`/etc/resolv.conf`), тож DNS хоста має знати твої внутрішні імена.
-- **Монітор не перемикається.** Перевір `ddcutil detect` і коди в `monitors`. Деякі монітори (наприклад, Dell P2418D) завжди повідомляють той самий вхід, тому меню не читає поточний вхід, а лише перемикає.
-- **Меню на дискретній NVIDIA.** Хост може малювати на ній лише з драйвером, що її підтримує. Для RTX 50 з nouveau потрібна прошивка GSP відповідного чипа.
-
----
-
-# PVE Seat (English)
-
-A screen for a monitor plugged straight into a Proxmox VE host: sign-in with Proxmox accounts, a dashboard with host state, containers, VMs and web services, and a launcher that starts desktop VMs on the GPU your monitor is connected to.
-
-**Features:** per-GPU seats with separate sign-in · VMs start on a discrete GPU wired to your monitor, and the monitor input switches over DDC/CI (and back when the VM stops), or on the integrated GPU through VirGL, shown inside the menu · web services found by themselves: Caddy's admin API, open ports of containers (read from the host) and VMs checked with GET /, and links in guest notes · services open as tabs next to the menu (Alt+Q dock) · fully keyboard driven · weather-reactive landscape and screensaver · per-user language, theme, layout and behaviour · Ukrainian and English.
-
-**Install** (as root on the Proxmox host, PVE 8+):
+To regenerate the README pictures from the demo:
 
 ```bash
-git clone <this repository> /root/pve-seat && cd /root/pve-seat && ./install.sh
+python demo.py --no-browser &
+python tools/readme_shots.py --browser "/path/to/chrome"
 ```
 
-**Try it without Proxmox:** double-click `demo.bat` (Windows) or run `./demo.sh` (Linux/macOS); it prepares `.demo/` on first run and opens http://127.0.0.1:8900. It runs the real menu over a made-up host (any password; nothing real changes).
+For DevTools on the kiosk's Chromium, set `kiosk.debug_port: 9222` (it listens on 127.0.0.1 only).
 
-**Updates:** the menu checks GitHub (latest release or `vX.Y.Z` tag, or the newest commit with `channel: main`), shows "Update vX.Y.Z" in the top bar and reminds after sign-in; users with `Sys.Modify` on `/` install it from there. `update.auto: true` installs new versions nightly.
+## Troubleshooting
 
-On first run the installer detects GPUs with monitors, DDC monitors and their inputs, the Caddy container and a weather city, then writes `/etc/pve-seat/config.yaml` (never overwritten later). Tag VMs with `seat` to list them. For a discrete GPU wired to the same monitor, add its input code under `monitors` (see [`etc/config.example.yaml`](etc/config.example.yaml)). Update with `./update.sh`, remove with `./uninstall.sh`.
+- **Logs:** `journalctl -u pve-homelab -u 'pve-homelab-kiosk@*' -f`
+- **Error journal:** *Settings → About → Error journal*, for users with `Sys.Audit`. The file is
+  `/var/log/pve-homelab/errors.log`: JSON lines, rotated, up to 4 MB.
+- **Services fail with "connection refused".** Their names must resolve to internal addresses.
+  The kiosk uses the host's DNS (`/etc/resolv.conf`).
+- **The monitor doesn't switch.** Check `ddcutil detect` and the codes under `monitors`. Some
+  monitors (Dell P2418D, for example) always report the same input, so PVE Homelab only switches
+  the input and never reads it back.
+- **The menu on a discrete NVIDIA GPU.** The host can only draw on it with a driver that supports
+  it. An RTX 50 series card with nouveau needs the GSP firmware for its chip.
 
-**Extend:** one file is one module, found by the backend and named from its first comment (`@name.en …`, `@order …`): a widget is `web/widgets/<id>/widget.js` (with `options: [{key, type, label, default}]` it gets a ⚙ form and a live preview in settings; the values arrive as `ctx.opts`), a theme `web/themes/<id>.css` (tokens only), a background `web/backgrounds/<id>.css` (`@group scape|flat`, paint `.bgx[data-k="<id>"]` and layers `.l1`-`.l4` from the `--sky*`/`--far`/`--mid`/`--ink` palette; sun, moon, stars, clouds, fog and weather come from the engine), a clock `web/clocks/<id>.js` (`css` + `render(el, {h, m, s, text})` every second), a font `web/fonts/<id>.css` (`@family` + `@import`), a language `web/i18n/<code>.json`. See the Ukrainian section above for the widget contract and the development tools (`tools/dryrun.py`, `tools/screenshots.py`).
+## Status
 
-Third-party: noVNC (MPL-2.0) is vendored in `web/vendor/novnc`; weather icons are Meteocons by Bas Milius (MIT); service logos are fetched from homarr-labs/dashboard-icons at runtime.
+PVE Homelab is **0.x**: it is used daily on a real homelab, but config keys and APIs may still
+change between minor versions. Issues and ideas are welcome.
+
+## Credits
+
+Built by **[Ihor Hryniv](https://github.com/gryniv)**.
+
+Third-party: [noVNC](https://github.com/novnc/noVNC) (MPL-2.0), vendored in `web/vendor/novnc` ·
+weather icons: [Meteocons](https://github.com/basmilius/weather-icons) by Bas Milius (MIT) ·
+service logos: [homarr-labs/dashboard-icons](https://github.com/homarr-labs/dashboard-icons), fetched at runtime ·
+weather data: [Open-Meteo](https://open-meteo.com) · fonts: Google Fonts (OFL) ·
+kiosk: [cage](https://github.com/cage-kiosk/cage) + Chromium.
+
+Proxmox® is a registered trademark of Proxmox Server Solutions GmbH. This project is not affiliated
+with or endorsed by Proxmox Server Solutions GmbH.

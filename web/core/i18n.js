@@ -2,7 +2,7 @@
 // Widgets bring their own strings (module.i18n) under the "w.<id>." prefix.
 //
 //   t('login.who')                        plain string
-//   t('launch.cores', { n: 12 })          "{n} ядер" / "12 cores"; plural forms via {one, few, many, other}
+//   t('launch.cores', { n: 12 })          "12 ядер" / "12 cores"; plural forms via {one, few, many, other}
 //   <b data-i18n="dash.web"></b>          static markup, filled by apply()
 //   data-i18n-title / data-i18n-placeholder / data-i18n-aria
 

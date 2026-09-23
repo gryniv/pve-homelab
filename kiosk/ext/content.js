@@ -8,16 +8,16 @@
 
   if (location.href.startsWith(MENU)) {
     window.addEventListener('message', async (e) => {
-      if (e.source !== window || !e.data?.pveseat) return;
-      const res = await send(e.data.pveseat).catch((err) => ({ error: String(err) }));
-      window.postMessage({ pveseatReply: e.data.id, res }, location.origin);
+      if (e.source !== window || !e.data?.pvehomelab) return;
+      const res = await send(e.data.pvehomelab).catch((err) => ({ error: String(err) }));
+      window.postMessage({ pvehomelabReply: e.data.id, res }, location.origin);
     });
     chrome.runtime.onMessage.addListener((m) => {
-      if (m.type === 'tabs') window.postMessage({ pveseatTabs: m.tabs }, location.origin);
+      if (m.type === 'tabs') window.postMessage({ pvehomelabTabs: m.tabs }, location.origin);
     });
-    const hello = () => window.postMessage({ pveseatBridge: true }, location.origin);
+    const hello = () => window.postMessage({ pvehomelabBridge: true }, location.origin);
     document.readyState === 'loading' ? document.addEventListener('DOMContentLoaded', hello) : hello();
-    window.addEventListener('message', (e) => { if (e.source === window && e.data?.pveseatPing) hello(); });
+    window.addEventListener('message', (e) => { if (e.source === window && e.data?.pvehomelabPing) hello(); });
     return;
   }
 
@@ -55,7 +55,7 @@
       .dock.mini .hint.full{display:none} .dock:not(.mini) .hint.short{display:none}
       .t{overflow:hidden;text-overflow:ellipsis}
     </style>
-    <div class="dock mini" role="toolbar" aria-label="PVE Seat">
+    <div class="dock mini" role="toolbar" aria-label="PVE Homelab">
       <button class="home" data-a="menu" data-t="menu"></button>
       <span class="more">
         <span class="sep"></span><span id="tabs" style="display:contents"></span><span class="sep"></span>

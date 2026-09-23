@@ -1,5 +1,5 @@
 @echo off
-rem PVE Seat demo for Windows: double-click this file.
+rem PVE Homelab demo for Windows: double-click this file.
 rem First run creates .demo\venv and installs aiohttp + PyYAML (about a minute), then opens the browser.
 setlocal
 cd /d "%~dp0"
@@ -18,6 +18,6 @@ if not exist ".demo\venv\Scripts\python.exe" (
 )
 
 echo.
-echo PVE Seat demo: http://127.0.0.1:8900  (any password; close this window to stop)
+echo PVE Homelab demo: http://127.0.0.1:8900  (any password; close this window to stop)
 ".demo\venv\Scripts\python.exe" demo.py %*
 pause

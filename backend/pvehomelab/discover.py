@@ -183,7 +183,7 @@ async def discover(cfg, resources, ips, host_ip=None):
 
     found = []
     sem = asyncio.Semaphore(24)
-    async with aiohttp.ClientSession(headers={"User-Agent": "pve-seat-discovery"}) as s:
+    async with aiohttp.ClientSession(headers={"User-Agent": "pve-homelab-discovery"}) as s:
         async def one(guest, ip, port):
             async with sem:
                 hit = await probe(s, ip, port)

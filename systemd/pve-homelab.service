@@ -1,12 +1,12 @@
 [Unit]
-Description=PVE Seat backend (екран хоста: вхід, панель, запуск систем)
+Description=PVE Homelab backend (local console: sign-in, dashboard, launcher)
 After=pve-cluster.service pveproxy.service network-online.target
 Wants=network-online.target
 
 [Service]
-Environment=PYTHONPATH=/opt/pve-seat/backend
+Environment=PYTHONPATH=/opt/pve-homelab/backend
 ExecStartPre=-/sbin/modprobe i2c-dev
-ExecStart=/usr/bin/python3 -m pveseat
+ExecStart=/usr/bin/python3 -m pvehomelab
 Restart=always
 RestartSec=3
 

@@ -1,5 +1,5 @@
 #!/bin/sh
-# PVE Seat demo for Linux / macOS: ./demo.sh
+# PVE Homelab demo for Linux / macOS: ./demo.sh
 # First run creates .demo/venv and installs aiohttp + PyYAML, then opens the browser.
 set -e
 cd "$(dirname "$0")"
@@ -9,5 +9,5 @@ if [ ! -x .demo/venv/bin/python ]; then
   "$PY" -m venv .demo/venv
   .demo/venv/bin/python -m pip install -q -r requirements-demo.txt
 fi
-echo "PVE Seat demo: http://127.0.0.1:8900  (any password, Ctrl+C to stop)"
+echo "PVE Homelab demo: http://127.0.0.1:8900  (any password, Ctrl+C to stop)"
 exec .demo/venv/bin/python demo.py "$@"

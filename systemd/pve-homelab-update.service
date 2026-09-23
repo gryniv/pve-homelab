@@ -1,0 +1,9 @@
+[Unit]
+Description=PVE Homelab: install the latest version from GitHub (if update.auto is on)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+Environment=PYTHONPATH=/opt/pve-homelab/backend
+ExecStart=/usr/bin/python3 -m pvehomelab.update auto

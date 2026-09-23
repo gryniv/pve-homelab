@@ -7,21 +7,21 @@ let onTabs = () => {};
 
 addEventListener('message', (e) => {
   if (e.source !== window || !e.data) return;
-  if (e.data.pveseatBridge) bridge = true;
-  if (e.data.pveseatReply && pending.has(e.data.pveseatReply)) {
-    pending.get(e.data.pveseatReply)(e.data.res);
-    pending.delete(e.data.pveseatReply);
+  if (e.data.pvehomelabBridge) bridge = true;
+  if (e.data.pvehomelabReply && pending.has(e.data.pvehomelabReply)) {
+    pending.get(e.data.pvehomelabReply)(e.data.res);
+    pending.delete(e.data.pvehomelabReply);
   }
-  if (e.data.pveseatTabs) onTabs(e.data.pveseatTabs);
+  if (e.data.pvehomelabTabs) onTabs(e.data.pvehomelabTabs);
 });
-postMessage({ pveseatPing: true }, location.origin);
+postMessage({ pvehomelabPing: true }, location.origin);
 
 function call(cmd) {
   if (!bridge) return Promise.resolve(null);
   const id = ++seq;
   return new Promise((resolve) => {
     pending.set(id, resolve);
-    postMessage({ pveseat: cmd, id }, location.origin);
+    postMessage({ pvehomelab: cmd, id }, location.origin);
     setTimeout(() => { if (pending.delete(id)) resolve(null); }, 3000);
   });
 }
