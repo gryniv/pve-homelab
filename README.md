@@ -17,6 +17,24 @@
 - **Налаштування для кожного.** Мова, тема, тло, розкладка віджетів, погода, поведінка запуску зберігаються окремо для кожного користувача.
 - **Мови:** українська, англійська. Нова мова — це один файл.
 
+## Спробувати без Proxmox
+
+На будь-якому комп'ютері з Python 3.10+ (Windows, macOS, Linux):
+
+```bash
+pip install -r requirements-demo.txt
+python demo.py            # відкриє http://127.0.0.1:8900 у браузері
+```
+
+Це справжнє меню, але поверх вигаданого хоста:
+- 4 VM і 7 контейнерів, дві відеокарти та вебсервіси «з Caddy»;
+- троє користувачів: `ihor@pve`, `guest@pve` з обмеженими правами і `root@pam`;
+- підходить будь-який пароль;
+- запуск систем і старт/стоп контейнерів змінюють лише цей вигаданий світ;
+- позначка оновлення показує, як виглядає нагадування.
+
+Твої налаштування в демо зберігаються в `.demo/`. Параметри: `--lang uk|en`, `--port`, `--no-browser`.
+
 ## Вимоги
 
 - Proxmox VE 8 або 9.
@@ -45,7 +63,30 @@ cd /root/pve-seat
 
 Консоль лишається доступною на **Ctrl+Alt+F1**, меню на **Ctrl+Alt+F7**.
 
-Оновлення: `./update.sh` (git pull + install). Видалення: `./uninstall.sh` (налаштування в `/etc/pve-seat` лишаються).
+Видалення: `./uninstall.sh` (налаштування в `/etc/pve-seat` лишаються).
+
+## Оновлення
+
+Меню кожні кілька годин перевіряє GitHub. Коли є нова версія:
+- у верхній панелі з'являється позначка «Оновлення vX.Y.Z»;
+- після входу вискакує нагадування;
+- користувач із правом `Sys.Modify` на `/` встановлює її кнопкою в меню;
+- решта бачать, що оновлення є, але поставити його може лише адміністратор.
+
+Git на хості не потрібен: оновлювач завантажує архів з GitHub і запускає з нього `install.sh`. Конфіг і налаштування користувачів не змінюються.
+
+Налаштування в `/etc/pve-seat/config.yaml`:
+
+```yaml
+update:
+  repo: ""          # owner/name; порожньо = репозиторій, з якого встановлено (git clone)
+  channel: release  # release = останній реліз або тег vX.Y.Z; main = найновіший коміт гілки
+  auto: false       # true = ставити нові версії самостійно щоночі о 04:30
+```
+
+Вручну: `python3 -m pveseat.update check|apply` (з `PYTHONPATH=/opt/pve-seat/backend`), або `./update.sh` у клоні репозиторію.
+
+**Як випустити версію:** зміни `VERSION`, закоміть, потім виконай `git tag v0.3.1 && git push --tags`. Реліз на GitHub необов'язковий, досить тегу.
 
 ## Після встановлення
 
@@ -101,8 +142,9 @@ backend/pveseat/   aiohttp: API Proxmox (квиток користувача), �
 web/               інтерфейс без збирання: core/, widgets/, themes/, i18n/, vendor/novnc
 kiosk/             kiosk.sh (cage + Chromium на відеокарті місця), розширення вкладок і панелі,
                    політика Chromium (системний DNS)
-systemd/           pve-seat.service, pve-seat-kiosk@.service
-tools/             dryrun.py (тестовий бекенд), screenshots.py (знімки на 10 роздільностях)
+systemd/           pve-seat.service, pve-seat-kiosk@.service, pve-seat-update.{service,timer}
+tools/             dryrun.py (тестовий бекенд на хості), screenshots.py (знімки на 10 роздільностях)
+demo.py            меню поверх вигаданого хоста, без Proxmox (backend/pveseat/demo.py)
 ```
 
 ## Розробка
@@ -138,6 +180,10 @@ A screen for a monitor plugged straight into a Proxmox VE host: sign-in with Pro
 ```bash
 git clone <this repository> /root/pve-seat && cd /root/pve-seat && ./install.sh
 ```
+
+**Try it without Proxmox:** `pip install -r requirements-demo.txt && python demo.py` runs the real menu over a made-up host (any password; nothing real changes).
+
+**Updates:** the menu checks GitHub (latest release or `vX.Y.Z` tag, or the newest commit with `channel: main`), shows "Update vX.Y.Z" in the top bar and reminds after sign-in; users with `Sys.Modify` on `/` install it from there. `update.auto: true` installs new versions nightly.
 
 On first run the installer detects GPUs with monitors, DDC monitors and their inputs, the Caddy container and a weather city, then writes `/etc/pve-seat/config.yaml` (never overwritten later). Tag VMs with `seat` to list them. For a discrete GPU wired to the same monitor, add its input code under `monitors` (see [`etc/config.example.yaml`](etc/config.example.yaml)). Update with `./update.sh`, remove with `./uninstall.sh`.
 

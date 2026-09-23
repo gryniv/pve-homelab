@@ -1,0 +1,43 @@
+# Configuration used by demo.py (made-up host, nothing real is touched).
+listen: 127.0.0.1:8900
+node: demo
+language: en
+systems_tag: seat
+
+seats:
+  igpu:
+    title: Intel iGPU
+    gpu: "0000:00:02.0"
+    tty: 7
+    kiosk: false
+
+monitors:
+  main:
+    ddc_bus: 1
+    inputs:
+      "0000:00:02.0": 0x11    # HDMI-1: the menu
+      "0000:01:00.0": 0x0f    # DisplayPort-1: RTX for VMs
+
+caddy:
+  ct: 200
+
+services:
+  jellyfin: {name: Jellyfin, icon: jellyfin}
+  photos:   {name: Photos, icon: immich}
+  cloud:    {name: Nextcloud, icon: nextcloud}
+  vault:    {name: Vaultwarden, icon: vaultwarden}
+  home:     {name: Home Assistant, icon: home-assistant}
+  dns:      {name: AdGuard, icon: adguard-home}
+  git:      {name: Forgejo, icon: forgejo}
+  pve:      {name: Proxmox, icon: proxmox}
+
+links:
+  - {name: Router, url: "http://192.168.1.1", icon: openwrt}
+
+weather:
+  city: Kyiv
+  units: c
+
+saver:
+  after_min: 3
+lock_after_min: 30
