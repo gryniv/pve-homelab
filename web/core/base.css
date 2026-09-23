@@ -41,7 +41,32 @@ html,body{margin:0;height:100%;background:#05080e}
 .A .land{position:absolute;inset:0;filter:var(--lf) var(--wxf);transition:filter .9s ease,transform .9s ease}
 .A .land svg{width:100%;height:100%;display:block}
 .A.in .land{filter:var(--lf) var(--wxf) blur(.5em) brightness(.42) saturate(1.2);transform:scale(1.06)}
-.A[data-bg="solid"] .land{display:none}
+.A:not([data-bg="scene"]):not([data-bg="still"]) .land{display:none}
+/* Simple backgrounds: flat CSS painted from the theme's accent, so every theme gets its own tint. */
+.A .bgx{position:absolute;inset:0;display:none;overflow:hidden;background:#080b12}
+.A[data-bg="gradient"] .bgx,.A[data-bg="aurora"] .bgx,.A[data-bg="dots"] .bgx,.A[data-bg="grid"] .bgx,.A[data-bg="black"] .bgx{display:block}
+.A .bgpv{position:absolute;inset:0;font-size:.35em;overflow:hidden;background:#080b12}
+.A .bgpv[data-k="scene"],.A .bgpv[data-k="still"]{background:var(--pv)}
+.A .bgpv[data-k="solid"]{background:var(--solid)}
+.A[data-bg="gradient"] .bgx,.A .bgpv[data-k="gradient"]{background:
+  radial-gradient(70em 45em at 12% 0%,color-mix(in srgb,var(--acc) 34%,transparent),transparent 70%),
+  radial-gradient(70em 50em at 95% 105%,color-mix(in srgb,var(--acc2) 24%,transparent),transparent 70%),#080b12}
+.A[data-bg="aurora"] .bgx::before,.A[data-bg="aurora"] .bgx::after,.A .bgpv[data-k="aurora"]::before,.A .bgpv[data-k="aurora"]::after{
+  content:"";position:absolute;width:70em;height:50em;border-radius:50%;filter:blur(7em);opacity:.55;animation:aur 38s ease-in-out infinite alternate}
+.A[data-bg="aurora"] .bgx::before,.A .bgpv[data-k="aurora"]::before{background:var(--acc);left:-20em;top:-25em}
+.A[data-bg="aurora"] .bgx::after,.A .bgpv[data-k="aurora"]::after{background:var(--acc2);right:-25em;bottom:-30em;opacity:.35;animation-duration:46s;animation-direction:alternate-reverse}
+@keyframes aur{to{transform:translate(28em,18em) scale(1.25)}}
+.A[data-bg="dots"] .bgx,.A .bgpv[data-k="dots"]{background:
+  radial-gradient(circle,rgba(255,255,255,.17) .1em,transparent .13em) 0 0/1.7em 1.7em,
+  radial-gradient(80em 50em at 50% 115%,color-mix(in srgb,var(--acc) 22%,transparent),transparent 70%),#080b12}
+.A[data-bg="grid"] .bgx,.A .bgpv[data-k="grid"]{background:
+  linear-gradient(rgba(255,255,255,.08) 1px,transparent 1px) 0 0/3.2em 3.2em,
+  linear-gradient(90deg,rgba(255,255,255,.08) 1px,transparent 1px) 0 0/3.2em 3.2em,
+  radial-gradient(70em 45em at 85% 0%,color-mix(in srgb,var(--acc) 28%,transparent),transparent 70%),#080b12}
+.A[data-bg="grid"] .bgx::after,.A .bgpv[data-k="grid"]::after{content:"";position:absolute;inset:0;background:radial-gradient(ellipse at 50% 40%,transparent 30%,#080b12 95%)}
+.A[data-bg="black"] .bgx,.A .bgpv[data-k="black"]{background:#000}
+.A .bgs{grid-template-columns:repeat(4,minmax(0,1fr))}
+.A .bgs .pv{height:3.6em;overflow:hidden}
 .A[data-bg="still"] *{animation-play-state:paused!important}
 .A .shade{position:absolute;inset:0;background:linear-gradient(90deg,rgba(4,7,12,.72) 0%,rgba(4,7,12,.28) 48%,rgba(4,7,12,.55) 100%);transition:opacity .9s}
 .A.in .shade{opacity:0}
@@ -184,7 +209,7 @@ html,body{margin:0;height:100%;background:#05080e}
 .A .rail-btn.prev{left:-1.1em}.A .rail-btn.prev .i{transform:scaleX(-1)}
 .A .rail-btn.next{right:-1.1em}
 .A .sysrail.more-l .rail-btn.prev,.A .sysrail.more-r .rail-btn.next{opacity:.85;pointer-events:auto;transform:none}
-.A .sysrail:hover .rail-btn{opacity:1}
+.A .sysrail.more-l:hover .rail-btn.prev,.A .sysrail.more-r:hover .rail-btn.next{opacity:1}
 .A .rail-btn:hover{background:var(--acc);color:#111}
 .A .rail-btn .more{position:absolute;top:-.55em;right:-.55em;min-width:1.7em;height:1.7em;padding:0 .35em;border-radius:1em;display:grid;place-items:center;
   font:800 .66em/1 var(--sans);background:var(--acc);color:#111;box-shadow:0 0 0 .2em rgba(10,12,20,.7)}

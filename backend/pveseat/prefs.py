@@ -11,7 +11,7 @@ from .config import STATE_DIR
 DEFAULT = {
     "lang": "",                   # empty = the screen's default language
     "skin": "dusk",
-    "background": "scene",        # scene | still | solid
+    "background": "scene",        # scene | still | gradient | aurora | dots | grid | solid | black
     "weather_react": True,
     "sky_by_time": True,
     "layout": {"login": ["weather", "host"], "side": ["host", "gpus"]},

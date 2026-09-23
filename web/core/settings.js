@@ -53,6 +53,10 @@ function orderEditor(kind, list, p, hidden, label) {
     </div>`).join('')}</div>`;
 }
 
+// Backgrounds: the landscape scene plus flat ones painted from the theme accent (base.css, .bgx).
+const BGS = ['scene', 'still', 'gradient', 'aurora', 'dots', 'grid', 'solid', 'black'];
+const skinOf = (p) => app.pub().themes.find((th) => th.id === p.skin) || app.pub().themes[0] || {};
+
 const views = {
   look(p) {
     const lang = currentLang();
@@ -63,7 +67,10 @@ const views = {
         <button type="button" class="skin${p.skin === th.id ? ' sel' : ''}" data-skin="${th.id}">
           <div class="pv" style="background:${esc(th.preview)}"><i style="background:${esc(th.accent)}"></i></div>
           <span>${esc(pick(th.name, lang))}<small>${esc(pick(th.desc, lang))}</small></span></button>`).join('')}</div></div>
-      <div class="grp"><div class="gl">${t('set.look.background')}</div>${seg('bgSeg', p.background, [['scene', t('set.look.bg_scene')], ['still', t('set.look.bg_still')], ['solid', t('set.look.bg_solid')]])}</div>
+      <div class="grp"><div class="gl">${t('set.look.background')}</div><div class="skins bgs">${BGS.map((k) => `
+        <button type="button" class="skin${(p.background || 'scene') === k ? ' sel' : ''}" data-bgk="${k}">
+          <div class="pv"><b class="bgpv" data-k="${k}" style="--pv:${esc(skinOf(p).preview || '')}"></b></div>
+          <span>${t('set.look.bg_' + k)}</span></button>`).join('')}</div></div>
       <div class="grp"><div class="gl">${t('set.look.behaviour')}</div>
         ${tgl('pWx', p.weather_react, 'set.look.wx', 'set.look.wx_sub')}
         ${tgl('pSky', p.sky_by_time, 'set.look.sky', 'set.look.sky_sub')}</div>`;
@@ -139,7 +146,7 @@ function bind(p) {
   $$('[data-skin]', $('#settingsBox')).forEach((b) => (b.onclick = () => save({ skin: b.dataset.skin })));
   const segBind = (id, fn) => $$(`#${id} button`).forEach((b) => (b.onclick = () => { fn(b.dataset.v); render(); }));
   segBind('langSeg', (v) => { save({ lang: v }); app.useLang(v); });
-  segBind('bgSeg', (v) => save({ background: v }));
+  $$('[data-bgk]', $('#settingsBox')).forEach((b) => (b.onclick = () => { save({ background: b.dataset.bgk }); render(); }));
   segBind('gpuSeg', (v) => save({ launch: { ...p.launch, gpu: v } }));
   const chk = (id, fn) => { const el = $('#' + id); if (el) el.onchange = () => fn(el.checked); };
   chk('pWx', (v) => save({ weather_react: v }));
