@@ -11,7 +11,7 @@ export const isCss = (k) => SCAPES.includes(k) || FLAT.includes(k);
 export function layer(k) {
   if (!isCss(k)) return '<span class="landpv" data-land></span>';
   const scape = SCAPES.includes(k) ? ' scape' : '';
-  return `<span class="bgx${scape}" data-k="${esc(k)}"><i class="stars"></i><i class="sun"></i><i class="l1"></i><i class="l2"></i><i class="l3"></i><i class="l4"></i></span>`;
+  return `<span class="bgx${scape}" data-k="${esc(k)}"><i class="stars"></i><i class="sun"></i><i class="cl"></i><i class="cl cl2"></i><i class="l1"></i><i class="l2"></i><i class="l3"></i><i class="l4"></i><i class="fg"></i><i class="wx"></i></span>`;
 }
 
 // Full-screen background of the page.
