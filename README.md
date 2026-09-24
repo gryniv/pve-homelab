@@ -13,6 +13,7 @@ straight onto the GPU that monitor is wired to.
 ![python](https://img.shields.io/badge/python-3.10%2B-3776ab)
 ![no build step](https://img.shields.io/badge/frontend-no%20build%20step-4cc9f0)
 ![languages](https://img.shields.io/badge/UI-English%20%7C%20Українська-5fd08a)
+![license](https://img.shields.io/badge/license-GPL--3.0-blue)
 
 [Features](#features) · [Screenshots](#screenshots) · [Try it in 1 minute](#try-it-without-proxmox) · [Install](#install-on-a-proxmox-host) · [Configure](#configuration) · [Extend](#extending-it) · [Українською](README.uk.md)
 
@@ -362,6 +363,10 @@ For DevTools on the kiosk's Chromium, set `kiosk.debug_port: 9222` (it listens o
 
 PVE Homelab is **0.x**: it is used daily on a real homelab, but config keys and APIs may still
 change between minor versions. Issues and ideas are welcome.
+
+## License
+
+[GPL-3.0](LICENSE). You may use, study, change and share PVE Homelab; changed versions you distribute stay under the same license.
 
 ## Credits
 
