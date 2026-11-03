@@ -73,8 +73,22 @@ export function confirmBox(title, text, yes) {
     $('#cText').textContent = text;
     $('#cYes').textContent = yes;
     const layer = $('#confirmLayer');
+    const back = document.activeElement;
     layer.hidden = false;
-    const done = (v) => { layer.hidden = true; $('#cYes').onclick = $('#cNo').onclick = null; resolve(v); };
+    // Esc answers "no" here and stops, so it does not also close the screen underneath.
+    const onKey = (e) => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault(); e.stopImmediatePropagation();
+      done(false);
+    };
+    const done = (v) => {
+      layer.hidden = true;
+      $('#cYes').onclick = $('#cNo').onclick = null;
+      removeEventListener('keydown', onKey, true);
+      if (back?.isConnected) back.focus();
+      resolve(v);
+    };
+    addEventListener('keydown', onKey, true);
     $('#cYes').onclick = () => done(true);
     $('#cNo').onclick = () => done(false);
     $('#cNo').focus();

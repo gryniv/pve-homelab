@@ -260,8 +260,13 @@ async function enter(userid, prefs) {
 
 async function logout() {
   st.timers.splice(0).forEach(clearInterval);
+  clearInterval(polling);
   W.stopZone('side');
   try { await api.post('/api/logout'); } catch {}
+  // The next person must not see this one's systems, services or guests while theirs load.
+  st.systems = []; st.services = []; st.guests = []; st.sysView = [];
+  if (st.filter) setFilter('');
+  renderSystems(); renderServices(); renderGuests();
   st.me = null; st.prefs = null;
   try { st.pub = await api.get('/api/public'); } catch {}
   await useLang();
@@ -434,18 +439,18 @@ function renderGuests() {
   }).join('');
   $$('#guestrows [data-url]').forEach((b) => (b.onclick = () => app.openUrl(b.dataset.url)));
   $$('#guestrows [data-console]').forEach((b) => (b.onclick = () => {
-    const [t, id, name] = b.dataset.console.split('|');
-    app.openUrl(`${app.pveUrl()}/?console=${t === 'qemu' ? 'kvm' : 'lxc'}&novnc=1&vmid=${id}&vmname=${encodeURIComponent(name)}&node=${st.pub.node}`);
+    const [type, id, name] = b.dataset.console.split('|');
+    app.openUrl(`${app.pveUrl()}/?console=${type === 'qemu' ? 'kvm' : 'lxc'}&novnc=1&vmid=${id}&vmname=${encodeURIComponent(name)}&node=${st.pub.node}`);
   }));
   $$('#guestrows [data-act]').forEach((b) => (b.onclick = async () => {
-    const [t, id, act, name] = b.dataset.act.split('|');
+    const [type, id, act, name] = b.dataset.act.split('|');
     if (act !== 'start') {
       const r = act === 'reboot';
       const ok = await confirmBox(t(r ? 'guest.confirm_reboot' : 'guest.confirm_shutdown', { name }),
         t(r ? 'guest.confirm_reboot_text' : 'guest.confirm_shutdown_text'), t(r ? 'guest.reboot' : 'guest.shutdown'));
       if (!ok) return;
     }
-    try { await api.post(`/api/guests/${t}/${id}/${act}`); toast(t('guest.sent', { name })); setTimeout(refreshDash, 1500); }
+    try { await api.post(`/api/guests/${type}/${id}/${act}`); toast(t('guest.sent', { name })); setTimeout(refreshDash, 1500); }
     catch (e) { toast(e.message, true); }
   }));
 }
@@ -512,6 +517,7 @@ async function startLaunch() {
   if (!launchVm || !launchGpu) return;
   $('#mStart').disabled = true;
   $('#mErr').hidden = true;
+  $('#mSteps').hidden = true; // a retry must not show the failed run's steps
   try {
     const job = await api.post('/api/launch', { vmid: launchVm.vmid, gpu: launchGpu });
     $('#mOpts').hidden = true;
@@ -523,6 +529,8 @@ async function startLaunch() {
         showJob(j);
         if (j.done) {
           clearInterval(polling);
+          // Left the launch screen meanwhile: never pull the user into the VM, just refresh.
+          if (st.screen !== 'launch') { refreshDash(); return; }
           if (j.error) fail(j.error);
           else if (j.result?.console) openConsole(launchVm);
           else { $('#mCancel').textContent = t('launch.close'); setTimeout(() => { if (st.screen === 'launch') go('dash'); refreshDash(); }, 2500); }
