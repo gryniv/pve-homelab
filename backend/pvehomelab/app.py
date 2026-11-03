@@ -441,18 +441,22 @@ def summarize_disks(disks, pools):
             "problems": sum(not x["ok"] and x["health"] != "UNKNOWN" for x in d) + sum(not x["ok"] for x in p)}
 
 
+async def disks_data(app, ticket):
+    pve, node = app["pve"], app["cfg"]["node"]
+    if not await pve.can(ticket, f"/nodes/{node}", "Sys.Audit"):
+        return {"allowed": False}
+    lst, zfs = await asyncio.gather(pve.get(ticket, f"/nodes/{node}/disks/list"),
+                                    pve.get(ticket, f"/nodes/{node}/disks/zfs"), return_exceptions=True)
+    if isinstance(lst, Exception):
+        raise lst
+    return summarize_disks(lst, [] if isinstance(zfs, Exception) else zfs)
+
+
 @routes.get("/api/disks")
 async def disks(req):
     """Disk health and ZFS pools of this node; needs Sys.Audit on the node, as in the Proxmox web UI."""
     s = await session(req)
-    pve, node = req.app["pve"], req.app["cfg"]["node"]
-    if not await pve.can(s["ticket"], f"/nodes/{node}", "Sys.Audit"):
-        return web.json_response({"allowed": False})
-    lst, zfs = await asyncio.gather(pve.get(s["ticket"], f"/nodes/{node}/disks/list"),
-                                    pve.get(s["ticket"], f"/nodes/{node}/disks/zfs"), return_exceptions=True)
-    if isinstance(lst, Exception):
-        raise lst
-    return web.json_response(summarize_disks(lst, [] if isinstance(zfs, Exception) else zfs))
+    return web.json_response(await disks_data(req.app, s["ticket"]))
 
 
 def summarize_backups(entries, guests, now, days):
@@ -480,23 +484,84 @@ def summarize_backups(entries, guests, now, days):
     return {"allowed": True, "days": days, "guests": out, "stale": sum(x["stale"] for x in out)}
 
 
+async def backups_data(app, ticket, days, guests=None):
+    pve, node = app["pve"], app["cfg"]["node"]
+    if guests is None:
+        guests = await pve.get(ticket, "/cluster/resources", type="vm")
+    stores = [x["storage"] for x in await pve.get(ticket, f"/nodes/{node}/storage", content="backup") or []
+              if x.get("active")]
+    lists = await asyncio.gather(*(pve.get(ticket, f"/nodes/{node}/storage/{quote(st, safe='')}/content", content="backup")
+                                   for st in stores), return_exceptions=True)
+    entries = [e for lst in lists if not isinstance(lst, Exception) for e in lst or []]
+    return summarize_backups(entries, guests, time.time(), days)
+
+
 @routes.get("/api/backups")
 async def backups(req):
     """When each guest the user can see was last backed up, from the node's backup storages
     (local dumps and Proxmox Backup Server alike)."""
     s = await session(req)
-    pve, node = req.app["pve"], req.app["cfg"]["node"]
     try:
         days = min(365, max(1, int(req.query.get("days", 7))))
     except ValueError:
         days = 7
-    guests = await pve.get(s["ticket"], "/cluster/resources", type="vm")
-    stores = [x["storage"] for x in await pve.get(s["ticket"], f"/nodes/{node}/storage", content="backup") or []
-              if x.get("active")]
-    lists = await asyncio.gather(*(pve.get(s["ticket"], f"/nodes/{node}/storage/{quote(st, safe='')}/content", content="backup")
-                                   for st in stores), return_exceptions=True)
-    entries = [e for lst in lists if not isinstance(lst, Exception) for e in lst or []]
-    return web.json_response(summarize_backups(entries, guests, time.time(), days))
+    return web.json_response(await backups_data(req.app, s["ticket"], days))
+
+
+def build_alerts(limits, host=None, storages=(), disks=None, backups=None, services=()):
+    """What needs a look, worst first. Each alert is {level, kind, ...data}; the menu words it."""
+    out = []
+    for d in (disks or {}).get("disks", []):
+        if not d["ok"] and d["health"] != "UNKNOWN":
+            out.append({"level": "bad", "kind": "disk", "name": d["model"] or d["dev"], "dev": d["dev"], "health": d["health"]})
+    for p in (disks or {}).get("pools", []):
+        if not p["ok"]:
+            out.append({"level": "bad", "kind": "pool", "name": p["name"], "health": p["health"]})
+    for st in storages:
+        pct = round(st["used"] / st["total"] * 100) if st.get("total") else 0
+        if pct >= limits["storage_pct"]:
+            out.append({"level": "bad" if pct >= 98 else "warn", "kind": "storage", "name": st["id"], "pct": pct})
+    temp = (host or {}).get("temp")
+    if temp is not None and temp >= limits["temp_c"]:
+        out.append({"level": "bad" if temp >= limits["temp_c"] + 10 else "warn", "kind": "temp", "temp": temp})
+    if backups and backups.get("stale"):
+        never = sum(1 for g in backups["guests"] if g["stale"] and not g["last"])
+        out.append({"level": "warn", "kind": "backup", "n": backups["stale"], "never": never, "days": backups["days"]})
+    for svc in services:
+        if svc.get("status") and svc["status"] != "running":
+            out.append({"level": "warn", "kind": "service", "name": svc["name"], "guest": (svc.get("guest") or {}).get("name")})
+    out.sort(key=lambda a: a["level"] != "bad")
+    return out
+
+
+@routes.get("/api/alerts")
+async def alerts(req):
+    """Disks, pools, full storages, host temperature, stale backups and services whose guest is down,
+    in one list for the bell in the top bar. Every source is read with the user's own rights."""
+    s = await session(req)
+    t, pve, app = s["ticket"], req.app["pve"], req.app
+    node, limits = app["cfg"]["node"], app["cfg"]["alerts"]
+    guests = await pve.get(t, "/cluster/resources", type="vm") or []
+
+    async def storages():
+        res = await pve.get(t, f"/nodes/{node}/storage")
+        return [{"id": r["storage"], "used": r.get("used", 0), "total": r.get("total", 0)}
+                for r in res or [] if r.get("active") and r.get("total")]
+
+    async def services():
+        visible = {(g["type"], g["vmid"]): g for g in guests}
+        out = []
+        for svc in await app["services"].get():
+            g = svc.get("guest")
+            if g and (g["type"], g["vmid"]) in visible:
+                out.append({**svc, "status": visible[(g["type"], g["vmid"])].get("status")})
+        return out
+
+    st, dk, bk, sv = await asyncio.gather(storages(), disks_data(app, t), backups_data(app, t, limits["backup_days"], guests),
+                                          services(), return_exceptions=True)
+    ok = lambda x, empty: empty if isinstance(x, Exception) else x  # noqa: E731  one source down must not hide the rest
+    items = build_alerts(limits, app["stats"].snapshot(), ok(st, []), ok(dk, None), ok(bk, None), ok(sv, []))
+    return web.json_response({"alerts": items, "bad": sum(a["level"] == "bad" for a in items)})
 
 
 @routes.get("/api/gpus")

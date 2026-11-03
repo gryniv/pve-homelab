@@ -255,6 +255,8 @@ async function enter(userid, prefs) {
   st.timers.push(setInterval(refreshDash, 10000));
   updReminded = false;
   setTimeout(checkUpdate, 2500);
+  setTimeout(checkAlerts, 1500);
+  st.timers.push(setInterval(checkAlerts, 60000));
   st.timers.push(setInterval(checkUpdate, 30 * 60000));
 }
 
@@ -267,6 +269,7 @@ async function logout() {
   st.systems = []; st.services = []; st.guests = []; st.sysView = [];
   if (st.filter) setFilter('');
   renderSystems(); renderServices(); renderGuests();
+  alertItems = []; $('#alertBell').hidden = true; $('#alertsLayer').hidden = true;
   st.me = null; st.prefs = null;
   try { st.pub = await api.get('/api/public'); } catch {}
   await useLang();
@@ -656,6 +659,42 @@ $('#helpClose').onclick = hideHelp;
 addEventListener('keydown', (e) => {
   if (e.key === '?' && !/^(INPUT|TEXTAREA)$/.test(document.activeElement?.tagName) && st.screen !== 'console') { e.preventDefault(); showHelp(); }
   else if (e.key === 'Escape' && !$('#helpLayer').hidden) { e.stopImmediatePropagation(); hideHelp(); }
+}, true);
+
+/* ---------------- alerts: the bell ---------------- */
+let alertItems = [];
+const alertText = (a) => {
+  if (a.kind === 'backup') return t(a.never ? 'alerts.backup_never' : 'alerts.backup', a);
+  if (a.kind === 'service' && a.guest) return t('alerts.service_guest', a);
+  return t('alerts.' + a.kind, a);
+};
+
+async function checkAlerts() {
+  if (!st.me) return;
+  try { alertItems = (await api.get('/api/alerts')).alerts; } catch { return; }
+  const b = $('#alertBell');
+  b.hidden = !alertItems.length;
+  b.classList.toggle('bad', alertItems.some((a) => a.level === 'bad'));
+  b.querySelector('.n').textContent = alertItems.length;
+  b.setAttribute('aria-label', `${t('alerts.title')}: ${alertItems.length}`);
+  if (!$('#alertsLayer').hidden) paintAlerts();
+}
+
+function paintAlerts() {
+  $('#alertsList').innerHTML = alertItems.length
+    ? alertItems.map((a) => `<li class="${a.level}"><span class="dot ${a.level === 'bad' ? 'bad' : 'warn'}"></span><span>${esc(alertText(a))}</span></li>`).join('')
+    : `<li class="none">${esc(t('alerts.none'))}</li>`;
+}
+function showAlerts() {
+  paintAlerts();
+  $('#alertsLayer').hidden = false;
+  $('#alertsClose').focus();
+}
+const hideAlerts = () => { $('#alertsLayer').hidden = true; $('#alertBell').focus(); };
+$('#alertBell').onclick = showAlerts;
+$('#alertsClose').onclick = hideAlerts;
+addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !$('#alertsLayer').hidden) { e.stopImmediatePropagation(); hideAlerts(); }
 }, true);
 
 /* ---------------- about ---------------- */

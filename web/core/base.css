@@ -156,6 +156,17 @@ html,body{margin:0;height:100%;background:#05080e}
 .A .updpill{display:inline-flex;align-items:center;gap:.45em;border:1px solid var(--acc-line);background:var(--acc-soft);color:var(--acc-text);
   border-radius:2em;padding:.3em .8em;font-size:.82em;font-weight:600;white-space:nowrap;animation:fadein .4s ease both}
 .A .updpill:hover{background:var(--acc);color:var(--acc-ink)}
+.A .bell{--c:#ffd38a;position:relative;display:inline-flex;align-items:center;justify-content:center;width:2.2em;height:2.2em;border-radius:50%;border:1px solid var(--edge);background:rgba(255,190,80,.08);color:var(--c);cursor:pointer;font:inherit}
+.A .bell.bad{--c:#ff9b9b;background:rgba(255,100,100,.12);border-color:rgba(255,100,100,.45)}
+.A .bell:hover,.A .bell:focus-visible{border-color:currentColor}
+.A .bell .i{width:1.15em;height:1.15em}
+.A .bell .n{position:absolute;top:-.35em;right:-.35em;min-width:1.35em;height:1.35em;padding:0 .3em;border-radius:1em;background:var(--c);color:#10151d;font-size:.7em;font-weight:800;line-height:1.35em;text-align:center}
+.A .confirm.alerts{width:34em}
+.A .alist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.45em;max-height:50vh;overflow:auto}
+.A .alist li{display:flex;align-items:center;gap:.65em;padding:.55em .7em;border-radius:.6em;background:rgba(255,255,255,.04);font-size:.92em}
+.A .alist li.bad{background:rgba(255,100,100,.08)}
+.A .alist li.none{color:var(--mute)}
+.A .dot.warn{color:#ffc46b}
 .A .ibtn{background:none;border:0;border-radius:.5em;width:2.2em;height:2.2em;display:grid;place-items:center;color:var(--mute);transition:background .15s,color .15s}
 .A .ibtn:hover{background:rgba(255,255,255,.08);color:#fff}
 /* open service tabs: flexible middle strip, fades out instead of clipping */

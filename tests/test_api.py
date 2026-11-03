@@ -152,3 +152,46 @@ def test_summarize_backups_dedupes_volumes():
     e = [{"volid": "a", "vmid": 100, "ctime": 10, "size": 1}, {"volid": "a", "vmid": 100, "ctime": 10, "size": 1}]
     b = summarize_backups(e, [{"vmid": 100, "name": "x", "type": "qemu"}], now=20, days=1)
     assert b["guests"][0]["count"] == 1 and not b["guests"][0]["stale"]
+
+
+async def test_alerts_from_demo(client):
+    await login(client)
+    a = await (await client.get("/api/alerts")).json()
+    assert [x["kind"] for x in a["alerts"]] == ["backup"]      # some demo guests were never backed up
+    # a guest serving a web UI goes down -> its service is reported
+    assert (await client.post("/api/guests/lxc/201/shutdown")).status == 200
+    a = await (await client.get("/api/alerts")).json()
+    assert {"kind": "service", "name": "Jellyfin", "guest": "jellyfin", "level": "warn"} in a["alerts"]
+
+
+async def test_alerts_respect_permissions(client):
+    await login(client, "guest@pve")
+    a = await (await client.get("/api/alerts")).json()
+    assert not any(x["kind"] in ("disk", "pool", "storage") for x in a["alerts"])
+    b = next((x for x in a["alerts"] if x["kind"] == "backup"), None)
+    assert b is None or b["n"] <= len(demo.GUEST_SEES)
+
+
+def test_build_alerts_thresholds_and_order():
+    from pvehomelab.app import build_alerts
+    limits = {"storage_pct": 90, "temp_c": 85, "backup_days": 7}
+    a = build_alerts(limits, host={"temp": 99},
+                     storages=[{"id": "local", "used": 91, "total": 100}, {"id": "ok", "used": 10, "total": 100},
+                               {"id": "full", "used": 99, "total": 100}],
+                     disks={"disks": [{"ok": False, "health": "FAILED", "model": "X", "dev": "/dev/sda"},
+                                      {"ok": False, "health": "UNKNOWN", "model": "Y", "dev": "/dev/sdb"}],
+                            "pools": [{"ok": False, "name": "tank", "health": "DEGRADED"}]},
+                     backups={"stale": 2, "days": 7, "guests": [{"stale": True, "last": 0}, {"stale": True, "last": 5}]},
+                     services=[{"name": "Jellyfin", "status": "stopped"}, {"name": "Up", "status": "running"}])
+    kinds = [(x["kind"], x["level"]) for x in a]
+    assert ("disk", "bad") in kinds and ("pool", "bad") in kinds and ("temp", "bad") in kinds
+    assert ("storage", "warn") in kinds and ("storage", "bad") in kinds
+    assert not any(x["kind"] == "storage" and x["name"] == "ok" for x in a)
+    assert sum(x["kind"] == "disk" for x in a) == 1          # unknown SMART is not an alert
+    assert next(x for x in a if x["kind"] == "backup")["never"] == 1
+    assert [x["level"] for x in a] == sorted([x["level"] for x in a], key=lambda l: l != "bad")
+
+
+def test_build_alerts_quiet_when_all_fine():
+    from pvehomelab.app import build_alerts
+    assert build_alerts({"storage_pct": 90, "temp_c": 85, "backup_days": 7}, host={"temp": 50}) == []

@@ -70,6 +70,11 @@ saver:
   after_min: 5                # screensaver on the login screen
 lock_after_min: 15            # log out of the dashboard after this much inactivity
 
+alerts:                       # the bell in the top bar
+  storage_pct: 90             # a storage this full (%) is reported
+  temp_c: 85                  # host temperature (°C) worth a warning
+  backup_days: 7              # a guest without a newer backup is reported
+
 kiosk:
   debug_port: 0               # >0 = Chromium DevTools on 127.0.0.1:<port> (development only)
 
