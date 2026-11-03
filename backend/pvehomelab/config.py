@@ -17,6 +17,7 @@ DEFAULTS = {
     "systems_tag": "seat",
     "systems_extra": [],
     "links": [],
+    "wol": [],                 # [{name, mac, broadcast?, port?}]: machines the menu can wake up
     "kiosk": {"debug_port": 0},
     "update": {"repo": "", "channel": "release", "branch": "main", "auto": False, "check_hours": 6},
     "seats": {},

@@ -32,6 +32,10 @@ services:
 links:
   - {name: Router, url: "http://192.168.1.1", icon: openwrt}
 
+wol:
+  - {name: NAS, mac: "aa:bb:cc:dd:ee:01"}
+  - {name: Desktop PC, mac: "aa:bb:cc:dd:ee:02"}
+
 weather:
   city: Kyiv
   units: c

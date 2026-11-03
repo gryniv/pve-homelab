@@ -208,3 +208,42 @@ async def test_cached_stale_returns_at_once():
     assert await c.get() == 1  # expired: old value now, refresh in the background
     gate.set()
     await asyncio.sleep(0)
+
+
+# ---------- wol ----------
+from pvehomelab import wol  # noqa: E402
+
+
+@pytest.mark.parametrize("mac", ["aa:bb:cc:dd:ee:ff", "AA-BB-CC-DD-EE-FF", "aabbccddeeff"])
+def test_wol_parse_mac(mac):
+    assert wol.parse_mac(mac) == bytes.fromhex("aabbccddeeff")
+
+
+@pytest.mark.parametrize("mac", ["", "aa:bb:cc:dd:ee", "aa:bb-cc:dd:ee:ff", "zz:bb:cc:dd:ee:ff", None])
+def test_wol_bad_mac(mac):
+    with pytest.raises(ValueError):
+        wol.parse_mac(mac)
+
+
+def test_wol_magic_packet():
+    p = wol.magic_packet("01:02:03:04:05:06")
+    assert len(p) == 102 and p[:6] == b"\xff" * 6 and p[6:12] == bytes([1, 2, 3, 4, 5, 6]) and p[-6:] == p[6:12]
+
+
+def test_wol_targets_skip_bad_entries():
+    cfg = {"wol": [{"name": "A", "mac": "aa:bb:cc:dd:ee:01"}, {"name": "bad", "mac": "nope"}, "junk",
+                   {"mac": "aa:bb:cc:dd:ee:03", "broadcast": "192.168.1.255", "port": 7}]}
+    t = wol.targets(cfg)
+    assert [(x["id"], x["name"]) for x in t] == [(0, "A"), (3, "aa:bb:cc:dd:ee:03")]
+    assert t[1]["broadcast"] == "192.168.1.255" and t[1]["port"] == 7 and t[0]["port"] == 9
+
+
+def test_wol_send_reaches_the_socket():
+    import importlib
+    import socket as so
+    real = importlib.reload(wol)  # the demo replaces send(); the next demo app patches it again
+    with so.socket(so.AF_INET, so.SOCK_DGRAM) as rx:
+        rx.bind(("127.0.0.1", 0))
+        rx.settimeout(2)
+        real.send({"mac": "aa:bb:cc:dd:ee:ff", "broadcast": "127.0.0.1", "port": rx.getsockname()[1]})
+        assert rx.recv(200) == real.magic_packet("aa:bb:cc:dd:ee:ff")

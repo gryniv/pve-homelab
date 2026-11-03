@@ -11,7 +11,7 @@ from urllib.parse import quote
 import aiohttp
 from aiohttp import web
 
-from . import caddy, config, discover, errlog, gpus as G, i18n, icons, prefs, update, weather
+from . import caddy, config, discover, errlog, gpus as G, i18n, icons, prefs, update, weather, wol
 from .ddc import DDC
 from .host import HostStats
 from .launch import Launcher
@@ -562,6 +562,34 @@ async def alerts(req):
     ok = lambda x, empty: empty if isinstance(x, Exception) else x  # noqa: E731  one source down must not hide the rest
     items = build_alerts(limits, app["stats"].snapshot(), ok(st, []), ok(dk, None), ok(bk, None), ok(sv, []))
     return web.json_response({"alerts": items, "bad": sum(a["level"] == "bad" for a in items)})
+
+
+async def can_wake(req, ticket):
+    node = req.app["cfg"]["node"]
+    return await req.app["pve"].can(ticket, f"/nodes/{node}", "Sys.PowerMgmt")
+
+
+@routes.get("/api/wol")
+async def wol_list(req):
+    """Machines that can be woken from here (config.yaml, `wol:`); for users who may power the node."""
+    s = await session(req)
+    if not await can_wake(req, s["ticket"]):
+        return web.json_response({"allowed": False, "targets": []})
+    return web.json_response({"allowed": True, "targets": [{"id": t["id"], "name": t["name"]} for t in wol.targets(req.app["cfg"])]})
+
+
+@routes.post("/api/wol/{id}")
+async def wol_wake(req):
+    s = await session(req)
+    if not await can_wake(req, s["ticket"]):
+        raise PVEError(403, i18n._("forbidden"))
+    tid = req.match_info["id"]
+    target = next((t for t in wol.targets(req.app["cfg"]) if tid.isdigit() and t["id"] == int(tid)), None)
+    if not target:
+        raise web.HTTPNotFound()
+    await asyncio.get_running_loop().run_in_executor(None, wol.send, target)
+    log.info("wake-on-lan %s (%s) by %s", target["name"], target["mac"], s["user"])
+    return web.json_response({"ok": True, "name": target["name"]})
 
 
 @routes.get("/api/gpus")

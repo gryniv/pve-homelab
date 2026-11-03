@@ -59,6 +59,11 @@ services: {}
 links: []
 #  - {name: Router, url: "http://192.168.1.1", icon: openwrt}
 
+# Machines the "Wake up" widget can switch on (Wake-on-LAN). Users need Sys.PowerMgmt on the node.
+wol: []
+#  - {name: NAS, mac: "aa:bb:cc:dd:ee:ff"}
+#  - {name: Desktop, mac: "11:22:33:44:55:66", broadcast: 192.168.1.255, port: 9}
+
 weather:
   city: Kyiv
   units: c                    # c or f

@@ -1,0 +1,6 @@
+.A .w[data-w="wake"] .wk{display:grid;grid-template-columns:repeat(auto-fill,minmax(7.5em,1fr));gap:.45em}
+.A .w[data-w="wake"] .wk button{display:flex;align-items:center;gap:.5em;font:inherit;font-size:.86em;color:inherit;background:rgba(255,255,255,.05);border:1px solid var(--edge);border-radius:.6em;padding:.5em .65em;cursor:pointer;min-width:0}
+.A .w[data-w="wake"] .wk button span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.A .w[data-w="wake"] .wk button:hover,.A .w[data-w="wake"] .wk button:focus-visible{border-color:var(--acc);color:var(--acc-text)}
+.A .w[data-w="wake"] .wk button:disabled{opacity:.5;cursor:default}
+.A .w[data-w="wake"] .wk .i{width:1.05em;height:1.05em;flex:none;color:var(--ok)}

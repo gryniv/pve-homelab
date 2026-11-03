@@ -14,7 +14,7 @@ import time
 
 from aiohttp import web
 
-from . import app as A, caddy, discover, gpus as G, i18n, launch as L, update, util, weather
+from . import app as A, caddy, discover, gpus as G, i18n, launch as L, update, util, weather, wol
 from .ddc import DDC
 from .pve import PVE, PVEError, Ticket
 
@@ -267,6 +267,14 @@ async def to_virgl(self, vmid):
     log.info("demo: %s switched to VirGL", WORLD[vmid]["name"])
 
 
+WOKEN = []
+
+
+def demo_wake(target):
+    WOKEN.append(target["name"])
+    log.info("demo: magic packet for %s (%s) not sent", target["name"], target["mac"])
+
+
 async def switch_input(self, mon, pci):
     log.info("demo: monitor %s -> %s (DDC skipped)", mon, pci)
     return True
@@ -454,6 +462,7 @@ def make_app():
     L.Launcher._to_virgl = to_virgl
     DDC.switch_to_gpu = switch_input
     weather.get = demo_weather
+    wol.send = demo_wake
     update.status = demo_update_status
     app = A.make_app()
     app["demo"] = True

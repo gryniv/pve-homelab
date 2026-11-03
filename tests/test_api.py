@@ -195,3 +195,21 @@ def test_build_alerts_thresholds_and_order():
 def test_build_alerts_quiet_when_all_fine():
     from pvehomelab.app import build_alerts
     assert build_alerts({"storage_pct": 90, "temp_c": 85, "backup_days": 7}, host={"temp": 50}) == []
+
+
+async def test_wol_list_and_wake(client):
+    await login(client)
+    d = await (await client.get("/api/wol")).json()
+    assert d["allowed"] and [x["name"] for x in d["targets"]] == ["NAS", "Desktop PC"]
+    assert "mac" not in d["targets"][0]           # the menu needs only names
+    demo.WOKEN.clear()
+    r = await client.post(f"/api/wol/{d['targets'][1]['id']}")
+    assert r.status == 200 and demo.WOKEN == ["Desktop PC"]
+    assert (await client.post("/api/wol/99")).status == 404
+    assert (await client.post("/api/wol/x")).status == 404
+
+
+async def test_wol_needs_power_rights(client):
+    await login(client, "guest@pve")
+    assert (await (await client.get("/api/wol")).json()) == {"allowed": False, "targets": []}
+    assert (await client.post("/api/wol/0")).status == 403
