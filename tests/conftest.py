@@ -19,6 +19,9 @@ sys.path.insert(0, os.path.join(ROOT, "backend"))
 
 from pvehomelab import demo  # noqa: E402  (after the environment above)
 
+# The demo world as shipped; every test starts from it (make_app would snapshot the current one).
+PRISTINE = demo._snapshot()
+
 @pytest.fixture
 def state_dir():
     return os.environ["PVEHOMELAB_STATE"]
@@ -33,6 +36,7 @@ def _clean_state():
 @pytest.fixture
 async def client(aiohttp_client):
     c = await aiohttp_client(demo.make_app())
+    demo._initial = PRISTINE
     await c.post("/api/demo/reset", json={})
     return c
 

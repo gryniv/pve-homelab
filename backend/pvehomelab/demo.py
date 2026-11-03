@@ -141,6 +141,8 @@ class DemoPVE(PVE):
                 raise PVEError(403, i18n._("forbidden"))
             g = WORLD[vmid]
             if action == "start":
+                if STATE.get("fail") == "start":  # tests: a start that Proxmox refuses
+                    raise PVEError(500, "start failed (demo)")
                 g["status"], g["started"] = "running", time.time()
             elif action in ("stop", "shutdown"):
                 g["status"], g["started"] = "stopped", None
@@ -221,8 +223,15 @@ async def demo_discover(cfg, res, ips, host_ip=None):
 
 
 async def assign_gpu(self, vmid, gpu):
+    old = list(WORLD[vmid].get("hostpci") or [])
     WORLD[vmid]["hostpci"] = [gpu.rsplit(".", 1)[0]]
     log.info("demo: %s now owns %s", WORLD[vmid]["name"], gpu)
+    return old
+
+
+async def undo_assign(self, vmid, old):
+    WORLD[vmid]["hostpci"] = old
+    log.info("demo: %s got its GPU back", WORLD[vmid]["name"])
 
 
 async def to_virgl(self, vmid):
@@ -393,7 +402,7 @@ async def demo_reset(req):
     WORLD.clear(); WORLD.update(copy.deepcopy(world))
     ROUTES[:] = copy.deepcopy(routes)
     DISCOVERED[:] = copy.deepcopy(found)
-    STATE.update(weather="", update=True, added=[])
+    STATE.update(weather="", update=True, added=[], fail=None)
     await _refresh()
     return web.json_response({"ok": True})
 
@@ -413,6 +422,7 @@ def make_app():
     caddy.guest_ips = demo_ips
     discover.discover = demo_discover
     L.Launcher._assign_gpu = assign_gpu
+    L.Launcher._undo_assign = undo_assign
     L.Launcher._to_virgl = to_virgl
     DDC.switch_to_gpu = switch_input
     weather.get = demo_weather
