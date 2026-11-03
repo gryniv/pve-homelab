@@ -261,11 +261,21 @@ newest commit of a branch with `channel: main`. When there is something new:
 - anyone with `Sys.Modify` on `/` installs it with one click;
 - `update.auto: true` installs new versions every night at 04:30.
 
+An update can't leave the host with a broken menu:
+
+- the tag is resolved to its commit first, and the archive of exactly that commit is installed;
+- the new version is put in place next to the old one, which stays as `/opt/pve-homelab.prev`;
+- if the menu doesn't come back running the new commit within a minute, the old version is put
+  back (the failed one is kept as `/opt/pve-homelab.failed` for a look);
+- the outcome is saved in `/etc/pve-homelab/update-result.json`, and an admin who signs in after
+  a failed update is told once.
+
 ```yaml
 update:
   repo: ""          # owner/name; empty = where it was cloned from, else gryniv/pve-homelab
   channel: release  # release | main
   auto: false
+  auto_main: false  # with channel main, auto installs any pushed commit only if this is true
 ```
 
 By hand: `./update.sh` in the clone, or `PYTHONPATH=/opt/pve-homelab/backend python3 -m pvehomelab.update check|apply`.

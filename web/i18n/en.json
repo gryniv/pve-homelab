@@ -163,6 +163,8 @@
   "upd.no_perm": "Version {v} is available. An administrator (Sys.Modify) can install it.",
   "upd.apply": "Update",
   "upd.started": "Updating… the menu will restart by itself",
+  "upd.failed": "Update {v} failed: {err}",
+  "upd.failed_back": "Update {v} did not start ({err}); the previous version was put back",
   "svc.src_caddy": "via Caddy · {host}",
   "svc.src_port": "found in {guest}, port {port}",
   "svc.src_notes": "from {guest}'s notes",

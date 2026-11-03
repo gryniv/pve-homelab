@@ -71,19 +71,28 @@ fi
 usermod -aG video,render,input pvehomelab
 
 echo "==> Program files -> /opt/pve-homelab"
-install -d /opt/pve-homelab /etc/pve-homelab/users /var/cache/pve-homelab
-rm -rf /opt/pve-homelab/backend /opt/pve-homelab/web /opt/pve-homelab/kiosk
-cp -r backend web kiosk /opt/pve-homelab/
-[ -f VERSION ] && cp VERSION /opt/pve-homelab/
+install -d /etc/pve-homelab/users /var/cache/pve-homelab
+# The new version is assembled next to the running one and swapped in with two renames; the old
+# one stays as /opt/pve-homelab.prev so the updater can put it back if the new one doesn't start.
+NEW=/opt/pve-homelab.new
+rm -rf "$NEW"
+install -d "$NEW"
+cp -r backend web kiosk "$NEW"/
+[ -f VERSION ] && cp VERSION "$NEW"/
 # What is installed and where it came from, for the updater (see backend/pvehomelab/update.py).
 COMMIT="${PVEHOMELAB_COMMIT:-$(git rev-parse HEAD 2>/dev/null || true)}"
 REPO="${PVEHOMELAB_REPO:-$(git remote get-url origin 2>/dev/null || true)}"
-echo "$COMMIT" > /opt/pve-homelab/COMMIT
-[ -n "$REPO" ] && echo "$REPO" > /opt/pve-homelab/REPO
-chown -R root:root /opt/pve-homelab
-chmod -R u=rwX,go=rX /opt/pve-homelab
-chmod 755 /opt/pve-homelab/kiosk/kiosk.sh
-find /opt/pve-homelab -name __pycache__ -prune -exec rm -rf {} +
+echo "$COMMIT" > "$NEW"/COMMIT
+[ -n "$REPO" ] && echo "$REPO" > "$NEW"/REPO
+chown -R root:root "$NEW"
+chmod -R u=rwX,go=rX "$NEW"
+chmod 755 "$NEW"/kiosk/kiosk.sh
+find "$NEW" -name __pycache__ -prune -exec rm -rf {} +
+if [ -d /opt/pve-homelab ]; then
+  rm -rf /opt/pve-homelab.prev
+  mv /opt/pve-homelab /opt/pve-homelab.prev
+fi
+mv "$NEW" /opt/pve-homelab
 
 echo "==> DDC (monitor input switching)"
 echo i2c-dev > /etc/modules-load.d/pve-homelab.conf

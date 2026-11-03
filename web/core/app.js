@@ -565,6 +565,7 @@ const updLabel = (u) => u.latest.version ? `v${u.latest.version}` : (u.latest.co
 async function checkUpdate() {
   if (!st.me) return;
   try { upd = await api.get('/api/update'); } catch { upd = null; }
+  reportLastUpdate(upd);
   const pill = $('#updPill');
   pill.hidden = !upd?.available;
   if (!upd?.available) return;
@@ -572,6 +573,15 @@ async function checkUpdate() {
   pill.title = upd.latest.notes || '';
   // Remind once per sign-in.
   if (!updReminded) { updReminded = true; toast(t('upd.remind', { v: updLabel(upd) })); }
+}
+
+// A failed update (kept or rolled back) is told to admins once, on the seat they sign in at.
+function reportLastUpdate(u) {
+  const r = u?.last;
+  if (!r || r.ok || !u.can_apply) return;
+  const key = `pvehomelab.updfail.${r.time}`;
+  try { if (localStorage.getItem(key)) return; localStorage.setItem(key, '1'); } catch {}
+  toast(t(r.rolled_back ? 'upd.failed_back' : 'upd.failed', { v: r.ref, err: r.error }), true);
 }
 
 $('#updPill').onclick = async () => {

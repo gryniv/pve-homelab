@@ -90,4 +90,5 @@ update:
   channel: release            # release = latest GitHub release (tag vX.Y.Z); main = newest commit of `branch`
   branch: main
   auto: false                 # true = install new versions by itself every night (pve-homelab-update.timer)
+  auto_main: false            # with channel main, auto installs any pushed commit only if this is true
   check_hours: 6

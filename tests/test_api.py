@@ -213,3 +213,10 @@ async def test_wol_needs_power_rights(client):
     await login(client, "guest@pve")
     assert (await (await client.get("/api/wol")).json()) == {"allowed": False, "targets": []}
     assert (await client.post("/api/wol/0")).status == 403
+
+
+async def test_health_reports_running_code(client):
+    r = await client.get("/api/health")
+    assert r.status == 200
+    d = await r.json()
+    assert d["ok"] and set(d) == {"ok", "version", "commit"}

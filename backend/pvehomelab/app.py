@@ -229,6 +229,13 @@ async def get_weather(req):
         return err(404, str(e))
 
 
+@routes.get("/api/health")
+async def health(req):
+    """Alive, and with which code: the commit this process started with (not what is on disk now).
+    The updater waits for this to report the version it just installed."""
+    return web.json_response({"ok": True, **req.app["code"]})
+
+
 @routes.get("/api/host")
 async def host(req):
     return web.json_response(req.app["stats"].snapshot())
@@ -853,6 +860,7 @@ def make_app():
     app = web.Application(middlewares=[errors, guard])
     app.on_response_prepare.append(_no_stale_code)
     app["cfg"] = config.load()
+    app["code"] = {k: update.installed()[k] for k in ("version", "commit")}  # what this process runs
     app.add_routes(routes)
     app.router.add_static("/", config.WEB_DIR, show_index=False, append_version=False)
     app.on_startup.append(on_startup)
