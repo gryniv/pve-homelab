@@ -44,6 +44,41 @@ async def session(req):
     return s
 
 
+LOOPBACK = {"127.0.0.1", "localhost", "::1"}
+
+
+def _hostname(value):
+    """Host part of a Host header or an Origin URL, without port and brackets."""
+    v = value.split("://", 1)[-1].split("/", 1)[0]
+    if v.startswith("["):
+        return v[1:].split("]", 1)[0].lower()
+    return v.rsplit(":", 1)[0].lower() if v.count(":") == 1 else v.lower()
+
+
+def allowed_hosts(app):
+    cfg = app["cfg"]
+    hosts = set(LOOPBACK) | {h.lower() for h in cfg.get("allowed_hosts") or []}
+    listen = _hostname(cfg["listen"])
+    if listen not in LOOPBACK:
+        hosts |= {listen, app.get("host_ip", ""), socket.gethostname().lower()}
+    return hosts
+
+
+@web.middleware
+async def guard(req, handler):
+    """The menu is meant for this machine. A web page elsewhere must not reach it through a
+    rebound DNS name (wrong Host), nor post to it from its own origin (wrong Origin)."""
+    hosts = req.app.get("allowed_hosts_cache") or allowed_hosts(req.app)
+    if "*" not in hosts:
+        if _hostname(req.headers.get("Host", "")) not in hosts:
+            return err(421, "unknown host")
+        origin = req.headers.get("Origin")
+        if req.method not in ("GET", "HEAD", "OPTIONS") and origin and origin != "null" \
+                and _hostname(origin) not in hosts:
+            return err(403, "cross-origin request refused")
+    return await handler(req)
+
+
 @web.middleware
 async def errors(req, handler):
     i18n.lang.set(i18n.pick(req.headers.get("X-Lang")) or req.app["cfg"]["language"])
@@ -173,8 +208,10 @@ async def public(req):
 @routes.get("/api/weather")
 async def get_weather(req):
     cfg = req.app["cfg"]["weather"]
-    city = req.query.get("city") or cfg["city"]
+    city = (req.query.get("city") or cfg["city"])[:100]
     units = req.query.get("units") or cfg["units"]
+    if units not in ("c", "f"):
+        units = "c"
     try:
         return web.json_response(await weather.get(city, units))
     except ValueError as e:
@@ -195,11 +232,26 @@ async def icon(req):
 
 
 # ---------------- session ----------------
+LOGIN_TRIES, LOGIN_WINDOW = 5, 60  # wrong passwords per user name per minute
+
+
 @routes.post("/api/login")
 async def login(req):
     body = await req.json()
     seat = seat_of(req)
-    t = await req.app["pve"].login(body.get("user", ""), body.get("password", ""))
+    user = str(body.get("user", ""))
+    fails = req.app["login_fails"]
+    now = time.time()
+    recent = [x for x in fails.get(user.lower(), []) if now - x < LOGIN_WINDOW]
+    if len(recent) >= LOGIN_TRIES:
+        raise web.HTTPTooManyRequests(text=i18n._("too_many_logins", s=int(LOGIN_WINDOW - (now - recent[0])) + 1))
+    try:
+        t = await req.app["pve"].login(user, body.get("password", ""))
+    except PVEError as e:
+        if e.status == 401:
+            fails[user.lower()] = recent + [now]
+        raise
+    fails.pop(user.lower(), None)
     sid = secrets.token_urlsafe(32)
     req.app["sessions"][sid] = {"ticket": t, "seat": seat, "user": t.user, "seen": time.time()}
     resp = web.json_response({"user": t.user, "prefs": prefs.load(t.user)})
@@ -464,6 +516,8 @@ async def on_startup(app):
     app["sessions"] = {}
     app["consoles"] = {}
     app["host_ip"] = _host_ip()
+    app["allowed_hosts_cache"] = allowed_hosts(app)
+    app["login_fails"] = {}
     try:
         app["pveversion"] = (await pvesh("/version"))["version"]
     except Exception:
@@ -505,6 +559,7 @@ async def on_startup(app):
     app["launcher"] = Launcher(app)
     app["tasks"] = [asyncio.create_task(app["stats"].loop()),
                     asyncio.create_task(app["launcher"].watch_loop()),
+                    asyncio.create_task(housekeeping_loop(app)),
                     asyncio.create_task(app["services"].get())]
     await _adopt_running(app)
 
@@ -525,6 +580,36 @@ async def _adopt_running(app):
                 log.info("watching VM %s on monitor %s", vm, mon)
     except Exception as e:
         log.warning("adopt running VMs: %s", e)
+
+
+SESSION_IDLE = 2 * 3600   # a Proxmox ticket can't be renewed after 2 h anyway
+CONSOLE_TOKEN_TTL = 60
+JOB_TTL = 600
+
+
+def housekeeping(app, now=None):
+    """Forget what nobody can use any more: idle sessions, unused console tokens, old launch
+    jobs and stale login failures."""
+    now = now or time.time()
+    for sid in [k for k, v in app["sessions"].items() if now - v["seen"] > SESSION_IDLE]:
+        del app["sessions"][sid]
+    for tok in [k for k, v in app["consoles"].items() if now - v["at"] > CONSOLE_TOKEN_TTL]:
+        del app["consoles"][tok]
+    jobs = app["launcher"].jobs
+    for jid in [k for k, j in jobs.items() if j.done and now - j.created > JOB_TTL]:
+        del jobs[jid]
+    fails = app["login_fails"]
+    for user in [k for k, v in fails.items() if not v or now - v[-1] > LOGIN_WINDOW]:
+        del fails[user]
+
+
+async def housekeeping_loop(app):
+    while True:
+        await asyncio.sleep(60)
+        try:
+            housekeeping(app)
+        except Exception as e:
+            log.warning("housekeeping: %s", e)
 
 
 async def on_cleanup(app):
@@ -550,7 +635,7 @@ async def _no_stale_code(req, resp):
 
 def make_app():
     errlog.setup()
-    app = web.Application(middlewares=[errors])
+    app = web.Application(middlewares=[errors, guard])
     app.on_response_prepare.append(_no_stale_code)
     app["cfg"] = config.load()
     app.add_routes(routes)

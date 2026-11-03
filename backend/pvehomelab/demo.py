@@ -441,4 +441,8 @@ def make_app():
 
 def run(host="127.0.0.1", port=8900):
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
-    web.run_app(make_app(), host=host, port=port, print=None, access_log=None)
+    app = make_app()
+    if host not in ("127.0.0.1", "localhost", "::1"):
+        # Opened from other devices on purpose: answer to any host name.
+        app["cfg"]["allowed_hosts"] = ["*"]
+    web.run_app(app, host=host, port=port, print=None, access_log=None)

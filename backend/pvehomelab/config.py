@@ -11,6 +11,7 @@ CACHE_DIR = os.environ.get("PVEHOMELAB_CACHE", "/var/cache/pve-homelab")
 
 DEFAULTS = {
     "listen": "127.0.0.1:8900",
+    "allowed_hosts": [],       # extra Host names the menu answers to; "*" turns the check off
     "node": "",
     "language": "en",
     "systems_tag": "seat",

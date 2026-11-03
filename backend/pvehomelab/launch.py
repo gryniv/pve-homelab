@@ -3,6 +3,7 @@
 import asyncio
 import itertools
 import re
+import time
 
 from . import gpus as G
 from .i18n import _
@@ -43,6 +44,7 @@ def plan_hostpci(conf, display, gpu):
 class Job:
     def __init__(self, steps):
         self.id = next(_job_ids)
+        self.created = time.time()
         self.steps = [{"text": s, "state": "todo"} for s in steps]
         self.error = None
         self.done = False

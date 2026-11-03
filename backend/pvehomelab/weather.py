@@ -12,6 +12,13 @@ TTL = 900
 
 _cache = {}
 _geo = {}
+MAX_ENTRIES = 64  # anyone can ask for any city: keep the caches bounded
+
+
+def _put(d, key, value):
+    d[key] = value
+    while len(d) > MAX_ENTRIES:
+        d.pop(next(iter(d)))
 
 
 def kind(code):
@@ -44,7 +51,7 @@ async def get(city, units="c"):
                 res = (await r.json()).get("results") or []
             if not res:
                 raise ValueError(_("city_not_found", city=city))
-            _geo[geo_key] = res[0]
+            _put(_geo, geo_key, res[0])
         g = _geo[geo_key]
         params = {
             "latitude": g["latitude"], "longitude": g["longitude"], "timezone": "auto",
@@ -74,5 +81,5 @@ async def get(city, units="c"):
             for i in range(1, len(daily["time"]))
         ],
     }
-    _cache[key] = (time.time(), data)
+    _put(_cache, key, (time.time(), data))
     return data

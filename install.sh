@@ -55,7 +55,14 @@ echo "==> Packages"
 export DEBIAN_FRONTEND=noninteractive
 PKGS="python3-aiohttp python3-yaml ddcutil"
 [ "$KIOSK" = 1 ] && PKGS="$PKGS cage chromium fonts-noto-color-emoji"
-apt-get install -y --no-install-recommends $PKGS >/dev/null
+# Fresh or long-idle hosts have stale package lists; refresh unless everything is already there.
+if ! dpkg-query -W -f='${Status}\n' $PKGS 2>/dev/null | grep -qv '^install ok installed$' \
+   && [ "$(dpkg-query -W -f='${Status}\n' $PKGS 2>/dev/null | wc -l)" -eq "$(echo $PKGS | wc -w)" ]; then
+  echo "    already installed"
+else
+  apt-get update -qq
+  apt-get install -y --no-install-recommends $PKGS >/dev/null
+fi
 
 echo "==> Kiosk user"
 if ! id pvehomelab >/dev/null 2>&1; then

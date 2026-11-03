@@ -11,6 +11,7 @@ lang = contextvars.ContextVar("lang", default="en")
 MESSAGES = {
     "en": {
         "bad_login": "Wrong user name or password",
+        "too_many_logins": "Too many wrong passwords. Try again in {s} s",
         "forbidden": "Not enough permissions",
         "task_failed": "The task failed",
         "task_slow": "The task is taking too long",
@@ -37,6 +38,7 @@ MESSAGES = {
     },
     "uk": {
         "bad_login": "Невірний користувач або пароль",
+        "too_many_logins": "Забагато невдалих спроб. Спробуй ще раз через {s} с",
         "forbidden": "Недостатньо прав",
         "task_failed": "Задача завершилась з помилкою",
         "task_slow": "Задача виконується надто довго",
