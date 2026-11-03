@@ -76,11 +76,18 @@ def pve_users(app):
                 uid, enable, first, last = p[1], p[2], p[4], p[5]
                 if enable == "0" or uid in app["cfg"]["users"]["hide"]:
                     continue
-                pr = prefs.load(uid)
+                # One user's unreadable settings must not take the sign-in screen down for everyone.
+                try:
+                    pr = prefs.load(uid)
+                    pub = prefs.public(pr)
+                except Exception as e:
+                    log.warning("settings of %s unreadable, using defaults: %s", uid, e)
+                    pr = prefs.load_defaults()
+                    pub = prefs.public(pr)
                 if not pr["show_on_login"]:
                     continue
                 name = first or uid.split("@")[0]
-                users.append({"id": uid, "name": name, "full": " ".join(x for x in (first, last) if x), **prefs.public(pr)})
+                users.append({"id": uid, "name": name, "full": " ".join(x for x in (first, last) if x), **pub})
     except OSError:
         pass
     return users
@@ -267,7 +274,13 @@ async def clear_logs(req):
 @routes.put("/api/prefs")
 async def put_prefs(req):
     s = await session(req)
-    return web.json_response(prefs.save(s["user"], await req.json()))
+    try:
+        body = await req.json()
+    except ValueError:
+        raise web.HTTPBadRequest(text="JSON expected")
+    if not isinstance(body, dict):
+        raise web.HTTPBadRequest(text="an object expected")
+    return web.json_response(prefs.save(s["user"], body))
 
 
 # ---------------- data for logged-in users ----------------

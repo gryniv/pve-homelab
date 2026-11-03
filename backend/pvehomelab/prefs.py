@@ -75,17 +75,51 @@ def _path(user):
     return os.path.join(STATE_DIR, "users", safe + ".yaml")
 
 
+MAX_STR = {"note": 4000}      # longer free text; any other string is capped at MAX_STR_DEFAULT
+MAX_STR_DEFAULT = 300
+MAX_LIST = 200
+
+
+def _same_kind(default, v):
+    """A stored value must have the default's type, or a later read of it fails for everyone
+    (the sign-in screen shows every user's public settings)."""
+    if isinstance(default, bool):
+        return isinstance(v, bool)
+    if isinstance(default, int):
+        return isinstance(v, int) and not isinstance(v, bool)
+    if isinstance(default, str):
+        return isinstance(v, str)
+    if isinstance(default, list):
+        return isinstance(v, list) and all(isinstance(x, (str, int)) and not isinstance(x, bool) for x in v)
+    return True
+
+
 def _merge(base, over):
+    """Defaults overlaid with `over`: unknown keys are dropped, values of the wrong type keep
+    the default, and strings and lists are capped."""
     out = copy.deepcopy(base)
-    for k, v in (over or {}).items():
+    if not isinstance(over, dict):
+        return out
+    for k, v in over.items():
         if k not in base:
             continue
-        if isinstance(base[k], dict) and isinstance(v, dict):
+        d = base[k]
+        if isinstance(d, dict):
+            if not isinstance(v, dict):
+                continue
             # an empty default dict is free-form (widget_opts): keep whatever is stored
-            out[k] = copy.deepcopy(v) if not base[k] else _merge(base[k], v)
-        else:
-            out[k] = v
+            out[k] = copy.deepcopy(v) if not d else _merge(d, v)
+        elif _same_kind(d, v):
+            if isinstance(v, str):
+                v = v[:MAX_STR.get(k, MAX_STR_DEFAULT)]
+            elif isinstance(v, list):
+                v = v[:MAX_LIST]
+            out[k] = copy.deepcopy(v)
     return out
+
+
+def load_defaults():
+    return copy.deepcopy(DEFAULT)
 
 
 def load(user):
