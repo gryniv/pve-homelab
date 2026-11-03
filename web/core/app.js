@@ -443,7 +443,9 @@ function renderGuests() {
   $$('#guestrows [data-url]').forEach((b) => (b.onclick = () => app.openUrl(b.dataset.url)));
   $$('#guestrows [data-console]').forEach((b) => (b.onclick = () => {
     const [type, id, name] = b.dataset.console.split('|');
-    app.openUrl(`${app.pveUrl()}/?console=${type === 'qemu' ? 'kvm' : 'lxc'}&novnc=1&vmid=${id}&vmname=${encodeURIComponent(name)}&node=${st.pub.node}`);
+    // Inside the menu, signed in as this user; the Proxmox web console is the fallback.
+    const web = () => app.openUrl(`${app.pveUrl()}/?console=${type === 'qemu' ? 'kvm' : 'lxc'}&novnc=1&vmid=${id}&vmname=${encodeURIComponent(name)}&node=${st.pub.node}`);
+    openConsole({ vmid: +id, name, type }, web);
   }));
   $$('#guestrows [data-act]').forEach((b) => (b.onclick = async () => {
     const [type, id, act, name] = b.dataset.act.split('|');
@@ -607,13 +609,15 @@ function renderOpenTabs(list) {
 }
 
 /* ---------------- console (VM screen inside the menu) ---------------- */
-async function openConsole(vm) {
+async function openConsole(vm, fallback) {
   go('console');
   try {
     await vnc.open(api, vm, (msg) => { if (st.screen === 'console') { toast(msg); go('dash'); refreshDash(); } });
   } catch (e) {
-    toast(e.message, true);
     go('dash');
+    // No rights is the answer; anything else (no console here, the demo) may still work in the Proxmox UI.
+    if (fallback && e.status !== 403) fallback();
+    else toast(e.message, true);
   }
 }
 

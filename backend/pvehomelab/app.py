@@ -643,13 +643,17 @@ async def job(req):
 
 @routes.post("/api/console/{vmid}")
 async def console_open(req):
-    """VNC ticket for a VM's screen, issued with the user's own PVE ticket."""
+    """VNC ticket for a guest's screen (a VM's display, a container's terminal), issued with the
+    user's own PVE ticket, so Proxmox checks VM.Console as usual. ?type=lxc for a container."""
     s = await session(req)
     vmid = vmid_of(req.match_info["vmid"])
+    typ = req.query.get("type", "qemu")
+    if typ not in ("qemu", "lxc"):
+        raise web.HTTPBadRequest(text="bad type")
     node = req.app["cfg"]["node"]
-    d = await req.app["pve"].post(s["ticket"], f"/nodes/{node}/qemu/{vmid}/vncproxy", websocket=1)
+    d = await req.app["pve"].post(s["ticket"], f"/nodes/{node}/{typ}/{vmid}/vncproxy", websocket=1)
     token = secrets.token_urlsafe(24)
-    req.app["consoles"][token] = {"ticket": s["ticket"], "vmid": vmid, "port": d["port"],
+    req.app["consoles"][token] = {"ticket": s["ticket"], "vmid": vmid, "type": typ, "port": d["port"],
                                   "vncticket": d["ticket"], "at": time.time()}
     return web.json_response({"token": token, "password": d["ticket"]})
 
@@ -661,7 +665,7 @@ async def console_ws(req):
     if not c or time.time() - c["at"] > 60:
         raise web.HTTPForbidden(text="console token expired")
     node = req.app["cfg"]["node"]
-    url = (f"wss://127.0.0.1:8006/api2/json/nodes/{node}/qemu/{c['vmid']}/vncwebsocket"
+    url = (f"wss://127.0.0.1:8006/api2/json/nodes/{node}/{c.get('type', 'qemu')}/{c['vmid']}/vncwebsocket"
            f"?port={c['port']}&vncticket={quote(c['vncticket'], safe='')}")
     http = await req.app["pve"].http()
     up = await http.ws_connect(url, protocols=("binary",), max_msg_size=0,

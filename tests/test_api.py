@@ -220,3 +220,25 @@ async def test_health_reports_running_code(client):
     assert r.status == 200
     d = await r.json()
     assert d["ok"] and set(d) == {"ok", "version", "commit"}
+
+
+async def test_console_type_checked(client):
+    await login(client)
+    assert (await client.post("/api/console/201?type=docker")).status == 400
+
+
+async def test_console_asks_proxmox_for_the_right_guest_type(client, monkeypatch):
+    await login(client)
+    asked = []
+    pve = client.server.app["pve"]
+
+    async def post(t, endpoint, **data):
+        asked.append(endpoint)
+        return {"port": 5901, "ticket": "PVEVNC:x"}
+    monkeypatch.setattr(pve, "post", post)
+    r = await client.post("/api/console/201?type=lxc")
+    assert r.status == 200 and asked[-1].endswith("/lxc/201/vncproxy")
+    tok = (await r.json())["token"]
+    assert client.server.app["consoles"][tok]["type"] == "lxc"
+    await client.post("/api/console/100")
+    assert asked[-1].endswith("/qemu/100/vncproxy")
