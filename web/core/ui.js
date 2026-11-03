@@ -57,14 +57,25 @@ export function keepFocus(root, fn) {
   if (sel) root.querySelector(sel)?.focus();
 }
 
-let toastTimer;
+// One message at a time; the next waits instead of overwriting it (a repeat is dropped).
+const toastQueue = [];
+let toastBusy = false;
 export function toast(msg, bad = false) {
+  if (toastQueue.some((x) => x.msg === msg) || ($('#toast').textContent === msg && toastBusy)) return;
+  toastQueue.push({ msg, bad });
+  if (!toastBusy) nextToast();
+}
+function nextToast() {
   const t = $('#toast');
-  t.textContent = msg;
-  t.classList.toggle('bad', bad);
+  const m = toastQueue.shift();
+  if (!m) { toastBusy = false; t.hidden = true; t.textContent = ''; return; }
+  toastBusy = true;
+  t.textContent = m.msg;
+  t.classList.toggle('bad', m.bad);
   t.hidden = false;
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => (t.hidden = true), bad ? 6000 : 3000);
+  // a queued message shortens the current one, never below 1.5 s
+  const ms = toastQueue.length ? 1500 : (m.bad ? 6000 : 3000);
+  setTimeout(nextToast, ms);
 }
 
 export function confirmBox(title, text, yes) {

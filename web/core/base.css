@@ -82,6 +82,10 @@ html,body{margin:0;height:100%;background:#05080e}
 .A .w{padding:1.1em 1.2em;position:relative;min-width:0}
 .A .zone-side .w{padding:1em 1.1em}
 .A .w .werr{font-size:.85em;color:var(--mute)}
+.A .w .wload{height:3.2em;border-radius:.5em;background:linear-gradient(90deg,rgba(255,255,255,.04) 25%,rgba(255,255,255,.1) 50%,rgba(255,255,255,.04) 75%);background-size:300% 100%;animation:wshimmer 1.4s linear infinite}
+@keyframes wshimmer{from{background-position:100% 0}to{background-position:-200% 0}}
+.A .w .wretry{margin-top:.6em;font:inherit;font-size:.8em;color:var(--acc);background:none;border:1px solid var(--edge);border-radius:.5em;padding:.3em .8em;cursor:pointer}
+.A .w .wretry:hover,.A .w .wretry:focus-visible{border-color:var(--acc)}
 .A .kv{display:flex;justify-content:space-between;gap:1em;font-size:.86em;padding:.32em 0;border-top:1px solid var(--edge)}
 .A .kv:first-of-type{border-top:0}
 .A .kv b{font-weight:500;font-variant-numeric:tabular-nums;text-align:right}
@@ -299,6 +303,8 @@ html,body{margin:0;height:100%;background:#05080e}
 .A .confirm h3{margin:0;font-family:var(--font-display,var(--display))}
 .A .toast{position:absolute;left:50%;bottom:1.6em;transform:translateX(-50%);background:rgba(16,21,29,.95);border:1px solid var(--edge);border-radius:.7em;padding:.7em 1.1em;font-size:.92em;z-index:20;max-width:60%}
 .A .toast.bad{border-color:rgba(255,100,100,.5);color:#ffd0d0}
+.A .offline{position:fixed;left:50%;top:4.6em;transform:translateX(-50%);z-index:40;display:flex;align-items:center;gap:.6em;background:rgba(40,16,16,.95);border:1px solid rgba(255,100,100,.5);color:#ffd0d0;border-radius:.7em;padding:.6em 1.1em;font-size:.92em}
+.A .offline .dot{width:.6em;height:.6em;border-radius:50%;background:#ff6b6b;animation:breathe 1.2s ease-in-out infinite}
 
 /* ---------- settings ---------- */
 .A .settings{position:absolute;inset:0;background:rgba(3,5,9,.55);backdrop-filter:blur(.5em);display:grid;place-items:center;padding:2.2em;z-index:10}

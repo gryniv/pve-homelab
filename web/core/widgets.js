@@ -64,28 +64,51 @@ export function optionsOf(id, stored = {}) {
   return out;
 }
 
+// Several widgets may read the same endpoint (host and network both read /api/host):
+// requests made close together share one answer instead of each hitting the backend.
+const shared = new Map(); // path -> { at, value } | { pending }
+function fetchShared(path, maxAgeMs) {
+  const e = shared.get(path);
+  if (e?.pending) return e.pending;
+  if (e && Date.now() - e.at < maxAgeMs) return Promise.resolve(e.value);
+  const pending = api.get(path)
+    .then((value) => { shared.set(path, { at: Date.now(), value }); return value; })
+    .catch((err) => { shared.delete(path); throw err; });
+  shared.set(path, { pending });
+  return pending;
+}
+
+// Nobody is looking at the widgets behind the screensaver or a VM's screen.
+const hiddenNow = () => document.hidden || document.body.classList.contains('saver') || document.body.classList.contains('console');
+
 // Render widget `id` into `box` and keep it fresh. Returns a stop function.
 export function mount(box, id, zone, ctx) {
   const w = registry[id];
   box.className = 'glass w';
   box.dataset.w = id;
   const wctx = { ...ctx, zone, ui, t: w.t, opts: optionsOf(id, ctx.opts?.[id]) };
-  const refresh = async () => {
+  const every = typeof w.every === 'function' ? w.every(wctx) : w.every;
+  if (w.source) box.innerHTML = `<h4>${ui.esc(w.title)}</h4><div class="wload" role="progressbar" aria-label="${ui.esc(ui.t('widget.loading'))}"></div>`;
+  const refresh = async (periodic = false) => {
+    if (periodic && hiddenNow()) return;
     try {
-      const data = w.source ? await (typeof w.source === 'function' ? w.source(wctx) : api.get(w.source)) : null;
+      const data = !w.source ? null
+        : typeof w.source === 'function' ? await w.source(wctx)
+        : await fetchShared(w.source, every ? every * 500 : 1000);
       if (!box.isConnected && box._mounted) return;
       box._mounted = true;
       box.innerHTML = w.render(data, wctx);
       w.after?.(box, data, wctx);
     } catch (e) {
-      box.innerHTML = `<h4>${ui.esc(w.title)}</h4><div class="werr">${ui.esc(e.message)}</div>`;
+      box.innerHTML = `<h4>${ui.esc(w.title)}</h4><div class="werr">${ui.esc(e.message)}</div>
+        <button type="button" class="wretry">${ui.esc(ui.t('widget.retry'))}</button>`;
+      box.querySelector('.wretry').onclick = () => refresh();
       // the backend already logged its own failures; record what broke in the browser
       if (!e.status) report('widget', `${id} (${zone}): ${e.message}`, e.stack);
     }
   };
   refresh();
-  const every = typeof w.every === 'function' ? w.every(wctx) : w.every;
-  const timer = every ? setInterval(refresh, every * 1000) : null;
+  const timer = every ? setInterval(() => refresh(true), every * 1000) : null;
   return () => clearInterval(timer);
 }
 

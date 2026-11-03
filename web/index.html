@@ -153,11 +153,11 @@
   </div>
 
   <div class="overlay" data-layer="launch" hidden>
-    <div class="modal">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="mTitle">
       <div class="mhead"><div class="art" id="mArt"></div><img id="mLogo" alt=""><div><h3 id="mTitle"></h3><div class="sub" id="mSub"></div></div></div>
       <div class="mbody">
         <div class="opts" id="mOpts"></div>
-        <ol class="steps" id="mSteps" hidden></ol>
+        <ol class="steps" id="mSteps" aria-live="polite" hidden></ol>
         <div class="errbox" id="mErr" hidden></div>
         <div class="mbtns"><button class="btn ghost" type="button" data-go="dash" id="mCancel" data-i18n="launch.cancel"></button><button class="btn" type="button" id="mStart"><svg class="i" style="fill:currentColor;stroke:none"><use href="#i-play"/></svg><span data-i18n="launch.start"></span></button></div>
       </div>
@@ -178,11 +178,12 @@
   </div>
 </section>
 
-<div class="overlay" id="confirmLayer" hidden><div class="confirm"><h3 id="cTitle"></h3><div class="mute" id="cText"></div><div class="mbtns"><button class="btn ghost" type="button" id="cNo" data-i18n="confirm.cancel"></button><button class="btn danger" type="button" id="cYes"></button></div></div></div>
-<div class="overlay" id="helpLayer" hidden><div class="confirm help"><h3 data-i18n="help.title"></h3><table id="helpTable"></table><div class="mbtns"><button class="btn" type="button" id="helpClose" data-i18n="set.close"></button></div></div></div>
+<div class="overlay" id="confirmLayer" hidden><div class="confirm" role="alertdialog" aria-modal="true" aria-labelledby="cTitle" aria-describedby="cText"><h3 id="cTitle"></h3><div class="mute" id="cText"></div><div class="mbtns"><button class="btn ghost" type="button" id="cNo" data-i18n="confirm.cancel"></button><button class="btn danger" type="button" id="cYes"></button></div></div></div>
+<div class="overlay" id="helpLayer" hidden><div class="confirm help" role="dialog" aria-modal="true" aria-labelledby="helpTitle"><h3 id="helpTitle" data-i18n="help.title"></h3><table id="helpTable"></table><div class="mbtns"><button class="btn" type="button" id="helpClose" data-i18n="set.close"></button></div></div></div>
 <button class="demo-ribbon" type="button" id="demoRibbon" hidden data-i18n-title="demo.open"><span data-i18n="demo.ribbon"></span></button>
 <div class="overlay" id="demoLayer" hidden><div class="demo-panel glass" id="demoPanel"></div></div>
-<div class="toast" id="toast" hidden></div>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+<div class="offline" id="offline" role="alert" hidden><span class="dot"></span><span data-i18n="error.offline"></span></div>
 
 <script type="module" src="/core/app.js"></script>
 </body>

@@ -80,6 +80,8 @@
   "confirm.cancel": "Cancel",
   "error.load": "Failed to load: {msg}",
   "error.backend": "Backend unreachable, reconnecting…",
+  "error.offline": "Lost connection to the menu service. Reconnecting…",
+  "widget.retry": "Try again", "widget.loading": "Loading…",
 
   "set.saved_hint": "changes save automatically",
   "set.saving": "saving…",

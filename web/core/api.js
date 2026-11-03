@@ -9,6 +9,8 @@ let waiting = false;
 async function backendLost() {
   if (waiting) return;
   waiting = true;
+  const banner = document.getElementById('offline');
+  if (banner) banner.hidden = false;
   for (;;) {
     await new Promise((r) => setTimeout(r, 3000));
     try { if ((await fetch('/api/host?seat=' + SEAT, { cache: 'no-store' })).ok) return location.reload(); } catch {}
