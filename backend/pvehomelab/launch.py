@@ -15,13 +15,14 @@ _job_ids = itertools.count(1)
 HOSTPCI = re.compile(r"^hostpci(\d+):\s*(.*)$", re.M)
 
 
-def pci_addr(val):
-    """The PCI address in a hostpciN value ("0000:01:00.0", "01:00", "host=01:00.0;01:00.1,x-vga=1")."""
-    a = val.split(",")[0].replace("host=", "").split(";")[0]
-    return a if a.count(":") == 2 else "0000:" + a
+def pci_addr(val, node=None, mappings=None):
+    """The (first) PCI address in a hostpciN value ("0000:01:00.0", "01:00", "host=01:00.0;01:00.1,x-vga=1",
+    or a PVE resource mapping "mapping=rtx,pcie=1"); "" when a mapping can't be resolved."""
+    devs = G.hostpci_devices(val, node, mappings)
+    return devs[0] if devs else ""
 
 
-def plan_hostpci(conf, display, gpu):
+def plan_hostpci(conf, display, gpu, node=None, mappings=None):
     """Where `gpu` goes in a VM config (text of `qm config`): the hostpci slot that already holds a
     display GPU, else the first free one. Returns (slot, new value, old value or None). The new
     value keeps the old entry's options (x-vga, romfile, rombar, ...) and only swaps the device."""
@@ -30,7 +31,7 @@ def plan_hostpci(conf, display, gpu):
     for m in HOSTPCI.finditer(conf):
         n, val = int(m.group(1)), m.group(2).strip()
         used.add(n)
-        if slot is None and G.gpu_of(pci_addr(val)) in display:
+        if slot is None and G.gpu_of(pci_addr(val, node, mappings) or "-") in display:
             slot, old = n, val
     if slot is None:
         slot = next(i for i in range(16) if i not in used)
@@ -87,7 +88,8 @@ class Launcher:
             if g.get("type") != "qemu" or not tagged:
                 continue
             conf = await self.app["pve"].get(t, f"/nodes/{node}/qemu/{g['vmid']}/config")
-            gpu_list = [G.gpu_of(self._addr(v)) for k, v in conf.items() if k.startswith("hostpci")]
+            gpu_list = [G.gpu_of(a) for k, v in conf.items() if k.startswith("hostpci")
+                        for a in [pci_addr(str(v), node)] if a]
             out.append({
                 "vmid": g["vmid"], "name": conf.get("name") or g.get("name"),
                 "status": g.get("status"), "ostype": conf.get("ostype", ""),
@@ -265,7 +267,7 @@ class Launcher:
         display = {g["pci"] for g in await G.list_gpus(set())}
         args = ["qm", "set", str(vmid), "--vga", "virtio-gl,memory=256"]
         drop = [f"hostpci{m.group(1)}" for m in HOSTPCI.finditer(conf)
-                if G.gpu_of(self._addr(m.group(2))) in display]
+                if G.gpu_of(pci_addr(m.group(2), self.cfg["node"]) or "-") in display]
         if drop:
             args += ["--delete", ",".join(drop)]
         log.info("VM %s -> VirGL %s", vmid, " ".join(args[3:]))
@@ -276,7 +278,7 @@ class Launcher:
         Returns what _undo_assign needs to put it back."""
         conf = await run("qm", "config", str(vmid))
         display = {g["pci"] for g in await G.list_gpus(set())}
-        slot, value, old = plan_hostpci(conf, display, gpu)
+        slot, value, old = plan_hostpci(conf, display, gpu, self.cfg["node"])
         log.info("VM %s: hostpci%s %s -> %s", vmid, slot, old or "(new)", value)
         await run("qm", "set", str(vmid), f"--hostpci{slot}", value)
         return (slot, old)

@@ -109,3 +109,53 @@ async def test_two_launches_on_one_gpu(client):
         assert jb["error"] and str(ubuntu["vmid"]) in jb["error"]
     running = [v for v in (ubuntu["vmid"], fedora["vmid"]) if demo.WORLD[v]["status"] == "running"]
     assert running == [ubuntu["vmid"]]
+
+
+# ---------- PVE 8+ resource mappings: hostpciN: mapping=<name> ----------
+MAPPINGS_CFG = """rtx
+\tmap id=10de:2786,iommugroup=14,node=pve,path=0000:01:00,subsystem-id=1043:8863
+\tmap id=10de:2786,iommugroup=3,node=pve2,path=0000:41:00
+\tdescription the gaming card
+
+igpu
+\tmap id=8086:a780,node=pve,path=0000:00:02.0
+"""
+
+
+def test_parse_pci_mappings():
+    from pvehomelab import gpus
+    m = gpus.parse_pci_mappings(MAPPINGS_CFG)
+    assert m["rtx"] == [{"node": "pve", "path": "0000:01:00"}, {"node": "pve2", "path": "0000:41:00"}]
+    assert m["igpu"] == [{"node": "pve", "path": "0000:00:02.0"}]
+
+
+def test_mapping_resolved_per_node():
+    from pvehomelab import gpus
+    m = gpus.parse_pci_mappings(MAPPINGS_CFG)
+    assert pci_addr("mapping=rtx,pcie=1,x-vga=1", "pve", m) == "0000:01:00"
+    assert pci_addr("mapping=rtx,pcie=1", "pve2", m) == "0000:41:00"
+    assert pci_addr("mapping=igpu", "other", m) == "0000:00:02.0"   # one entry: used whatever the node
+    assert pci_addr("mapping=missing", "pve", m) == ""
+
+
+def test_plan_hostpci_over_a_mapping():
+    from pvehomelab import gpus
+    m = gpus.parse_pci_mappings(MAPPINGS_CFG)
+    conf = "hostpci0: mapping=igpu,pcie=1,x-vga=1\n"
+    slot, value, old = plan_hostpci(conf, DISPLAY, RTX, "pve", m)
+    assert (slot, value, old) == (0, "0000:01:00,pcie=1,x-vga=1", "mapping=igpu,pcie=1,x-vga=1")
+
+
+def test_vm_gpus_sees_mapped_cards(monkeypatch):
+    from pvehomelab import gpus
+    m = gpus.parse_pci_mappings(MAPPINGS_CFG)
+    confs = {"/etc/pve/qemu-server/102.conf": "hostpci0: mapping=rtx,pcie=1\nhostpci1: 0000:79:00.6\n[snap]\nhostpci0: 0000:09:00\n",
+             "/etc/pve/qemu-server/103.conf": "hostpci0: host=0000:05:00.0;0000:05:00.1\n"}
+    monkeypatch.setattr(gpus.glob, "glob", lambda pattern: list(confs))
+    monkeypatch.setattr(gpus, "_read", lambda path, default="": confs.get(path, default))
+    monkeypatch.setattr(gpus, "pci_mappings", lambda: m)
+    monkeypatch.setattr(gpus, "local_node", lambda: "pve")
+    used = gpus.vm_gpus()
+    assert used["0000:01:00"] == [102] and used["0000:79:00.6"] == [102]
+    assert "0000:09:00" not in used                       # snapshot sections don't count
+    assert used["0000:05:00.0"] == [103] and used["0000:05:00.1"] == [103]

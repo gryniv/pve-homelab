@@ -65,6 +65,8 @@ signed in, so each person sees and controls exactly what PVE allows them to.
 - **On the integrated GPU:** the VM starts with **VirGL** and its screen opens right inside the
   menu over a built-in noVNC relay. **Ctrl+Alt+Q** brings you back.
 - Each step (assign GPU, start, switch monitor) shows as a clear checklist while it happens.
+- GPUs given to VMs as Proxmox **resource mappings** (`hostpci0: mapping=…`, PVE 8+) are understood
+  like plain PCI addresses.
 
 ### Web services, found by themselves
 Your services are collected from three places and merged:
