@@ -712,6 +712,8 @@ async function boot() {
 
 boot().catch((e) => {
   errlog.report('boot', e.message, e.stack);
-  toast(t('error.load', { msg: e.message }), true);
+  // The dictionary may be what failed to load: never show the bare key.
+  const text = t('error.load', { msg: e.message });
+  toast(text === 'error.load' ? `Failed to load: ${e.message}` : text, true);
   setTimeout(() => location.reload(), 5000);
 });
