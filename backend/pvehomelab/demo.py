@@ -60,6 +60,12 @@ APT_UPDATES = [
     {"Package": "libssl3t64", "OldVersion": "3.5.1-1", "Version": "3.5.1-1+deb13u1", "Origin": "Debian"},
     {"Package": "tzdata", "OldVersion": "2025b-4", "Version": "2025c-0+deb13u1", "Origin": "Debian"},
 ]
+DISKS = [
+    {"devpath": "/dev/nvme0n1", "model": "Samsung SSD 990 PRO 2TB", "type": "nvme", "size": 2000 * GB, "health": "PASSED", "wearout": 98},
+    {"devpath": "/dev/nvme1n1", "model": "Samsung SSD 990 PRO 2TB", "type": "nvme", "size": 2000 * GB, "health": "PASSED", "wearout": 97},
+    {"devpath": "/dev/sda", "model": "WDC WD120EFBX", "type": "hdd", "size": 12000 * GB, "health": "PASSED", "wearout": "N/A"},
+]
+POOLS = [{"name": "nvme2tb", "health": "ONLINE", "size": 1800 * GB, "alloc": 612 * GB}]
 GUEST_SEES = {100, 201, 202}   # guest@pve's permissions: one VM and two media services
 
 GPUS = {
@@ -126,6 +132,10 @@ class DemoPVE(PVE):
             return [{"storage": "local", "type": "dir", "active": 1, "used": 38 * GB, "total": 94 * GB},
                     {"storage": "local-zfs", "type": "zfspool", "active": 1, "used": 612 * GB, "total": 1800 * GB},
                     {"storage": "media", "type": "dir", "active": 1, "used": 7400 * GB, "total": 12000 * GB}]
+        if endpoint == f"/nodes/{NODE}/disks/list":
+            return DISKS
+        if endpoint == f"/nodes/{NODE}/disks/zfs":
+            return POOLS
         if endpoint == f"/nodes/{NODE}/apt/update":
             return APT_UPDATES
         if endpoint == "/access/permissions":

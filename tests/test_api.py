@@ -100,3 +100,24 @@ async def test_node_updates_need_sys_modify(client):
 def test_summarize_updates_empty():
     from pvehomelab.app import summarize_updates
     assert summarize_updates([]) == {"allowed": True, "count": 0, "proxmox": 0, "kernel": False, "packages": []}
+
+
+async def test_disks_summary(client):
+    await login(client)
+    d = await (await client.get("/api/disks")).json()
+    assert d["allowed"] and d["problems"] == 0
+    assert len(d["disks"]) == len(demo.DISKS) and d["pools"][0]["name"] == "nvme2tb"
+    assert next(x for x in d["disks"] if x["dev"] == "/dev/sda")["wearout"] is None  # "N/A" for spinning disks
+
+
+async def test_disks_need_sys_audit(client):
+    await login(client, "guest@pve")
+    assert await (await client.get("/api/disks")).json() == {"allowed": False}
+
+
+def test_summarize_disks_problems_first():
+    from pvehomelab.app import summarize_disks
+    d = summarize_disks([{"devpath": "/dev/a", "health": "PASSED"}, {"devpath": "/dev/b", "health": "FAILED"},
+                         {"devpath": "/dev/c"}], [{"name": "tank", "health": "DEGRADED"}])
+    assert [x["dev"] for x in d["disks"]] == ["/dev/b", "/dev/c", "/dev/a"]
+    assert d["problems"] == 2  # failed disk + degraded pool; unknown SMART is not counted

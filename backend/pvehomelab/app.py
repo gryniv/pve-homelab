@@ -419,6 +419,42 @@ async def node_updates(req):
     return web.json_response(summarize_updates(await pve.get(s["ticket"], f"/nodes/{node}/apt/update")))
 
 
+DISK_OK = {"PASSED", "OK"}
+POOL_OK = {"ONLINE"}
+
+
+def summarize_disks(disks, pools):
+    """Physical disks (SMART health, SSD wearout as Proxmox reports it) and ZFS pools."""
+    d = [{"dev": x.get("devpath", ""), "model": x.get("model") or x.get("vendor") or "", "type": x.get("type", ""),
+          "size": x.get("size", 0), "health": str(x.get("health") or "UNKNOWN").upper(),
+          "wearout": x.get("wearout") if isinstance(x.get("wearout"), (int, float)) else None}
+         for x in disks or []]
+    p = [{"name": x.get("name", ""), "health": str(x.get("health") or "UNKNOWN").upper(),
+          "size": x.get("size", 0), "alloc": x.get("alloc", 0)} for x in pools or []]
+    for x in d:
+        x["ok"] = x["health"] in DISK_OK
+    for x in p:
+        x["ok"] = x["health"] in POOL_OK
+    d.sort(key=lambda x: (x["ok"], x["dev"]))
+    p.sort(key=lambda x: (x["ok"], x["name"]))
+    return {"allowed": True, "disks": d, "pools": p,
+            "problems": sum(not x["ok"] and x["health"] != "UNKNOWN" for x in d) + sum(not x["ok"] for x in p)}
+
+
+@routes.get("/api/disks")
+async def disks(req):
+    """Disk health and ZFS pools of this node; needs Sys.Audit on the node, as in the Proxmox web UI."""
+    s = await session(req)
+    pve, node = req.app["pve"], req.app["cfg"]["node"]
+    if not await pve.can(s["ticket"], f"/nodes/{node}", "Sys.Audit"):
+        return web.json_response({"allowed": False})
+    lst, zfs = await asyncio.gather(pve.get(s["ticket"], f"/nodes/{node}/disks/list"),
+                                    pve.get(s["ticket"], f"/nodes/{node}/disks/zfs"), return_exceptions=True)
+    if isinstance(lst, Exception):
+        raise lst
+    return web.json_response(summarize_disks(lst, [] if isinstance(zfs, Exception) else zfs))
+
+
 @routes.get("/api/gpus")
 async def gpus(req):
     await session(req)
