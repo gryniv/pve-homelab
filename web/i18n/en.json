@@ -86,6 +86,7 @@
   "set.saved_hint": "changes save automatically",
   "set.saving": "saving…",
   "set.saved": "saved",
+  "set.save_failed": "not saved",
   "set.close": "Close",
   "set.s.look": "Appearance",
   "set.s.layout": "Layout & widgets",

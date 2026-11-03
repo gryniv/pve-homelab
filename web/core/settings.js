@@ -38,7 +38,7 @@ function save(changes, { relayout = false } = {}) {
     try {
       await app.api.put('/api/prefs', p);
       $('#savedNote') && ($('#savedNote').textContent = t('set.saved'));
-    } catch (e) { toast(e.message, true); }
+    } catch (e) { $('#savedNote') && ($('#savedNote').textContent = t('set.save_failed')); toast(e.message, true); }
   }, 400);
 }
 
@@ -48,7 +48,7 @@ function saveLogin(changes) {
   clearTimeout(loginTimer);
   loginTimer = setTimeout(async () => {
     try { app.setLoginSettings(await app.api.put('/api/login-settings', loginCfg.settings)); $('#savedNote').textContent = t('set.saved'); }
-    catch (e) { toast(e.message, true); }
+    catch (e) { $('#savedNote') && ($('#savedNote').textContent = t('set.save_failed')); toast(e.message, true); }
   }, 400);
 }
 
