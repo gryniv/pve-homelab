@@ -6,6 +6,7 @@ import * as BG from './backgrounds.js';
 import * as F from './fonts.js';
 import { arrange, moved } from './order.js';
 import { current as currentLang } from './i18n.js';
+import { label as updLabel } from './updates.js';
 import { $, $$, icon, esc, AVATARS, toast, confirmBox, keepFocus, t } from './ui.js';
 
 const ZONES = {
@@ -231,7 +232,7 @@ const views = {
     const repo = a.repo || (pub.app.repo ? `https://github.com/${pub.app.repo}` : '');
     return `<h3>${esc(a.name || 'PVE Homelab')}</h3>${lead('about.lead')}
       <div class="grp about-box">
-        ${row('about.version', `v${esc(pub.app.version)}${u?.available ? ` · <span class="acc-text">${esc(t('about.update_new', { v: u.latest.version ? 'v' + u.latest.version : (u.latest.commit || '').slice(0, 7) }))}</span>` : u?.enabled ? ` · ${esc(t('about.update_ok'))}` : ''}`)}
+        ${row('about.version', `v${esc(pub.app.version)}${u?.available ? ` · <span class="acc-text">${esc(t('about.update_new', { v: updLabel(u) }))}</span>` : u?.enabled ? ` · ${esc(t('about.update_ok'))}` : ''}`)}
         ${a.author ? row('about.author', a.author_url ? `<a href="${esc(a.author_url)}" target="_blank" rel="noopener">${esc(a.author)}</a>` : esc(a.author)) : ''}
         ${row('about.repo', repo ? `<a href="${esc(repo)}" target="_blank" rel="noopener">${esc(repo.replace(/^https?:\/\//, ''))}</a>` : esc(t('about.none')))}
         ${row('about.license', esc(a.license || t('about.none')))}

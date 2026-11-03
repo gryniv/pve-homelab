@@ -14,7 +14,10 @@ import * as clocks from './clocks.js';
 import * as fonts from './fonts.js';
 import * as errlog from './errlog.js';
 import * as i18n from './i18n.js';
-import { $, $$, icon, esc, avatar, fmt, toast, confirmBox, keepFocus, t } from './ui.js';
+import * as help from './help.js';
+import * as alerts from './alerts.js';
+import * as updates from './updates.js';
+import { $, $$, icon, esc, avatar, fmt, toast, confirmBox, keepFocus, t, wxIcon } from './ui.js';
 
 const st = {
   pub: null, me: null, prefs: null, screen: null,
@@ -32,8 +35,8 @@ const app = {
   loggedIn: () => !!st.me,
   services: () => st.services,
   systems: () => st.systems,
-  updateStatus: () => upd,
-  showHelp: () => showHelp(),
+  updateStatus: () => updates.status(),
+  showHelp: () => help.show(),
   isNight: scene.isNight,
   avatarOf: (u) => avatar(u, u.avatar ?? st.prefs?.avatar),
   guestCounts: () => st.pub.guests,
@@ -64,7 +67,7 @@ async function useLang(code = wantedLang()) {
 // Everything that holds translated text is rebuilt from state.
 function rerender() {
   tick(); paintWeather(); renderLoginLang(); paintAbout();
-  if (upd?.available) $('#updPill span').textContent = t('upd.pill', { v: updLabel(upd) });
+  updates.paint();
   if (st.me) {
     W.renderZone('side', st.prefs.layout.side || [], { app, opts: st.prefs.widget_opts });
     const body = $('.scr-dash .body');
@@ -103,7 +106,7 @@ function paintWeather() {
   if (!w) return;
   scene.configure({ kind: w.kind });
   const night = scene.isNight();
-  const src = `/assets/wx/${{ clear: night ? 'clear-night' : 'clear-day', partly: night ? 'partly-cloudy-night' : 'partly-cloudy-day', overcast: night ? 'overcast-night' : 'overcast-day', rain: 'rain', thunder: 'thunderstorms', snow: 'snow', fog: 'fog' }[w.kind]}.svg`;
+  const src = wxIcon(w.kind, night);
   $$('[data-wx-icon]').forEach((i) => (i.src = src));
   $$('[data-temp]').forEach((x) => (x.textContent = w.temp + (w.units === 'f' ? '°F' : '°')));
   $$('[data-wx-text]').forEach((x) => (x.textContent = t('wx.' + w.kind)));
@@ -253,11 +256,11 @@ async function enter(userid, prefs) {
   const a = document.activeElement;
   if (st.screen === 'dash' && (!a || a === document.body || a.closest('.top'))) nav.focusFirst(undefined, '.sys .play');
   st.timers.push(setInterval(refreshDash, 10000));
-  updReminded = false;
-  setTimeout(checkUpdate, 2500);
-  setTimeout(checkAlerts, 1500);
-  st.timers.push(setInterval(checkAlerts, 60000));
-  st.timers.push(setInterval(checkUpdate, 30 * 60000));
+  updates.resetReminder();
+  setTimeout(updates.check, 2500);
+  setTimeout(alerts.check, 1500);
+  st.timers.push(setInterval(alerts.check, 60000));
+  st.timers.push(setInterval(updates.check, 30 * 60000));
 }
 
 async function logout() {
@@ -269,7 +272,7 @@ async function logout() {
   st.systems = []; st.services = []; st.guests = []; st.sysView = [];
   if (st.filter) setFilter('');
   renderSystems(); renderServices(); renderGuests();
-  alertItems = []; $('#alertBell').hidden = true; $('#alertsLayer').hidden = true;
+  alerts.reset();
   st.me = null; st.prefs = null;
   try { st.pub = await api.get('/api/public'); } catch {}
   await useLang();
@@ -560,41 +563,6 @@ function fail(msg) {
 
 $('#mStart').onclick = startLaunch;
 
-/* ---------------- updates ---------------- */
-let upd = null, updReminded = false;
-const updLabel = (u) => u.latest.version ? `v${u.latest.version}` : (u.latest.commit || '').slice(0, 7);
-
-async function checkUpdate() {
-  if (!st.me) return;
-  try { upd = await api.get('/api/update'); } catch { upd = null; }
-  reportLastUpdate(upd);
-  const pill = $('#updPill');
-  pill.hidden = !upd?.available;
-  if (!upd?.available) return;
-  pill.querySelector('span').textContent = t('upd.pill', { v: updLabel(upd) });
-  pill.title = upd.latest.notes || '';
-  // Remind once per sign-in.
-  if (!updReminded) { updReminded = true; toast(t('upd.remind', { v: updLabel(upd) })); }
-}
-
-// A failed update (kept or rolled back) is told to admins once, on the seat they sign in at.
-function reportLastUpdate(u) {
-  const r = u?.last;
-  if (!r || r.ok || !u.can_apply) return;
-  const key = `pvehomelab.updfail.${r.time}`;
-  try { if (localStorage.getItem(key)) return; localStorage.setItem(key, '1'); } catch {}
-  toast(t(r.rolled_back ? 'upd.failed_back' : 'upd.failed', { v: r.ref, err: r.error }), true);
-}
-
-$('#updPill').onclick = async () => {
-  if (!upd?.available) return;
-  const v = updLabel(upd);
-  if (!upd.can_apply) { toast(t('upd.no_perm', { v }), true); return; }
-  if (!(await confirmBox(t('upd.confirm_title', { v }), t('upd.confirm_text'), t('upd.apply')))) return;
-  try { await api.post('/api/update/apply'); toast(t('upd.started')); $('#updPill').hidden = true; }
-  catch (e) { toast(e.message, true); }
-};
-
 /* ---------------- open service tabs ---------------- */
 function renderOpenTabs(list) {
   const el = $('#openTabs');
@@ -657,59 +625,10 @@ function tick() {
   $$('[data-date]').forEach((e) => (e.textContent = d.toLocaleDateString(i18n.locale(), { weekday: 'long', day: 'numeric', month: 'long' })));
 }
 
-/* ---------------- keyboard help (?) ---------------- */
-const HELP = [
-  ['help.k_nav', '← → ↑ ↓'], ['help.k_tab', 'Tab · Shift+Tab'], ['help.k_open', 'Enter'], ['help.k_back', 'Esc'],
-  ['help.k_search', 'a…z'], ['help.k_move', 'Alt + ← →'], ['help.k_dock', 'Alt+Q'], ['help.k_console', 'Ctrl+Alt+Q'],
-  ['help.k_help', '?'],
-];
-function showHelp() {
-  $('#helpTable').innerHTML = HELP.map(([k, keys]) => `<tr><td>${esc(t(k))}</td><td><span class="kbd">${esc(keys)}</span></td></tr>`).join('');
-  $('#helpLayer').hidden = false;
-  $('#helpClose').focus();
-}
-const hideHelp = () => { $('#helpLayer').hidden = true; };
-$('#helpClose').onclick = hideHelp;
-addEventListener('keydown', (e) => {
-  if (e.key === '?' && !/^(INPUT|TEXTAREA)$/.test(document.activeElement?.tagName) && st.screen !== 'console') { e.preventDefault(); showHelp(); }
-  else if (e.key === 'Escape' && !$('#helpLayer').hidden) { e.stopImmediatePropagation(); hideHelp(); }
-}, true);
-
-/* ---------------- alerts: the bell ---------------- */
-let alertItems = [];
-const alertText = (a) => {
-  if (a.kind === 'backup') return t(a.never ? 'alerts.backup_never' : 'alerts.backup', a);
-  if (a.kind === 'service' && a.guest) return t('alerts.service_guest', a);
-  return t('alerts.' + a.kind, a);
-};
-
-async function checkAlerts() {
-  if (!st.me) return;
-  try { alertItems = (await api.get('/api/alerts')).alerts; } catch { return; }
-  const b = $('#alertBell');
-  b.hidden = !alertItems.length;
-  b.classList.toggle('bad', alertItems.some((a) => a.level === 'bad'));
-  b.querySelector('.n').textContent = alertItems.length;
-  b.setAttribute('aria-label', `${t('alerts.title')}: ${alertItems.length}`);
-  if (!$('#alertsLayer').hidden) paintAlerts();
-}
-
-function paintAlerts() {
-  $('#alertsList').innerHTML = alertItems.length
-    ? alertItems.map((a) => `<li class="${a.level}"><span class="dot ${a.level === 'bad' ? 'bad' : 'warn'}"></span><span>${esc(alertText(a))}</span></li>`).join('')
-    : `<li class="none">${esc(t('alerts.none'))}</li>`;
-}
-function showAlerts() {
-  paintAlerts();
-  $('#alertsLayer').hidden = false;
-  $('#alertsClose').focus();
-}
-const hideAlerts = () => { $('#alertsLayer').hidden = true; $('#alertBell').focus(); };
-$('#alertBell').onclick = showAlerts;
-$('#alertsClose').onclick = hideAlerts;
-addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && !$('#alertsLayer').hidden) { e.stopImmediatePropagation(); hideAlerts(); }
-}, true);
+/* ---------------- keyboard help, alerts, updates: their own modules ---------------- */
+help.init(() => st.screen);
+alerts.init();
+updates.init();
 
 /* ---------------- about ---------------- */
 let about = {};
@@ -720,7 +639,7 @@ function paintAbout() {
     el.innerHTML = `<b>${esc(about.name || 'PVE Homelab')}</b>${v ? ` <span>v${esc(v)}</span>` : ''}${who ? ` · ${esc(who)}` : ''}`
       + ` · <button type="button" class="linklike" data-help>${esc(t('help.short'))}</button>`;
   });
-  $$('[data-help]').forEach((b) => (b.onclick = showHelp));
+  $$('[data-help]').forEach((b) => (b.onclick = help.show));
 }
 app.about = () => about;
 
