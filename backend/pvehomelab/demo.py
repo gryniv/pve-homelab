@@ -66,6 +66,7 @@ DISKS = [
     {"devpath": "/dev/sda", "model": "WDC WD120EFBX", "type": "hdd", "size": 12000 * GB, "health": "PASSED", "wearout": "N/A"},
 ]
 POOLS = [{"name": "nvme2tb", "health": "ONLINE", "size": 1800 * GB, "alloc": 612 * GB}]
+BACKUP_AGE = {100: 0.5, 101: 1, 102: 12, 200: 0.5, 201: 0.5, 202: 2, 205: 0.5, 206: 0.5}  # days since the last backup
 GUEST_SEES = {100, 201, 202}   # guest@pve's permissions: one VM and two media services
 
 GPUS = {
@@ -128,6 +129,13 @@ class DemoPVE(PVE):
             return resources(t.user)
         if endpoint.startswith(f"/nodes/{NODE}/qemu/") and endpoint.endswith("/config"):
             return qemu_config(int(endpoint.split("/")[4]))
+        if endpoint == f"/nodes/{NODE}/storage" and params.get("content") == "backup":
+            return [{"storage": "pbs", "type": "pbs", "active": 1, "content": "backup"}]
+        if endpoint == f"/nodes/{NODE}/storage/pbs/content":
+            now = time.time()
+            return [{"volid": f"pbs:backup/{vmid}/{i}", "vmid": vmid, "ctime": int(now - age * 86400 - i * 7 * 86400),
+                     "size": 8 * GB, "content": "backup"}
+                    for vmid, age in BACKUP_AGE.items() for i in range(3)]
         if endpoint == f"/nodes/{NODE}/storage":
             return [{"storage": "local", "type": "dir", "active": 1, "used": 38 * GB, "total": 94 * GB},
                     {"storage": "local-zfs", "type": "zfspool", "active": 1, "used": 612 * GB, "total": 1800 * GB},

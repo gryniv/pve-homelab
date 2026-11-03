@@ -455,6 +455,50 @@ async def disks(req):
     return web.json_response(summarize_disks(lst, [] if isinstance(zfs, Exception) else zfs))
 
 
+def summarize_backups(entries, guests, now, days):
+    """Latest backup per guest from backup storage listings; guests with none, or only older
+    than `days`, are "stale" and listed first."""
+    last = {}
+    seen = set()
+    for e in entries or []:
+        vol, vmid = e.get("volid"), e.get("vmid")
+        if not vmid or vol in seen:
+            continue
+        seen.add(vol)
+        r = last.setdefault(int(vmid), {"last": 0, "count": 0, "size": 0})
+        r["count"] += 1
+        r["size"] += e.get("size") or 0
+        r["last"] = max(r["last"], e.get("ctime") or 0)
+    out = []
+    for g in guests or []:
+        if g.get("template"):
+            continue
+        r = last.get(g["vmid"], {"last": 0, "count": 0, "size": 0})
+        out.append({"vmid": g["vmid"], "name": g.get("name") or "", "type": g.get("type"), **r,
+                    "stale": not r["last"] or now - r["last"] > days * 86400})
+    out.sort(key=lambda x: (not x["stale"], x["last"], x["vmid"]))
+    return {"allowed": True, "days": days, "guests": out, "stale": sum(x["stale"] for x in out)}
+
+
+@routes.get("/api/backups")
+async def backups(req):
+    """When each guest the user can see was last backed up, from the node's backup storages
+    (local dumps and Proxmox Backup Server alike)."""
+    s = await session(req)
+    pve, node = req.app["pve"], req.app["cfg"]["node"]
+    try:
+        days = min(365, max(1, int(req.query.get("days", 7))))
+    except ValueError:
+        days = 7
+    guests = await pve.get(s["ticket"], "/cluster/resources", type="vm")
+    stores = [x["storage"] for x in await pve.get(s["ticket"], f"/nodes/{node}/storage", content="backup") or []
+              if x.get("active")]
+    lists = await asyncio.gather(*(pve.get(s["ticket"], f"/nodes/{node}/storage/{quote(st, safe='')}/content", content="backup")
+                                   for st in stores), return_exceptions=True)
+    entries = [e for lst in lists if not isinstance(lst, Exception) for e in lst or []]
+    return web.json_response(summarize_backups(entries, guests, time.time(), days))
+
+
 @routes.get("/api/gpus")
 async def gpus(req):
     await session(req)

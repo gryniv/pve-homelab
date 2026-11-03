@@ -121,3 +121,34 @@ def test_summarize_disks_problems_first():
                          {"devpath": "/dev/c"}], [{"name": "tank", "health": "DEGRADED"}])
     assert [x["dev"] for x in d["disks"]] == ["/dev/b", "/dev/c", "/dev/a"]
     assert d["problems"] == 2  # failed disk + degraded pool; unknown SMART is not counted
+
+
+async def test_backups_per_guest(client):
+    await login(client)
+    b = await (await client.get("/api/backups?days=7")).json()
+    by = {g["vmid"]: g for g in b["guests"]}
+    assert by[100]["count"] == 3 and not by[100]["stale"]
+    assert by[102]["stale"] and by[102]["last"]          # 12 days old
+    never = [v for v in demo.WORLD if v not in demo.BACKUP_AGE and not demo.WORLD[v].get("template")]
+    assert never and all(by[v]["stale"] and by[v]["last"] == 0 for v in never)
+    assert b["stale"] == len(never) + 1
+    assert b["guests"][0]["last"] == 0  # never backed up comes first
+
+
+async def test_backups_follow_guest_permissions(client):
+    await login(client, "guest@pve")
+    b = await (await client.get("/api/backups")).json()
+    assert {g["vmid"] for g in b["guests"]} == demo.GUEST_SEES
+
+
+async def test_backups_days_clamped(client):
+    await login(client)
+    assert (await (await client.get("/api/backups?days=9999")).json())["days"] == 365
+    assert (await (await client.get("/api/backups?days=x")).json())["days"] == 7
+
+
+def test_summarize_backups_dedupes_volumes():
+    from pvehomelab.app import summarize_backups
+    e = [{"volid": "a", "vmid": 100, "ctime": 10, "size": 1}, {"volid": "a", "vmid": 100, "ctime": 10, "size": 1}]
+    b = summarize_backups(e, [{"vmid": 100, "name": "x", "type": "qemu"}], now=20, days=1)
+    assert b["guests"][0]["count"] == 1 and not b["guests"][0]["stale"]
