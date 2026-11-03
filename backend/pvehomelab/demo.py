@@ -52,6 +52,14 @@ USERS = [
     {"id": "guest@pve", "first": "Guest"},
     {"id": "root@pam", "first": ""},
 ]
+APT_UPDATES = [
+    {"Package": "pve-manager", "OldVersion": "9.2.1", "Version": "9.2.3", "Origin": "Proxmox"},
+    {"Package": "proxmox-kernel-6.17.4-2-pve-signed", "OldVersion": "", "Version": "6.17.4-2", "Origin": "Proxmox"},
+    {"Package": "qemu-server", "OldVersion": "9.1.4", "Version": "9.1.6", "Origin": "Proxmox"},
+    {"Package": "openssl", "OldVersion": "3.5.1-1", "Version": "3.5.1-1+deb13u1", "Origin": "Debian"},
+    {"Package": "libssl3t64", "OldVersion": "3.5.1-1", "Version": "3.5.1-1+deb13u1", "Origin": "Debian"},
+    {"Package": "tzdata", "OldVersion": "2025b-4", "Version": "2025c-0+deb13u1", "Origin": "Debian"},
+]
 GUEST_SEES = {100, 201, 202}   # guest@pve's permissions: one VM and two media services
 
 GPUS = {
@@ -118,6 +126,8 @@ class DemoPVE(PVE):
             return [{"storage": "local", "type": "dir", "active": 1, "used": 38 * GB, "total": 94 * GB},
                     {"storage": "local-zfs", "type": "zfspool", "active": 1, "used": 612 * GB, "total": 1800 * GB},
                     {"storage": "media", "type": "dir", "active": 1, "used": 7400 * GB, "total": 12000 * GB}]
+        if endpoint == f"/nodes/{NODE}/apt/update":
+            return APT_UPDATES
         if endpoint == "/access/permissions":
             path = params["path"]
             return {path: {p: 1 for p in self._privs(t.user, path)}}

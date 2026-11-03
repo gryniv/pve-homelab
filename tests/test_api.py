@@ -82,3 +82,21 @@ async def test_bad_ids_are_400_not_500(client):
     assert (await client.post("/api/launch", json={"vmid": 100}, headers=SEAT)).status == 400
     assert (await client.post("/api/console/abc")).status == 400
     assert (await client.get("/api/jobs/abc")).status == 404
+
+
+async def test_node_updates_summary(client):
+    await login(client)
+    u = await (await client.get("/api/node-updates")).json()
+    assert u["allowed"] and u["count"] == len(demo.APT_UPDATES)
+    assert u["proxmox"] == 3 and u["kernel"] is True
+    assert u["packages"][0]["origin"] == "Proxmox"  # Proxmox packages first
+
+
+async def test_node_updates_need_sys_modify(client):
+    await login(client, "guest@pve")
+    assert await (await client.get("/api/node-updates")).json() == {"allowed": False}
+
+
+def test_summarize_updates_empty():
+    from pvehomelab.app import summarize_updates
+    assert summarize_updates([]) == {"allowed": True, "count": 0, "proxmox": 0, "kernel": False, "packages": []}

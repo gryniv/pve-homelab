@@ -394,6 +394,31 @@ async def storage(req):
                                "total": r.get("total", 0)} for r in res or [] if r.get("active") and r.get("total")])
 
 
+KERNEL_PKG = re.compile(r"^(proxmox-kernel|pve-kernel|linux-image)-")
+
+
+def summarize_updates(pkgs):
+    """What /nodes/{node}/apt/update lists, reduced to what the widget shows."""
+    out = [{"name": p.get("Package", ""), "old": p.get("OldVersion", ""), "new": p.get("Version", ""),
+            "origin": p.get("Origin", "")} for p in pkgs or []]
+    out.sort(key=lambda p: (p["origin"] != "Proxmox", p["name"]))
+    return {"allowed": True, "count": len(out),
+            "proxmox": sum(p["origin"] == "Proxmox" for p in out),
+            "kernel": any(KERNEL_PKG.match(p["name"]) for p in out),
+            "packages": out[:50]}
+
+
+@routes.get("/api/node-updates")
+async def node_updates(req):
+    """Package updates waiting on this node, as Proxmox already knows them (its daily apt update);
+    reading the list needs Sys.Modify on the node, like in the Proxmox web UI."""
+    s = await session(req)
+    pve, node = req.app["pve"], req.app["cfg"]["node"]
+    if not await pve.can(s["ticket"], f"/nodes/{node}", "Sys.Modify"):
+        return web.json_response({"allowed": False})
+    return web.json_response(summarize_updates(await pve.get(s["ticket"], f"/nodes/{node}/apt/update")))
+
+
 @routes.get("/api/gpus")
 async def gpus(req):
     await session(req)
