@@ -179,6 +179,16 @@ demo.py            меню поверх вигаданого хоста, без
 
 ## Розробка
 
+Тести й перевірки працюють будь-де, Proxmox не потрібен: бекенд тестується через демо.
+
+```bash
+pip install -r requirements-dev.txt
+python -m pytest -q                         # бекенд: юніт-тести і HTTP API
+python3 tools/check_web.py                  # фронтенд: синтаксис JS, однакові ключі i18n у всіх мовах
+```
+
+GitHub Actions запускає їх на кожен push (Python 3.10–3.13), а також `shellcheck` для скриптів.
+
 На хості, поруч зі справжньою службою:
 
 ```bash

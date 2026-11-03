@@ -97,9 +97,15 @@ async def test_two_launches_on_one_gpu(client):
     # Both launches pass the dialog's checks before either job runs; only one may start.
     L = client.server.app["launcher"]
     ticket = next(iter(client.server.app["sessions"].values()))["ticket"]
-    a, b = await asyncio.gather(L.launch(ticket, "igpu", ubuntu["vmid"], gpu), L.launch(ticket, "igpu", fedora["vmid"], gpu))
-    ja, jb = await _wait(client, a.id), await _wait(client, b.id)
+    a, b = await asyncio.gather(L.launch(ticket, "igpu", ubuntu["vmid"], gpu),
+                                L.launch(ticket, "igpu", fedora["vmid"], gpu), return_exceptions=True)
+    ja = await _wait(client, a.id)
     assert ja["error"] is None
-    assert jb["error"] and str(ubuntu["vmid"]) in jb["error"]
+    # The second one is refused either up front (the GPU already looks busy) or by its job.
+    if isinstance(b, Exception):
+        assert getattr(b, "status", None) == 409
+    else:
+        jb = await _wait(client, b.id)
+        assert jb["error"] and str(ubuntu["vmid"]) in jb["error"]
     running = [v for v in (ubuntu["vmid"], fedora["vmid"]) if demo.WORLD[v]["status"] == "running"]
     assert running == [ubuntu["vmid"]]

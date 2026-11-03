@@ -27,6 +27,17 @@ def err(status, msg):
     return web.json_response({"error": msg}, status=status)
 
 
+def vmid_of(value):
+    """A VM/CT id from the URL or a request body; anything else is the caller's mistake (400)."""
+    try:
+        v = int(value)
+    except (TypeError, ValueError):
+        raise web.HTTPBadRequest(text="bad vmid")
+    if not 100 <= v <= 999999999:
+        raise web.HTTPBadRequest(text="bad vmid")
+    return v
+
+
 def seat_of(req):
     seat = req.query.get("seat") or req.headers.get("X-Seat") or ""
     if seat not in req.app["cfg"]["seats"]:
@@ -348,7 +359,7 @@ async def guests(req):
 @routes.post("/api/guests/{type}/{vmid}/{action}")
 async def guest_action(req):
     s = await session(req)
-    typ, vmid, action = req.match_info["type"], int(req.match_info["vmid"]), req.match_info["action"]
+    typ, vmid, action = req.match_info["type"], vmid_of(req.match_info["vmid"]), req.match_info["action"]
     if typ not in ("qemu", "lxc") or action not in ("start", "shutdown", "stop", "reboot"):
         raise web.HTTPBadRequest(text="bad action")
     node = req.app["cfg"]["node"]
@@ -404,8 +415,13 @@ async def systems(req):
 @routes.post("/api/launch")
 async def launch(req):
     s = await session(req)
-    body = await req.json()
-    job = await req.app["launcher"].launch(s["ticket"], seat_of(req), int(body["vmid"]), body["gpu"])
+    try:
+        body = await req.json()
+    except ValueError:
+        raise web.HTTPBadRequest(text="JSON expected")
+    if not isinstance(body, dict) or not isinstance(body.get("gpu"), str):
+        raise web.HTTPBadRequest(text="vmid and gpu expected")
+    job = await req.app["launcher"].launch(s["ticket"], seat_of(req), vmid_of(body.get("vmid")), body["gpu"])
     req.app["resources"].invalidate()
     return web.json_response(job.as_dict())
 
@@ -413,7 +429,8 @@ async def launch(req):
 @routes.get("/api/jobs/{id}")
 async def job(req):
     await session(req)
-    j = req.app["launcher"].jobs.get(int(req.match_info["id"]))
+    jid = req.match_info["id"]
+    j = req.app["launcher"].jobs.get(int(jid)) if jid.isdigit() else None
     if not j:
         raise web.HTTPNotFound()
     return web.json_response(j.as_dict())
@@ -423,7 +440,7 @@ async def job(req):
 async def console_open(req):
     """VNC ticket for a VM's screen, issued with the user's own PVE ticket."""
     s = await session(req)
-    vmid = int(req.match_info["vmid"])
+    vmid = vmid_of(req.match_info["vmid"])
     node = req.app["cfg"]["node"]
     d = await req.app["pve"].post(s["ticket"], f"/nodes/{node}/qemu/{vmid}/vncproxy", websocket=1)
     token = secrets.token_urlsafe(24)

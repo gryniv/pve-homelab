@@ -326,6 +326,16 @@ demo.py              the real app over an in-memory fake host
 
 ## Development
 
+Tests and checks run anywhere, no Proxmox needed: the backend is tested through the demo.
+
+```bash
+pip install -r requirements-dev.txt
+python -m pytest -q                         # backend: unit tests and the HTTP API
+python3 tools/check_web.py                  # front end: JS syntax, same i18n keys in every language
+```
+
+GitHub Actions runs both on every push (Python 3.10 to 3.13), plus `shellcheck` on the scripts.
+
 On the host, next to the real service:
 
 ```bash
