@@ -87,6 +87,7 @@ REGISTRY = [
     S("launch.allow_igpu", "bool", "launch"),
     S("launch.return_to_menu", "bool", "launch"),
     S("launch.follow_start", "choice", "launch", choices=("boot", "always", "never")),
+    S("launch.sunshine", "bool", "launch"),
     S("input.mode", "choice", "launch", choices=("evdev", "off")),
     S("input.hotkey", "choice", "launch", choices=("ctrl-ctrl", "alt-alt", "shift-shift", "meta-meta", "scrolllock", "ctrl-scrolllock")),
     S("input.gamepads", "choice", "launch", choices=("usb", "off")),

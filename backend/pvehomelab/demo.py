@@ -26,7 +26,7 @@ NODE = "demo"
 WORLD = {
     100: dict(type="qemu", name="ubuntu-desktop", status="stopped", tags="seat", cores=8, mem=16, ostype="l26", vga="virtio"),
     101: dict(type="qemu", name="home-server", status="running", tags="", cores=4, mem=8, ostype="l26", vga="std", ip="10.0.0.101"),
-    102: dict(type="qemu", name="win11-gaming", status="stopped", tags="seat", cores=12, mem=32, ostype="win11", vga="std", hostpci={0: "mapping=rtx,pcie=1,x-vga=1"}),
+    102: dict(type="qemu", name="win11-gaming", status="stopped", tags="seat", cores=12, mem=32, ostype="win11", vga="std", hostpci={0: "mapping=rtx,pcie=1,x-vga=1"}, agent="1"),
     103: dict(type="qemu", name="fedora-workstation", status="stopped", tags="seat", cores=8, mem=12, ostype="l26", vga="virtio"),
     200: dict(type="lxc", name="caddy", status="running", cores=1, mem=0.5, ip="10.0.0.200"),
     201: dict(type="lxc", name="jellyfin", status="running", cores=4, mem=4, ip="10.0.0.201"),
@@ -145,7 +145,7 @@ def qemu_config(vmid):
     g = WORLD[vmid]
     conf = {"name": g["name"], "ostype": g.get("ostype", "l26"), "cores": g["cores"], "sockets": 1,
             "memory": str(int(g["mem"] * 1024)), "vga": g.get("vga", "std"), "tags": g.get("tags", "")}
-    for k in ("onboot", "startup", "description", "balloon", "swap"):
+    for k in ("onboot", "startup", "description", "balloon", "swap", "agent"):
         if g.get(k) not in (None, ""):
             conf[k] = g[k]
     conf.update({f"hostpci{n}": v for n, v in g["hostpci"].items()})
@@ -341,6 +341,15 @@ async def demo_pvesh(path, /, **params):
     if path == "/version":
         return {"version": "9.2-demo"}
     return []
+
+
+async def demo_pvesh_create(path, /, **params):
+    """An agent ping answers when the VM runs."""
+    if path.endswith("/agent/ping"):
+        if WORLD.get(int(path.split("/")[4]), {}).get("status") != "running":
+            raise RuntimeError("guest agent not running")
+        return {}
+    return None
 
 
 async def demo_routes(cfg):
@@ -690,6 +699,8 @@ def make_app():
     caddy.static_ips = demo_static_ips
     discover.discover = demo_discover
     L.run = demo_run
+    L.pvesh = demo_pvesh
+    L.pvesh_create = demo_pvesh_create
     from . import inputs
     inputs.host_units = demo_units
     inputs.monitor = demo_monitor

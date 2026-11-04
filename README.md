@@ -74,6 +74,11 @@ signed in, so each person sees and controls exactly what PVE allows them to.
   (`x-vga`, `romfile`, a mapping) and its display are kept, and the next start on a discrete GPU
   puts them back.
 - Each step (assign GPU, start, switch monitor) shows as a clear checklist while it happens.
+- **When is it up:** for a VM with the QEMU guest agent the steps go on to "it answers", and with
+  `launch.sunshine: true` to "Sunshine answers: Moonlight may connect" (port 47989), handy when it
+  was started from a phone to be streamed.
+- **A macropad** left with the host (untick it in *Settings → Systems*) can switch too: its key sending
+  **F13** does what both Ctrl do.
 - **Memory and cores for a start:** the dialog of a stopped VM offers both; a change is written into
   its config with your own rights before the start, and stays.
 - GPUs given to VMs as Proxmox **resource mappings** (`hostpci0: mapping=…`, PVE 8+) are understood

@@ -610,5 +610,7 @@
   "cfg.f.hours": "Години",
   "cfg.f.daily_min": "Хвилин на день",
   "cfg.f.grace_min": "Запас, хв",
-  "cfg.f.exempt": "Не для"
+  "cfg.f.exempt": "Не для",
+  "cfg.launch.sunshine": "Чекати на Sunshine після запуску",
+  "cfg.launch.sunshine_hint": "кроки запуску скажуть, коли можна підключатися з Moonlight (порт 47989); потрібен гостьовий агент"
 }

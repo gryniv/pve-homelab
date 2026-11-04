@@ -37,7 +37,7 @@ DEFAULTS = {
     "update": {"repo": "", "channel": "release", "branch": "main", "auto": False, "check_hours": 6},
     "seats": {},
     "monitors": {},
-    "launch": {"assign_gpu": True, "allow_igpu": False, "return_to_menu": True, "follow_start": "boot"},
+    "launch": {"assign_gpu": True, "allow_igpu": False, "return_to_menu": True, "follow_start": "boot", "sunshine": False},
     # The keyboard, mouse and gamepads of a screen on the host go into a system with its monitor:
     # mode evdev (keyboard and mouse; both Ctrl give them back) or off; devices: [] = all of them.
     "input": {"mode": "evdev", "hotkey": "ctrl-ctrl", "devices": [], "gamepads": "usb"},

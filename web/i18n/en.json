@@ -610,5 +610,7 @@
   "cfg.f.hours": "Hours",
   "cfg.f.daily_min": "Minutes a day",
   "cfg.f.grace_min": "Grace, min",
-  "cfg.f.exempt": "Not for"
+  "cfg.f.exempt": "Not for",
+  "cfg.launch.sunshine": "Wait for Sunshine after a start",
+  "cfg.launch.sunshine_hint": "the launch steps say when Moonlight may connect (port 47989); needs the guest agent"
 }

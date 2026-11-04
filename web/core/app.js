@@ -661,6 +661,8 @@ async function bothCtrl() {
   } catch (e) { if (st.screen !== 'away') toast(e.message, e.status >= 500); }
 }
 addEventListener('keydown', (e) => {
+  // F13: a macropad's key, the macropad left with the host (Settings → Systems), does what both Ctrl do
+  if (e.key === 'F13') { e.preventDefault(); bothCtrl(); return; }
   if (e.code === 'ControlLeft' || e.code === 'ControlRight') {
     ctrls.add(e.code);
     if (ctrls.size === 2 && !bothFired) { bothFired = true; bothCtrl(); }

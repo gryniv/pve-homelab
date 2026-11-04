@@ -400,3 +400,20 @@ async def test_monitors_go_dark_when_idle_and_wake_on_a_key(client, monkeypatch)
     await power.check()
     assert app["seats"].get("igpu")["screen"] == "on"
 
+
+
+# ---------- after the start: the guest agent, then Sunshine ----------
+async def test_the_launch_waits_for_the_guest_agent_and_says_about_sunshine(client, monkeypatch):
+    await login(client)
+    app = client.server.app
+    monkeypatch.setitem(app["cfg"]["launch"], "sunshine", True)
+
+    async def no_ip(vmid):
+        return None
+    monkeypatch.setattr(app["launcher"], "_vm_ip", no_ip)
+    r = await client.post("/api/launch", json={"vmid": 102, "gpu": RTX, "input": False}, headers={"X-Seat": "igpu"})
+    assert r.status == 200, await r.text()
+    j = await _wait(client, (await r.json())["id"], timeout=20)
+    texts = [s["text"] for s in j["steps"]]
+    assert j["error"] is None and any("agent" in t for t in texts) and any("Sunshine" in t for t in texts)
+    assert j["steps"][-2]["state"] == "done" and j["steps"][-1]["state"] == "skip"     # no Sunshine found

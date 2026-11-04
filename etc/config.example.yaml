@@ -42,6 +42,7 @@ launch:
   assign_gpu: true            # write the chosen GPU into the VM config before start
   allow_igpu: false           # true = pass the seat GPU through entirely (otherwise VirGL inside the menu)
   return_to_menu: true        # switch the monitor back to the menu when the VM stops
+  sunshine: false             # after a start, wait for Sunshine (port 47989) and say when Moonlight may connect
   follow_start: boot          # a VM on a monitor's GPU that starts without the menu (onboot, Proxmox UI) gets
                               # the monitor: boot = only while the host is booting, always, never
 

@@ -11,13 +11,14 @@ from . import config, inputs
 from . import gpus as G
 from .i18n import _
 from .pve import PVEError
-from .util import log, run
+from .util import log, pvesh, pvesh_create, run
 
 _job_ids = itertools.count(1)
 
 HOSTPCI = re.compile(r"^hostpci(\d+):\s*(.*)$", re.M)
 VGA = re.compile(r"^vga:\s*(.*)$", re.M)
 FOLLOW_WINDOW = 180      # s: a VM up for less than this was just started
+SUNSHINE_PORT = 47989    # Sunshine's HTTP port: Moonlight can pair and connect once it answers
 BOOT_WINDOW = 600        # s: the host is still booting (its onboot VMs come up now)
 
 
@@ -113,7 +114,8 @@ class Job:
 
     def finish(self):
         for s in self.steps:
-            s["state"] = "done"
+            if s["state"] != "skip":
+                s["state"] = "done"
         self.done = True
 
     def as_dict(self):
@@ -152,6 +154,7 @@ class Launcher:
                 "cores": conf.get("cores", 1) * conf.get("sockets", 1),
                 "memory": int(conf.get("memory", 0)), "gpus": gpu_list,
                 "uptime": g.get("uptime", 0),
+                "agent": str(conf.get("agent", "0")).split(",")[0] in ("1", "enabled=1"),
             })
         return sorted(out, key=lambda s: s["vmid"])
 
@@ -240,6 +243,9 @@ class Launcher:
         steps = [_("step_wake" if vm["suspended"] else "step_start", vm=vm["name"], id=vmid)]
         if console:
             steps.append(_("step_show_short"))
+        boot_at = len(steps)
+        if not console:
+            steps += self.boot_steps(vm)
 
         async def go(job):
             async with self._lock(f"vm:{vmid}"):
@@ -252,6 +258,8 @@ class Launcher:
                 job.step(1)
                 await asyncio.sleep(1.5)
                 job.result = {"console": vmid}
+            else:
+                await self.wait_boot(job, boot_at, vm)
         return self.start_job(go, steps)
 
     # ---------- actions ----------
@@ -341,6 +349,8 @@ class Launcher:
         want_input = want_input and bool(mon)
         if want_input:
             steps.append(_("step_input", vm=vm["name"]))
+        boot_at = len(steps)
+        steps += self.boot_steps(vm)
 
         async def go(job):
             async with self._lock(f"gpu:{gpu}"), self._lock(f"vm:{vmid}"):
@@ -379,6 +389,7 @@ class Launcher:
                     job.step(i + 1)
                     await asyncio.sleep(1)   # QEMU's monitor answers once the VM runs
                     await self.give_input(seat_id, vmid)
+            await self.wait_boot(job, boot_at, vm)
         return self.start_job(go, steps)
 
     async def _launch_virgl(self, t, vm, opt):
@@ -575,6 +586,63 @@ class Launcher:
         await asyncio.sleep(seconds)
         if self.app["seats"].get(sid)["shows"] == vmid:
             await ddc.switch_to_gpu(mon, vm_gpu)
+
+    # ---------- after the start: is the system up (its guest agent answers), is Sunshine there ----------
+    def boot_steps(self, vm):
+        """The steps that follow a start: the guest agent answering, then Sunshine (if asked for)."""
+        if not vm.get("agent"):
+            return []
+        steps = [_("step_agent", vm=vm["name"])]
+        if self.cfg["launch"].get("sunshine"):
+            steps.append(_("step_sunshine"))
+        return steps
+
+    async def wait_boot(self, job, first, vm):
+        i = first
+        if not vm.get("agent"):
+            return
+        job.step(i)
+        if not await self._wait_agent(vm["vmid"]):
+            job.step(i, "skip")
+            return
+        if self.cfg["launch"].get("sunshine"):
+            job.step(i + 1)
+            ip = await self._vm_ip(vm["vmid"])
+            if not ip or not await self._wait_port(ip, SUNSHINE_PORT):
+                job.step(i + 1, "skip")
+
+    async def _wait_agent(self, vmid, timeout=180):
+        end = time.monotonic() + timeout
+        while time.monotonic() < end:
+            try:
+                await pvesh_create(f"/nodes/{self.cfg['node']}/qemu/{vmid}/agent/ping")
+                return True
+            except Exception:
+                await asyncio.sleep(3)
+        return False
+
+    async def _vm_ip(self, vmid):
+        try:
+            res = await pvesh(f"/nodes/{self.cfg['node']}/qemu/{vmid}/agent/network-get-interfaces")
+        except Exception:
+            return None
+        for i in (res or {}).get("result", []):
+            for a in i.get("ip-addresses", []):
+                ip = a.get("ip-address", "")
+                if a.get("ip-address-type") == "ipv4" and not ip.startswith(("127.", "169.254.", "172.17.")):
+                    return ip
+        return None
+
+    async def _wait_port(self, ip, port, timeout=90):
+        end = time.monotonic() + timeout
+        while time.monotonic() < end:
+            try:
+                _, w = await asyncio.wait_for(asyncio.open_connection(ip, port), 3)
+                w.close()
+                return True
+            except (OSError, asyncio.TimeoutError):
+                await asyncio.sleep(3)
+        return False
 
     def on_monitor(self, sid):
         """The VMs running on GPUs wired to seat `sid`'s monitor, the menu knows of (watched)."""
