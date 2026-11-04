@@ -82,6 +82,8 @@ saver:
   after_min: 5                # screensaver on the login screen
 lock_after_min: 15            # log out of the dashboard after this much inactivity
 
+designer: false               # live reload of designs while you work on them on the host (the demo has it on)
+
 alerts:                       # the bell in the top bar
   storage_pct: 90             # a storage this full (%) is reported
   temp_c: 85                  # host temperature (°C) worth a warning

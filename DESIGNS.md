@@ -109,8 +109,8 @@ clock.
 /*
  * @kind theme
  * @name.en Phosphor
- * @background vector
- * @clock tty
+ * @background night
+ * @clock neon
  * @option color = amber | green
  * @option.en color Phosphor: amber | green
  * @option.uk color Люмінофор: бурштиновий | зелений

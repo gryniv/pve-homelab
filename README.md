@@ -82,7 +82,8 @@ or sort by name or status.
 
 ### Containers and VMs
 A compact list of every guest you're allowed to see, with state, CPU and memory, and start,
-shut down, reboot and console where your rights allow it.
+shut down, reboot and console where your rights allow it. A guest's row opens its history:
+CPU, memory and network graphs for an hour, a day or a week, its snapshots and its last backup.
 
 ### Looks: themes, backgrounds, fonts, clocks
 - **4 themes** (Dusk, Forest, Graphite, North) that recolour everything, including the landscapes.
@@ -114,6 +115,9 @@ settings form (⚙) and a live preview:
 | Services | how many services are up, and which are down | list style |
 | Network | traffic, address, load | fields |
 | Storage | how full each storage is | which storages, used or free |
+| Disks | SMART health and SSD wear of each disk, ZFS pools | only problems |
+| Backups | guests without a recent backup | stale after how many days, guests to list |
+| Wake up | Wake-on-LAN buttons for the machines in `wol:` | |
 | Proxmox updates | packages waiting on the node, a new kernel, when the lists were checked | packages to list |
 | Links | your own bookmarks, opened as tabs | links |
 | Note | your text | heading, text |
@@ -144,6 +148,9 @@ cards, and settings and dialogs take the whole width.
   packages waiting; an amber dot means a new kernel is among them. Its dialog lists them, says when
   the package lists were last checked, checks again on request, and opens Proxmox, where they are
   installed (*Node → Updates → Upgrade*). It can be turned off in *Settings → Dashboard*.
+- **Alerts.** A bell in the top bar counts what needs a look, worst first: a failing disk or ZFS
+  pool, a storage nearly full, a hot host, guests without a recent backup, a service whose guest is
+  down. The limits are under `alerts:` in `config.yaml`.
 - **Error journal.** Backend warnings and the screens' own errors (JavaScript, failed widgets,
   server errors) are collected in *Settings → About*, and also in `/var/log/pve-homelab/errors.log`.
 - **Write to the author.** *Settings → About → Write to the author* composes a GitHub issue: a bug,
@@ -278,7 +285,13 @@ After installing:
    loopback gets 403. A browser that comes through the proxy is the **web seat**: it never switches
    a monitor or hands over a GPU; a system opens right in the browser (noVNC) or starts on the GPU
    it already has. `web: {enabled: false}` turns this off.
-5. Apply the changes with `systemctl restart pve-homelab 'pve-homelab-kiosk@*'`.
+5. **Wake-on-LAN.** Machines the *Wake up* widget can switch on go under `wol:`; whoever presses
+   the button needs `Sys.PowerMgmt` on the node:
+   ```yaml
+   wol:
+     - {name: NAS, mac: "aa:bb:cc:dd:ee:ff"}
+   ```
+6. Apply the changes with `systemctl restart pve-homelab 'pve-homelab-kiosk@*'`.
 
 Every option is explained in [`etc/config.example.yaml`](etc/config.example.yaml).
 

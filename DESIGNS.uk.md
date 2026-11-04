@@ -108,8 +108,8 @@ CSS-змінні на селекторі теми; усе інше виводи�
 /*
  * @kind theme
  * @name.uk Фосфор
- * @background vector
- * @clock tty
+ * @background night
+ * @clock neon
  * @option color = amber | green
  * @option.uk color Люмінофор: бурштиновий | зелений
  * @option.en color Phosphor: amber | green

@@ -15,8 +15,8 @@ const ZONES = {
 };
 
 const SECTIONS = [
-  ['look', 'i-palette'], ['login', 'i-lock'], ['dash', 'i-layout'], ['systems', 'i-monitor'],
-  ['weather', 'i-cloud'], ['about', 'i-info'],
+  ['look', 'i-palette', 'set.s.look'], ['login', 'i-lock', 'set.s.login'], ['dash', 'i-layout', 'set.s.dash'],
+  ['systems', 'i-monitor', 'set.s.systems'], ['weather', 'i-cloud', 'set.s.weather'], ['about', 'i-info', 'set.s.about'],
 ];
 // Settings → Look: a grid of designs (grid); one opens like a folder with everything it is worn
 // with (design: the current one); My designs installs and removes them (mine).
@@ -601,7 +601,7 @@ function draw() {
   $('#settingsBox').innerHTML = `
     <nav class="snav">
       <div class="me2"><span class="av" style="background:${av.bg}">${av.inner}</span><div><b>${esc(me.name)}</b><small>${esc(me.id)}</small></div></div>
-      ${SECTIONS.map(([id, ic]) => `<button type="button" data-sp="${id}" aria-selected="${id === current}">${icon(ic)}${t('set.s.' + id)}</button>`).join('')}
+      ${SECTIONS.map(([id, ic, label]) => `<button type="button" data-sp="${id}" aria-selected="${id === current}">${icon(ic)}${t(label)}</button>`).join('')}
       <span class="sp"></span><span class="saved" id="savedNote">${t('set.saved_hint')}</span>
     </nav>
     <div class="scont"><button class="chipbtn sclose" type="button" id="sClose">${icon('i-x')}${t('set.close')}</button>${views[current](p)}</div>`;
