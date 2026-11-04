@@ -27,6 +27,10 @@ import time
 import aiohttp
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# Settings shows "…" while a list (My designs, My widgets) loads, then draws the section again:
+# a file chosen in the install input before that lands in an input that is gone.
+LOADED = "![...document.querySelectorAll('.scont p.mute')].some((e) => e.textContent.trim() === '…')"
+
 API = ("const q = (m, p, b) => fetch(p + (p.includes('?') ? '&' : '?') + 'seat=igpu', {method: m, "
        "headers: {'Content-Type': 'application/json', 'X-Seat': 'igpu'}, body: b && JSON.stringify(b)}).then((r) => r.json());")
 
@@ -55,7 +59,13 @@ class Page:
         async for m in self.ws:
             d = json.loads(m.data)
             if "id" in d and d["id"] in self.pending:
-                self.pending.pop(d["id"]).set_result(d.get("result", {}))
+                fut, method = self.pending.pop(d["id"])
+                # A protocol error must not pass for an empty answer: a file set on a node the page
+                # has just redrawn ("Could not find node with given id") would go nowhere unnoticed.
+                if "error" in d:
+                    fut.set_exception(RuntimeError(f"{method}: {d['error'].get('message')}"))
+                else:
+                    fut.set_result(d.get("result", {}))
             elif d.get("method") == "Runtime.exceptionThrown":
                 x = d["params"]["exceptionDetails"]
                 self.errors.append((x.get("exception") or {}).get("description") or x.get("text"))
@@ -63,7 +73,7 @@ class Page:
     async def send(self, method, **params):
         self.n += 1
         fut = asyncio.get_running_loop().create_future()
-        self.pending[self.n] = fut
+        self.pending[self.n] = (fut, method)
         await self.ws.send_json({"id": self.n, "method": method, "params": params})
         return await fut
 
@@ -375,7 +385,8 @@ async def my_designs(r):
                  "document.querySelector('#lookTabs [data-v=mine]').click();")
     await r.open()
     await p.js(open_mine)
-    ok = await p.until("return !!document.querySelector('#designPick') && document.querySelector('.mylist, .scont .mute:not(.dinstall .mute)') !== null;", 5)
+    ok = await p.until(f"return !!document.querySelector('#designPick') && {LOADED} && "
+                       "document.querySelector('.mylist, .scont .mute:not(.dinstall .mute)') !== null;", 8)
     r.check("an admin sees My designs with an install button", ok)
     # choose the file in the real file input, as a person would through the file dialog
     doc = await p.send("DOM.getDocument")
@@ -538,7 +549,7 @@ async def my_widgets(r):
         await r.open()
         await p.js(open_dash)
         r.check("an admin sees My widgets with an install button and the warning",
-                await p.until("return !!document.querySelector('#widgetPick') && !!document.querySelector('.wwarn');", 5))
+                await p.until(f"return !!document.querySelector('#widgetPick') && !!document.querySelector('.wwarn') && {LOADED};", 8))
         doc = await p.send("DOM.getDocument")
         node = await p.send("DOM.querySelector", nodeId=doc["root"]["nodeId"], selector="#widgetFiles")
         await p.send("DOM.setFileInputFiles", files=[js, css, en], nodeId=node["nodeId"])
