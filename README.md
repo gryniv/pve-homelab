@@ -136,6 +136,11 @@ A mouse works everywhere, but you never need one.
   click, and nightly auto-update is optional. No git is needed on the host.
 - **Error journal.** Backend warnings and the screens' own errors (JavaScript, failed widgets,
   server errors) are collected in *Settings → About*, and also in `/var/log/pve-homelab/errors.log`.
+- **Write to the author.** *Settings → About → Write to the author* composes a GitHub issue: a bug,
+  an idea or a question, optionally with the versions and the latest errors (user, host and guest
+  names and addresses taken out). Everything that would be sent is shown first; a QR code takes it
+  to a phone to finish there, or it opens in a tab. Nothing leaves the host until you submit it on
+  GitHub. `feedback: false` in `config.yaml` hides it.
 - **English and Ukrainian.** A new language is one JSON file.
 
 ## Screenshots

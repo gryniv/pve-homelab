@@ -15,6 +15,7 @@ import * as fonts from './fonts.js';
 import * as errlog from './errlog.js';
 import * as i18n from './i18n.js';
 import * as help from './help.js';
+import * as feedback from './feedback.js';
 import * as alerts from './alerts.js';
 import * as updates from './updates.js';
 import * as designer from './designer.js';
@@ -39,6 +40,7 @@ const app = {
   systems: () => st.systems,
   updateStatus: () => updates.status(),
   showHelp: () => help.show(),
+  showFeedback: (from) => feedback.show(from),
   isNight: scene.isNight,
   avatarOf: (u) => avatar(u, u.avatar ?? st.prefs?.avatar),
   guestCounts: () => st.pub.guests,
@@ -447,6 +449,7 @@ function tick() {
 
 /* ---------------- keyboard help, alerts, updates: their own modules ---------------- */
 help.init(() => st.screen);
+feedback.init();
 alerts.init();
 updates.init();
 

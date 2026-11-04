@@ -277,6 +277,22 @@ html,body{margin:0;height:100%;background:#05080e}
 .A .gtools input:focus{outline:none;border-color:var(--acc)}
 /* a guest's history */
 .A .confirm.gdetail{width:min(44em,92vw)}
+/* Write to the author */
+.A .confirm.feedback{width:min(52em,94vw);max-height:92vh;overflow:auto}
+.A .confirm.feedback .lead{margin:-.4em 0 0}
+.A .fbgrid{display:grid;grid-template-columns:1fr 15em;gap:1.4em;align-items:start}
+.A .fbform{display:flex;flex-direction:column;gap:.8em;min-width:0}
+.A .fbform .fld{max-width:none;margin:0}
+.A .fbform textarea{min-height:7em;resize:vertical}
+.A .fbside{display:flex;flex-direction:column;align-items:center;gap:.7em;text-align:center}
+.A .fbqr{width:15em;aspect-ratio:1;background:#fff;border-radius:.6em;padding:.4em}
+.A .fbqr svg{display:block;width:100%;height:100%}
+.A .fbnote{font-size:.82em;margin:0}
+.A .fbside .btn{display:inline-flex;align-items:center;gap:.5em}
+.A .fbprev summary{cursor:pointer;color:var(--mute);font-size:.88em}
+.A .fbprev pre{white-space:pre-wrap;word-break:break-word;font-size:.8em;max-height:16em;overflow:auto;background:rgba(255,255,255,.04);border-radius:.6em;padding:.8em;margin:.5em 0 0}
+.A .aboutbtns{display:flex;gap:.7em;flex-wrap:wrap}
+@media (max-width:760px){.A .fbgrid{grid-template-columns:1fr}.A .fbqr{width:min(15em,70vw)}}
 .A .gdetail .ghead{display:flex;align-items:center;justify-content:space-between;gap:1em;flex-wrap:wrap}
 .A .gdetail .ghead h3{margin:0}
 .A .gchart{margin:.2em 0 .6em}

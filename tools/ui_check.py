@@ -399,6 +399,44 @@ async def my_designs(r):
     shutil.rmtree(os.path.dirname(theme), ignore_errors=True)
 
 
+async def write_to_author(r):
+    """Settings → About → Write to the author: the issue is shown, the QR code and the link follow it."""
+    p = r.p
+    open_about = ("document.querySelector('.top [data-go=settings]').click();"
+                  "await new Promise(r => setTimeout(r, 500));"
+                  "document.querySelector('[data-sp=about]').click();")
+    await r.open()
+    await p.js(open_about)
+    await p.until("return !!document.querySelector('#writeAuthor');", 5)
+    await p.js("document.querySelector('#writeAuthor').click();", 0.3)
+    shown = await p.until("return !document.querySelector('#feedbackLayer').hidden && document.activeElement?.id === 'fbSubject' && "
+                          "!!document.querySelector('#fbQr svg path');", 8)
+    r.check("the dialog opens on the subject, with a QR code", shown)
+    await p.js("const s = document.querySelector('#fbSubject'); s.value = 'Clock freezes'; s.dispatchEvent(new Event('input'));"
+               "document.querySelector('#fbKind [data-v=idea]').click();", 0.2)
+    body = await p.until("const b = document.querySelector('#fbBody').textContent; return b.startsWith('Idea: Clock freezes') && b;", 6)
+    r.check("what will be sent follows the form", bool(body) and "PVE Homelab" in body and "Proxmox VE" in body, (body or "")[:120])
+    r.check("an admin may add the error journal", await p.js("return !document.querySelector('#fbJournalRow').hidden;"))
+    await p.js("document.querySelector('#fbJournal').click();")
+    r.check("…which then shows in it", bool(await p.until("return document.querySelector('#fbBody').textContent.includes('Error journal');", 6)))
+    await p.js("window.__opened = null; window.open = (u) => { window.__opened = u; return null; };"
+               "document.querySelector('#fbOpen').click();", 0.3)
+    url = await p.js("return window.__opened;")
+    r.check("Open here opens the new issue on GitHub", bool(url) and url.startswith("https://github.com/gryniv/pve-homelab/issues/new?title=Idea%3A%20Clock%20freezes"),
+            (url or "")[:100])
+    await p.key("Escape", 27)
+    await asyncio.sleep(0.3)
+    r.check("Esc closes it, focus back on the button, settings still open",
+            await p.js("return document.querySelector('#feedbackLayer').hidden && document.activeElement?.id === 'writeAuthor' && "
+                       "!document.querySelector('[data-layer=settings]').hidden;"))
+    await r.open("guest@pve")
+    await p.js(open_about)
+    await p.until("return !!document.querySelector('#writeAuthor');", 5)
+    await p.js("document.querySelector('#writeAuthor').click();", 0.3)
+    await p.until("return !!document.querySelector('#fbQr svg path');", 8)
+    r.check("someone without Sys.Audit can't add the journal", await p.js("return document.querySelector('#fbJournalRow').hidden;"))
+
+
 async def widget_strings(r):
     """Every widget's strings come from its i18n/<lang>.json files, in each language."""
     p = r.p
@@ -547,7 +585,7 @@ async def misc(r):
 
 CHECKS = {"guests": guests, "logout": logout, "widgets": widgets, "toasts": toasts, "offline": offline,
           "aria": dialogs_aria, "alerts": alerts, "update": failed_update, "focus": settings_focus,
-          "console": console, "launch": launch, "search": search, "order": reorder, "guests_table": guest_table, "designs": my_designs, "widget_strings": widget_strings, "my_widgets": my_widgets, "designing": designing, "tabs": service_tabs, "misc": misc}
+          "console": console, "launch": launch, "search": search, "order": reorder, "guests_table": guest_table, "designs": my_designs, "widget_strings": widget_strings, "my_widgets": my_widgets, "feedback": write_to_author, "designing": designing, "tabs": service_tabs, "misc": misc}
 
 
 # ---------------------------------------------------------------- driver

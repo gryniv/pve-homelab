@@ -11,7 +11,7 @@ from urllib.parse import quote
 import aiohttp
 from aiohttp import web
 
-from . import caddy, config, designs, discover, errlog, gpus as G, i18n, icons, prefs, update, userwidgets, weather, wol
+from . import caddy, config, designs, discover, errlog, feedback, gpus as G, i18n, icons, prefs, update, userwidgets, weather, wol
 from .ddc import DDC
 from .host import HostStats
 from .launch import Launcher
@@ -184,6 +184,7 @@ async def public(req):
         "fonts": designs.catalog("fonts"),
         "widget_styles": [m["id"] for m in designs.catalog("widgets")],
         "designer": designer_mode(app),
+        "feedback": feedback_cfg(cfg)["enabled"],
         "login": prefs.load_login(),
         "widgets": userwidgets.all_ids(),
     })
@@ -441,6 +442,60 @@ async def widgets_remove(req):
         raise web.HTTPNotFound(text="no such widget of yours")
     log.info("widget %s removed by %s", wid, s["user"])
     return web.json_response({"ok": True})
+
+
+# ---------------- writing to the author ----------------
+def feedback_cfg(cfg):
+    """`feedback:` in config.yaml, as {enabled, repo}; `feedback: false` turns it off."""
+    fb = cfg.get("feedback")
+    if isinstance(fb, bool):
+        return {"enabled": fb, "repo": ""}
+    fb = fb if isinstance(fb, dict) else {}
+    return {"enabled": fb.get("enabled", True) is not False, "repo": str(fb.get("repo") or "")}
+
+
+async def feedback_known(app):
+    """Names this host knows of, to take out of what is sent: node, users, guests, services."""
+    out = [(app["cfg"]["node"], "<node>"), (app.get("host_ip") or "", "<ip>")]
+    for u in pve_users(app):
+        out += [(u["id"], "<user>"), (u.get("name") or "", "<user>"), (u.get("full") or "", "<user>")]
+    try:
+        out += [(g.get("name") or "", "<guest>") for g in await app["resources"].get()]
+        for svc in await app["services"].get():
+            out += [(svc.get("host") or "", "<host>"), ((svc.get("upstream") or "").split(":")[0], "<ip>")]
+    except Exception as e:  # what is known so far is still taken out; the patterns catch the rest
+        log.warning("feedback: names to remove not all known: %s", e)
+    return [x for x in out if x[0]]
+
+
+@routes.post("/api/feedback")
+async def feedback_compose(req):
+    """The issue as it will be sent, its link and a QR code of the link. Nothing leaves the host:
+    the person opens the link and submits it on GitHub."""
+    s = await session(req)
+    app, cfg = req.app, req.app["cfg"]
+    fb = feedback_cfg(cfg)
+    if not fb["enabled"]:
+        raise web.HTTPNotFound()
+    try:
+        b = await req.json()
+    except ValueError:
+        b = {}
+    if not isinstance(b, dict):
+        b = {}
+    pve = app["pve"]
+    can_journal = await pve.can(s["ticket"], "/", "Sys.Audit") or await pve.can(s["ticket"], "/", "Sys.Modify")
+    known = await feedback_known(app)
+    env = feedback.environment(app["code"], app["pveversion"], b.get("client"), app.get("demo", False)) if b.get("env") else None
+    journal, total = None, 0
+    if b.get("journal") and can_journal:
+        entries = errlog.entries()
+        journal, total = feedback.journal_lines(entries, known), len(entries)
+    repo = update._repo_slug(fb["repo"]) if fb["repo"] else update.settings(cfg)["repo"]
+    out = await asyncio.get_running_loop().run_in_executor(
+        None, feedback.compose, repo, b.get("kind"), b.get("title"), b.get("text"), env, journal, total)
+    out["journal_allowed"] = can_journal
+    return web.json_response(out)
 
 
 @routes.get("/api/login-settings")

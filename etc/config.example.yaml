@@ -80,6 +80,10 @@ alerts:                       # the bell in the top bar
   temp_c: 85                  # host temperature (°C) worth a warning
   backup_days: 7              # a guest without a newer backup is reported
 
+feedback:                     # Settings → About → Write to the author (a GitHub issue; `feedback: false` hides it)
+  enabled: true
+  repo: ""                    # owner/name; empty = where updates come from
+
 kiosk:
   debug_port: 0               # >0 = Chromium DevTools on 127.0.0.1:<port> (development only)
 

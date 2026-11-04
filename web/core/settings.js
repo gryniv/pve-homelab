@@ -302,7 +302,8 @@ const views = {
       </div>
       <div class="grp"><div class="gl">${t('about.credits')}</div>
         <div class="mute credits">noVNC (MPL-2.0) · Meteocons, Bas Milius (MIT) · dashboard-icons, homarr-labs · Open-Meteo · Google Fonts (OFL) · cage · Chromium</div></div>
-      <button class="btn ghost" type="button" id="showHelp">${icon('i-info')}${t('help.title')}</button>
+      <div class="aboutbtns"><button class="btn ghost" type="button" id="showHelp">${icon('i-info')}${t('help.title')}</button>
+        ${pub.feedback ? `<button class="btn ghost" type="button" id="writeAuthor">${icon('i-note')}${t('fb.button')}</button>` : ''}</div>
       <div style="margin-top:1.6em">${journal()}</div>`;
   },
 };
@@ -359,6 +360,7 @@ function bind(p) {
     try { await app.weather(true); toast(t('set.weather.updated')); app.applyPrefs({ relayout: true }); } catch (err) { toast(err.message, true); }
   });
   $('#showHelp') && ($('#showHelp').onclick = () => app.showHelp());
+  $('#writeAuthor') && ($('#writeAuthor').onclick = (e) => app.showFeedback(e.currentTarget));
   // my designs
   $('#designPick') && ($('#designPick').onclick = () => $('#designFiles').click());
   $('#designFiles') && ($('#designFiles').onchange = async (e) => {
