@@ -362,6 +362,41 @@ async def guest_table(r):
     r.check("Esc closes the history, focus back on the guest", st == [True, True, False], st)
 
 
+async def my_designs(r):
+    p = r.p
+    theme = os.path.join(tempfile.mkdtemp(prefix="pvehomelab-uicheck-design-"), "uicheck-neon.css")
+    with open(theme, "w", encoding="utf-8") as f:
+        f.write("/*\n * @kind theme\n * @name.en UI check neon\n * @name.uk Неон перевірки\n */\n"
+                ".A[data-skin=\"uicheck-neon\"],.A [data-skin=\"uicheck-neon\"]{--acc:#00e5ff}\n")
+    open_mine = ("document.querySelector('.top [data-go=settings]').click();"
+                 "await new Promise(r => setTimeout(r, 500));"
+                 "document.querySelector('#lookTabs [data-v=mine]').click();")
+    await r.open()
+    await p.js(open_mine)
+    ok = await p.until("return !!document.querySelector('#designPick') && document.querySelector('.dlist, .scont .mute:not(.dinstall .mute)') !== null;", 5)
+    r.check("an admin sees My designs with an install button", ok)
+    # choose the file in the real file input, as a person would through the file dialog
+    doc = await p.send("DOM.getDocument")
+    node = await p.send("DOM.querySelector", nodeId=doc["root"]["nodeId"], selector="#designFiles")
+    await p.send("DOM.setFileInputFiles", files=[theme], nodeId=node["nodeId"])
+    back = await p.until("return !document.querySelector('[data-layer=settings]')?.hidden && "
+                         "document.querySelector('#lookTabs [data-v=mine]')?.getAttribute('aria-pressed') === 'true' && "
+                         "[...document.querySelectorAll('.dlist li')].map(l => l.textContent).join('|').includes('UI check neon');", 12)
+    r.check("installing reloads back to My designs, listing the new one", back)
+    themes = await p.js(API + "return (await q('GET', '/api/public')).themes.map(t => t.id);")
+    r.check("…and it is offered as a theme", "uicheck-neon" in (themes or []), themes)
+    await p.js("document.querySelector('[data-rmdesign^=\"themes|uicheck-neon\"]').click();", 0.4)
+    await p.js("document.querySelector('#cYes').click();")
+    gone = await p.until("return document.querySelector('#lookTabs [data-v=mine]')?.getAttribute('aria-pressed') === 'true' && "
+                         "!document.querySelector('[data-rmdesign]') && document.querySelectorAll('.dlist li').length === 0;", 12)
+    r.check("removing it reloads back with the list empty", gone)
+    await r.open("guest@pve")
+    await p.js(open_mine)
+    guest = await p.until("return !document.querySelector('#designPick') && document.querySelector('.scont').textContent.includes('admins');", 5)
+    r.check("someone without Sys.Modify is told installing is for admins", guest)
+    shutil.rmtree(os.path.dirname(theme), ignore_errors=True)
+
+
 async def service_tabs(r):
     p = r.p
     await r.open()
@@ -393,7 +428,7 @@ async def misc(r):
 
 CHECKS = {"guests": guests, "logout": logout, "widgets": widgets, "toasts": toasts, "offline": offline,
           "aria": dialogs_aria, "alerts": alerts, "update": failed_update, "focus": settings_focus,
-          "console": console, "launch": launch, "search": search, "order": reorder, "guests_table": guest_table, "tabs": service_tabs, "misc": misc}
+          "console": console, "launch": launch, "search": search, "order": reorder, "guests_table": guest_table, "designs": my_designs, "tabs": service_tabs, "misc": misc}
 
 
 # ---------------------------------------------------------------- driver

@@ -18,9 +18,9 @@ const SECTIONS = [
   ['look', 'i-palette'], ['login', 'i-lock'], ['dash', 'i-layout'], ['systems', 'i-monitor'],
   ['weather', 'i-cloud'], ['about', 'i-info'],
 ];
-const LOOK_TABS = [['theme', 'set.look.tab_theme'], ['bg', 'set.look.tab_bg'], ['fonts', 'set.look.tab_fonts'], ['clock', 'set.look.tab_clock']];
+const LOOK_TABS = [['theme', 'set.look.tab_theme'], ['bg', 'set.look.tab_bg'], ['fonts', 'set.look.tab_fonts'], ['clock', 'set.look.tab_clock'], ['mine', 'set.look.tab_mine']];
 
-let app, current = 'look', lookTab = 'theme', saveTimer, loginCfg = null, loginTimer, openW = '', stopPreview = null, logs = null;
+let app, current = 'look', lookTab = 'theme', saveTimer, loginCfg = null, loginTimer, openW = '', stopPreview = null, logs = null, myDesigns = null;
 
 const sw = (id, on) => `<span class="sw"><input type="checkbox" id="${id}" ${on ? 'checked' : ''}><i></i></span>`;
 const tgl = (id, on, title, sub = '') => `<label class="tgl"><span>${esc(t(title))}${sub ? `<small>${esc(t(sub))}</small>` : ''}</span>${sw(id, on)}</label>`;
@@ -150,6 +150,37 @@ const lookViews = {
   },
 };
 
+// Your own designs (Settings → Look → My designs): what is installed, install more, remove.
+const KIND_LABEL = { themes: 'set.look.tab_theme', backgrounds: 'set.look.tab_bg', fonts: 'set.look.tab_fonts', clocks: 'set.look.tab_clock', widgets: 'set.designs.kind_widgets' };
+lookViews.mine = (_p, lang) => {
+  if (!myDesigns) {
+    myDesigns = { pending: true };
+    app.api.get('/api/designs').then((r) => { myDesigns = r; render(); })
+      .catch((e) => { myDesigns = { error: e.message }; render(); });
+  }
+  const admin = app.isAdmin();
+  const install = admin
+    ? `<div class="dinstall"><button class="btn" type="button" id="designPick">${icon('i-plus')}<span>${esc(t('set.designs.install'))}</span></button>
+        <input id="designFiles" type="file" multiple accept=".css,.js,.zip" hidden>
+        <span class="mute">${esc(t('set.designs.install_hint'))}</span></div>`
+    : `<p class="mute">${esc(t('set.designs.admin_only'))}</p>`;
+  let list = '<p class="mute">…</p>';
+  if (myDesigns.error) list = `<p class="bad">${esc(myDesigns.error)}</p>`;
+  else if (!myDesigns.pending) {
+    list = myDesigns.mine.length ? `<ul class="dlist">${myDesigns.mine.map((d) => `<li>
+        <span class="nm">${esc(pick(d.name, lang))}<small class="mute">${esc(t(KIND_LABEL[d.kind] || d.kind))} · ${esc(d.id)}${d.replaces ? ` · ${esc(t('set.designs.replaces'))}` : ''}</small></span>
+        ${admin ? `<button class="chipbtn" type="button" data-rmdesign="${esc(d.kind)}|${esc(d.id)}|${esc(pick(d.name, lang))}">${icon('i-x')}${esc(t('set.designs.remove'))}</button>` : ''}</li>`).join('')}</ul>`
+      : `<p class="mute">${esc(t('set.designs.none'))}</p>`;
+  }
+  return grp('set.designs.title', `${lead('set.designs.lead', { folder: myDesigns.folder || '/etc/pve-homelab/designs' })}${install}${list}`);
+};
+
+// After installing or removing, the page reloads (new stylesheets and lists) and comes back here.
+function reloadHere() {
+  try { sessionStorage.setItem('pvehomelab.reopen', 'look:mine'); } catch {}
+  setTimeout(() => location.reload(), 900);
+}
+
 // Error journal (Settings → About): backend warnings and the screens' own errors.
 function journal() {
   if (!logs) {
@@ -182,7 +213,7 @@ const views = {
     return `<h3>${t('set.s.look')}</h3>${lead('set.look.lead')}
       <div class="lookbar">${seg('lookTabs', lookTab, LOOK_TABS.map(([id, k]) => [id, t(k)]))}
         <span class="sp"></span>${seg('langSeg', lang, app.pub().languages.map((l) => [l.code, l.name]))}</div>
-      <p class="lead hint">${icon('i-monitor')}${esc(t('set.look.hover'))}</p>
+      ${lookTab === 'mine' ? '' : `<p class="lead hint">${icon('i-monitor')}${esc(t('set.look.hover'))}</p>`}
       ${lookViews[lookTab](p, lang)}`;
   },
   login(p) {
@@ -250,7 +281,7 @@ function bind(p) {
   const segBind = (id, fn) => $$(`#${id} button`).forEach((b) => (b.onclick = () => { fn(b.dataset.v); render(); }));
   const chk = (id, fn) => { const el = $('#' + id); if (el) el.onchange = () => fn(el.checked); };
   // look
-  segBind('lookTabs', (v) => { lookTab = v; });
+  segBind('lookTabs', (v) => { lookTab = v; if (v === 'mine') myDesigns = null; });
   segBind('langSeg', (v) => { save({ lang: v }); app.useLang(v); });
   $$('[data-skinpick]', box).forEach((b) => (b.onclick = () => { save({ skin: b.dataset.skinpick }); render(); }));
   $$('[data-bgk]', box).forEach((b) => (b.onclick = () => { save({ background: b.dataset.bgk }); render(); }));
@@ -297,6 +328,25 @@ function bind(p) {
     try { await app.weather(true); toast(t('set.weather.updated')); app.applyPrefs({ relayout: true }); } catch (err) { toast(err.message, true); }
   });
   $('#showHelp') && ($('#showHelp').onclick = () => app.showHelp());
+  // my designs
+  $('#designPick') && ($('#designPick').onclick = () => $('#designFiles').click());
+  $('#designFiles') && ($('#designFiles').onchange = async (e) => {
+    const files = [...e.target.files];
+    if (!files.length) return;
+    const form = new FormData();
+    files.forEach((f) => form.append('file', f, f.name));
+    try {
+      const r = await app.api.post('/api/designs', form);
+      toast(t('set.designs.installed', { list: r.installed.map((d) => d.id).join(', ') }));
+      reloadHere();
+    } catch (err) { toast(err.message, true); e.target.value = ''; }
+  });
+  $$('[data-rmdesign]').forEach((b) => (b.onclick = async () => {
+    const [kind, id, name] = b.dataset.rmdesign.split('|');
+    if (!(await confirmBox(t('set.designs.confirm_remove', { name }), t('set.designs.confirm_text'), t('set.designs.remove')))) return;
+    try { await app.api.del(`/api/designs/${kind}/${id}`); toast(t('set.designs.removed', { name })); reloadHere(); }
+    catch (err) { toast(err.message, true); }
+  }));
   $('#logRefresh') && ($('#logRefresh').onclick = () => { logs = null; render(); });
   $('#logClear') && ($('#logClear').onclick = async () => {
     if (!(await confirmBox(t('log.clear_q'), t('log.clear_text'), t('log.clear')))) return;
@@ -371,8 +421,9 @@ function draw() {
   bind(p);
 }
 
-export function open(section) {
+export function open(section, tab) {
   if (section) current = section;
+  if (tab && LOOK_TABS.some(([id]) => id === tab)) lookTab = tab;
   render();
 }
 

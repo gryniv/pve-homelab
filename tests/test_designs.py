@@ -90,3 +90,80 @@ def test_designs_folder_has_no_program_code():
         kind = os.path.basename(dirpath)
         for f in files:
             assert f.endswith("." + designs.KINDS[kind]), os.path.join(dirpath, f)
+
+
+# ---------------- installing from the menu ----------------
+from aiohttp import FormData  # noqa: E402
+
+from conftest import login  # noqa: E402
+
+THEME = b"/*\n * @kind theme\n * @name.en Neon night\n */\n.A[data-skin=\"neon-night\"]{--acc:#0ff}\n"
+
+
+def form(*files):
+    f = FormData()
+    for name, data in files:
+        f.add_field("file", data, filename=name, content_type="application/octet-stream")
+    return f
+
+
+async def test_admin_installs_and_removes(client, mine):
+    me = await login(client)
+    assert (await (await client.get("/api/me")).json())["admin"] is True
+    r = await client.post("/api/designs", data=form(("neon-night.css", THEME)))
+    assert r.status == 200, await r.text()
+    assert (await r.json())["installed"] == [{"kind": "themes", "id": "neon-night", "replaces": None}]
+    assert (mine / "themes" / "neon-night.css").read_bytes() == THEME
+    assert "#0ff" in await (await client.get("/themes/neon-night.css")).text()
+    lst = await (await client.get("/api/designs")).json()
+    assert [(d["kind"], d["id"]) for d in lst["mine"]] == [("themes", "neon-night")]
+    assert (await client.delete("/api/designs/themes/neon-night")).status == 200
+    assert not (mine / "themes" / "neon-night.css").exists()
+    assert (await client.delete("/api/designs/themes/neon-night")).status == 404
+    assert (await client.delete("/api/designs/themes/dusk")).status == 404   # built-in ones can't be removed
+    assert me
+
+
+async def test_zip_with_several_designs(client, mine):
+    import io
+    import zipfile
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        z.writestr("pack/themes/aqua.css", "/* @name.en Aqua */ .A[data-skin=aqua]{}")
+        z.writestr("pack/clocks/tiny.js", "export const css=''; export function render(el,t){el.textContent=t.text}")
+        z.writestr("pack/widgets/host.css", ".A .w[data-w=host]{}")
+        z.writestr("__MACOSX/._junk", "x")
+    await login(client)
+    r = await client.post("/api/designs", data=form(("pack.zip", buf.getvalue())))
+    assert r.status == 200, await r.text()
+    got = {(d["kind"], d["id"], d["replaces"]) for d in (await r.json())["installed"]}
+    assert got == {("themes", "aqua", None), ("clocks", "tiny", None), ("widgets", "host", "builtin")}
+
+
+async def test_bad_uploads_refused_and_nothing_written(client, mine):
+    await login(client)
+    for name, data in (("Bad Name.css", THEME), ("x.exe", b"MZ"), ("big.css", b"/* @kind theme */" + b" " * (designs.MAX_BYTES + 1)),
+                       ("what.css", b"body{}"), ("bin.css", b"\xff\xfe\x00"), ("wrong.js", THEME), ("evil.zip", b"not a zip")):
+        r = await client.post("/api/designs", data=form((name, data)))
+        assert r.status == 400, (name, r.status)
+    # one bad file in a batch: nothing at all is installed
+    r = await client.post("/api/designs", data=form(("good.css", THEME), ("Bad.css", THEME)))
+    assert r.status == 400 and not (mine / "themes").exists()
+
+
+async def test_only_admins_install(client, mine):
+    await login(client, "guest@pve")
+    assert (await (await client.get("/api/me")).json())["admin"] is False
+    assert (await client.post("/api/designs", data=form(("neon-night.css", THEME)))).status == 403
+    assert (await client.delete("/api/designs/themes/dusk")).status == 403
+    assert not (mine / "themes").exists()
+
+
+def test_kind_detection():
+    assert designs.kind_of("a.js", "") == "clocks"
+    assert designs.kind_of("a.css", ".bgx[data-k=a]{}") == "backgrounds"
+    assert designs.kind_of("a.css", "/*\n @family \"X\", sans-serif\n*/") == "fonts"
+    assert designs.kind_of("a.css", "/* @kind widget */ .x{}") == "widgets"
+    assert designs.kind_of("a.css", "", folder="theme") == "themes"
+    with pytest.raises(designs.DesignError):
+        designs.kind_of("a.css", "/* @kind sticker */")

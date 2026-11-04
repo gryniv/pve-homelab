@@ -31,6 +31,7 @@ const app = {
   seat: () => st.pub.seat,
   prefs: () => st.prefs || {},
   me: () => st.me,
+  isAdmin: () => !!st.admin,
   loggedIn: () => !!st.me,
   services: () => st.services,
   systems: () => st.systems,
@@ -39,7 +40,7 @@ const app = {
   isNight: scene.isNight,
   avatarOf: (u) => avatar(u, u.avatar ?? st.prefs?.avatar),
   guestCounts: () => st.pub.guests,
-  openSettings: (s) => { S.open(s); go('settings'); },
+  openSettings: (s, tab) => { S.open(s, tab); go('settings'); },
   openUrl: (url) => tabs.open(url),
   pveUrl: () => (st.services.find((s) => s.key === 'pve')?.url) || `https://${st.pub.ip}:8006`,
   applyPrefs, weather, useLang: (code) => useLang(code), t, locale: () => i18n.locale(),
@@ -230,7 +231,7 @@ $('#loginForm').addEventListener('submit', async (e) => {
     const r = await api.post('/api/login', { user, password: $('#pw').value });
     $('#pw').value = '';
     try { localStorage.setItem(LAST, r.user); } catch {}
-    await enter(r.user, r.prefs);
+    await enter(r.user, r.prefs, r.admin);
   } catch (err) {
     $('#loginErr').textContent = err.message;
     $('#loginErr').hidden = false;
@@ -238,10 +239,11 @@ $('#loginForm').addEventListener('submit', async (e) => {
   } finally { btn.disabled = false; }
 });
 
-async function enter(userid, prefs) {
+async function enter(userid, prefs, admin = false) {
   const u = st.pub.users.find((x) => x.id === userid) || { id: userid, name: userid.split('@')[0] };
   st.me = { ...u };
   st.prefs = prefs;
+  st.admin = admin;
   await i18n.setLang(wantedLang());
   tabs.setLang(i18n.current());
   rerender();
@@ -249,6 +251,7 @@ async function enter(userid, prefs) {
   W.stopZone('login');
   W.renderZone('side', prefs.layout.side || [], { app, opts: prefs.widget_opts });
   go('dash');
+  reopenSettings();
   weather(true).catch(() => {});
   await refreshDash();
   // Systems arrive after the screen is shown; land keyboard focus on the first one.
@@ -262,6 +265,16 @@ async function enter(userid, prefs) {
   st.timers.push(setInterval(updates.check, 30 * 60000));
 }
 
+// Installing or removing a design reloads the page (new stylesheets, new lists); it asks to come
+// back to the same settings tab through sessionStorage.
+function reopenSettings() {
+  let want = null;
+  try { want = sessionStorage.getItem('pvehomelab.reopen'); sessionStorage.removeItem('pvehomelab.reopen'); } catch {}
+  if (!want) return;
+  const [section, tab] = want.split(':');
+  app.openSettings(section, tab);
+}
+
 async function logout() {
   st.timers.splice(0).forEach(clearInterval);
   launch.stop();
@@ -273,6 +286,7 @@ async function logout() {
   renderSystems(); renderServices(); guests.render();
   alerts.reset();
   guests.reset();
+  st.admin = false;
   st.me = null; st.prefs = null;
   try { st.pub = await api.get('/api/public'); } catch {}
   await useLang();
@@ -479,7 +493,7 @@ async function boot() {
   setInterval(async () => { try { const p = await api.get('/api/public'); st.pub.guests = p.guests; } catch {} }, 30000);
   try {
     const me = await api.get('/api/me');
-    await enter(me.user, me.prefs);
+    await enter(me.user, me.prefs, me.admin);
   } catch {
     renderUsers();
     go('login');

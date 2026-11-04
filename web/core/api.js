@@ -19,11 +19,13 @@ async function backendLost() {
 
 async function call(method, path, body) {
   let r;
+  // FormData (files) goes as multipart, with the browser's own Content-Type and boundary
+  const form = body instanceof FormData;
   try {
     r = await fetch(path, {
       method,
-      headers: { 'Content-Type': 'application/json', 'X-Seat': SEAT, 'X-Lang': lang() },
-      body: body === undefined ? undefined : JSON.stringify(body),
+      headers: form ? { 'X-Seat': SEAT, 'X-Lang': lang() } : { 'Content-Type': 'application/json', 'X-Seat': SEAT, 'X-Lang': lang() },
+      body: body === undefined ? undefined : form ? body : JSON.stringify(body),
       credentials: 'same-origin',
     });
   } catch (e) {

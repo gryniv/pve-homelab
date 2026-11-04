@@ -277,7 +277,8 @@ async def login(req):
     fails.pop(user.lower(), None)
     sid = secrets.token_urlsafe(32)
     req.app["sessions"][sid] = {"ticket": t, "seat": seat, "user": t.user, "seen": time.time()}
-    resp = web.json_response({"user": t.user, "prefs": prefs.load(t.user)})
+    admin = await req.app["pve"].can(t, "/", "Sys.Modify")
+    resp = web.json_response({"user": t.user, "prefs": prefs.load(t.user), "admin": admin})
     resp.set_cookie(COOKIE, sid, httponly=True, samesite="Strict", path="/")
     log.info("login %s on seat %s", t.user, seat)
     return resp
@@ -294,7 +295,60 @@ async def logout(req):
 @routes.get("/api/me")
 async def me(req):
     s = await session(req)
-    return web.json_response({"user": s["user"], "prefs": prefs.load(s["user"])})
+    admin = await req.app["pve"].can(s["ticket"], "/", "Sys.Modify")
+    return web.json_response({"user": s["user"], "prefs": prefs.load(s["user"]), "admin": admin})
+
+
+# ---------------- your own designs ----------------
+async def designs_admin(req):
+    """Designs change the menu for everyone on the host (and a clock is code): admins only."""
+    s = await session(req)
+    if not await req.app["pve"].can(s["ticket"], "/", "Sys.Modify"):
+        raise PVEError(403, i18n._("forbidden"))
+    return s
+
+
+@routes.get("/api/designs")
+async def designs_list(req):
+    await session(req)
+    return web.json_response({"mine": designs.mine(), "folder": config.USER_DESIGNS_DIR})
+
+
+@routes.post("/api/designs")
+async def designs_install(req):
+    """One or more designs (.css, .js, or a .zip of them) as multipart files."""
+    s = await designs_admin(req)
+    files, total = [], 0
+    try:
+        reader = await req.multipart()
+    except (AssertionError, ValueError, KeyError):
+        raise web.HTTPBadRequest(text="multipart form expected")
+    async for part in reader:
+        if not part.filename:
+            continue
+        data = bytearray()
+        while chunk := await part.read_chunk(64 * 1024):
+            data += chunk
+            total += len(chunk)
+            if total > designs.MAX_TOTAL:
+                raise web.HTTPRequestEntityTooLarge(max_size=designs.MAX_TOTAL, actual_size=total)
+        files.append((part.filename, bytes(data)))
+    try:
+        done = await asyncio.get_running_loop().run_in_executor(None, designs.install, files)
+    except designs.DesignError as e:
+        raise web.HTTPBadRequest(text=str(e))
+    log.info("designs installed by %s: %s", s["user"], ", ".join(f"{d['kind']}/{d['id']}" for d in done))
+    return web.json_response({"installed": done})
+
+
+@routes.delete("/api/designs/{kind}/{did}")
+async def designs_remove(req):
+    s = await designs_admin(req)
+    kind, did = req.match_info["kind"], req.match_info["did"]
+    if not designs.remove(kind, did):
+        raise web.HTTPNotFound(text="no such design of yours")
+    log.info("design %s/%s removed by %s", kind, did, s["user"])
+    return web.json_response({"ok": True})
 
 
 @routes.get("/api/login-settings")
