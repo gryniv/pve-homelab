@@ -4,12 +4,15 @@
 # After editing: systemctl restart pve-homelab 'pve-homelab-kiosk@*'
 
 listen: 127.0.0.1:8900       # 0.0.0.0:8900 only for the reverse proxy below (web.allow_from)
+                             # the kiosk follows the port; the address must include loopback (127.0.0.1 or 0.0.0.0)
 # The menu in a browser elsewhere, through a reverse proxy with TLS (e.g. Caddy on home.example.com).
 # Only loopback and these addresses or networks may talk to the backend; a browser that comes through
 # the proxy is the "web" seat: it never switches a monitor or hands over a GPU.
 web:
   enabled: true
   allow_from: []              # e.g. [192.168.8.150] (the Caddy container) or [10.0.0.0/24]
+  sign_in: minimal            # what its sign-in screen shows before anyone signs in: minimal (a name field,
+                              # weather and clocks), users (the people too) or full (host figures, as on the host)
 allowed_hosts: []             # extra Host names for browsers on this machine; "*" turns the check off
 node: ""                      # empty = this host's name
 language: en                  # default UI language (uk, en); every user can pick their own
@@ -39,6 +42,8 @@ launch:
   assign_gpu: true            # write the chosen GPU into the VM config before start
   allow_igpu: false           # true = pass the seat GPU through entirely (otherwise VirGL inside the menu)
   return_to_menu: true        # switch the monitor back to the menu when the VM stops
+  follow_start: boot          # a VM on a monitor's GPU that starts without the menu (onboot, Proxmox UI) gets
+                              # the monitor: boot = only while the host is booting, always, never
 
 caddy:
   ct: null                    # container running Caddy (its admin API must listen on localhost:2019)
@@ -82,6 +87,8 @@ saver:
   after_min: 5                # screensaver on the login screen
 lock_after_min: 15            # log out of the dashboard after this much inactivity
 
+designer: false               # live reload of designs while you work on them on the host (the demo has it on)
+
 alerts:                       # the bell in the top bar
   storage_pct: 90             # a storage this full (%) is reported
   temp_c: 85                  # host temperature (°C) worth a warning
@@ -104,3 +111,18 @@ update:
                               # Settings → About → "Update by itself" (admins) wins over this
   auto_main: false            # with channel main, auto installs any pushed commit only if this is true
   check_hours: 6
+
+# Parts of the menu that can be switched off for the whole host (also in Settings → System → Components).
+# What is off leaves the menu, and its part of the API answers 404.
+features:
+  alerts: true                # the bell in the top bar
+  node_updates: true          # the Proxmox updates button and widget
+  app_updates: true           # asking GitHub for new versions of the menu, and installing them
+  weather: true               # weather in the top bar, its widget and the screensaver's sky
+  consoles: true              # VM and container screens in the menu (noVNC)
+  guest_actions: true         # start, shut down, reboot of guests from the menu
+  guest_settings: true        # memory, cores, start at boot, tags and notes of guests, changed in the menu
+  host_power: true            # reboot and shut down the host from Quick actions
+  wol: true                   # the Wake up widget
+  my_designs: true            # installing and removing designs in the menu
+  my_widgets: true            # installing and removing widgets in the menu

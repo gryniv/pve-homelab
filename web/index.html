@@ -109,6 +109,17 @@
     <div class="other" id="otherRow" hidden><input id="otherUser" data-i18n-placeholder="login.user_placeholder" data-i18n-aria="login.user"></div>
     <div class="pwlabel" id="pwLabel"></div>
     <div class="pwrow"><input id="pw" type="password" data-i18n-aria="login.password"><button class="btn" type="submit" id="loginBtn" data-i18n="login.submit"></button></div>
+    <div class="tfa" id="tfaBox" hidden>
+      <div class="tfa-lead" id="tfaLead"></div>
+      <input id="tfaCode" autocomplete="one-time-code" spellcheck="false" data-i18n-aria="login.tfa_code">
+      <div class="tfa-pad" id="tfaPad" role="group" data-i18n-aria="login.tfa_keypad">
+        <button type="button" data-k="1">1</button><button type="button" data-k="2">2</button><button type="button" data-k="3">3</button>
+        <button type="button" data-k="4">4</button><button type="button" data-k="5">5</button><button type="button" data-k="6">6</button>
+        <button type="button" data-k="7">7</button><button type="button" data-k="8">8</button><button type="button" data-k="9">9</button>
+        <button type="button" data-k="del" data-i18n-aria="login.tfa_del">⌫</button><button type="button" data-k="0">0</button><button type="submit" class="ok" data-i18n="login.tfa_ok"></button>
+      </div>
+      <div class="tfa-more"><span id="tfaOther"></span><button type="button" class="chipbtn" id="tfaBack" data-i18n="login.tfa_back"></button></div>
+    </div>
     <div class="loginerr" id="loginErr" hidden></div>
     <div class="seatnote"><svg class="i"><use href="#i-monitor"/></svg><span><span data-i18n="login.seat" class="seat-local"></span> <b data-seat-name></b></span></div>
   </form>
@@ -122,10 +133,10 @@
     <div class="brand" data-part="brand"><img src="/icons/proxmox.svg" alt=""><span data-node></span><span class="health" id="health" ></span></div>
     <div class="opentabs" id="openTabs" data-part="open-tabs"></div>
     <div class="tr" data-part="topbar-tools">
-      <button class="bell" type="button" id="alertBell" hidden data-i18n-title="alerts.title"><svg class="i"><use href="#i-bell"/></svg><span class="n"></span></button>
-      <button class="bell pkg" type="button" id="nodeUpd" hidden><svg class="i"><use href="#i-dl"/></svg><span class="n"></span></button>
-      <button class="updpill" type="button" id="updPill" hidden><svg class="i"><use href="#i-refresh"/></svg><span></span></button>
-      <span class="tw"><img data-wx-icon alt=""><span data-temp></span><span class="city" data-city></span></span>
+      <button class="bell" type="button" id="alertBell" data-needs="alerts" hidden data-i18n-title="alerts.title"><svg class="i"><use href="#i-bell"/></svg><span class="n"></span></button>
+      <button class="bell pkg" type="button" id="nodeUpd" data-needs="node_updates" hidden><svg class="i"><use href="#i-dl"/></svg><span class="n"></span></button>
+      <button class="updpill" type="button" id="updPill" data-needs="app_updates" hidden><svg class="i"><use href="#i-refresh"/></svg><span></span></button>
+      <span class="tw" data-needs="weather"><img data-wx-icon alt=""><span data-temp></span><span class="city" data-city></span></span>
       <span class="tw clock-s" data-clock></span>
       <span class="vsep"></span>
       <button class="me" type="button" data-go="settings" data-i18n-title="top.my_settings"><span class="av" data-me-av></span><span data-whoami></span></button>
@@ -190,7 +201,7 @@
 </section>
 
 <div class="overlay" id="confirmLayer" hidden><div class="confirm" role="alertdialog" aria-modal="true" aria-labelledby="cTitle" aria-describedby="cText"><h3 id="cTitle"></h3><div class="mute" id="cText"></div><div class="mbtns"><button class="btn ghost" type="button" id="cNo" data-i18n="confirm.cancel"></button><button class="btn danger" type="button" id="cYes"></button></div></div></div>
-<div class="overlay" id="guestLayer" hidden><div class="confirm gdetail" role="dialog" aria-modal="true" aria-labelledby="gTitle"><div class="ghead"><h3 id="gTitle"></h3><div class="seg" id="gRange" role="group" data-i18n-aria="guest.period"></div></div><div id="gCharts" aria-live="polite"></div><div class="gextra" id="gExtra"></div><div class="mbtns"><button class="btn" type="button" id="gClose" data-i18n="set.close"></button></div></div></div>
+<div class="overlay" id="guestLayer" hidden><div class="confirm gdetail" role="dialog" aria-modal="true" aria-labelledby="gTitle"><div class="ghead"><h3 id="gTitle"></h3><div class="seg" id="gRange" role="group" data-i18n-aria="guest.period"></div></div><div id="gCharts" aria-live="polite"></div><div class="gextra" id="gExtra"></div><details class="gres" id="gRes" data-needs="guest_settings"><summary data-i18n="guest.res"></summary><form id="gResForm" autocomplete="off"></form></details><div class="mbtns"><button class="btn" type="button" id="gClose" data-i18n="set.close"></button></div></div></div>
 <div class="overlay" id="alertsLayer" hidden><div class="confirm alerts" role="dialog" aria-modal="true" aria-labelledby="alertsTitle"><h3 id="alertsTitle" data-i18n="alerts.title"></h3><ul class="alist" id="alertsList"></ul><div class="mbtns"><button class="btn" type="button" id="alertsClose" data-i18n="set.close"></button></div></div></div>
 <div class="overlay" id="nodeUpdLayer" hidden><div class="confirm nodeupd" role="dialog" aria-modal="true" aria-labelledby="nodeUpdTitle"><h3 id="nodeUpdTitle" data-i18n="nodeupd.title"></h3><div id="nodeUpdBody"></div><div class="mbtns"><button class="btn ghost" type="button" id="nuCheck"><svg class="i"><use href="#i-refresh"/></svg><span data-i18n="nodeupd.check"></span></button><button class="btn ghost" type="button" id="nuOpen"><svg class="i"><use href="#i-ext"/></svg><span data-i18n="nodeupd.open"></span></button><button class="btn" type="button" id="nuClose" data-i18n="set.close"></button></div></div></div>
 <div class="overlay" id="feedbackLayer" hidden><div class="confirm feedback" role="dialog" aria-modal="true" aria-labelledby="fbTitle" id="fbBox"></div></div>

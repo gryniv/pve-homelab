@@ -1,6 +1,8 @@
 // Services live in tabs next to the menu tab. Kiosk mode shows only the active tab,
 // so "switching windows" is just activating a tab.
-const MENU = 'http://127.0.0.1:8900/';
+// menu.js (written by kiosk.sh from config.yaml `listen`) says where the menu answers.
+importScripts('menu.js');
+const MENU = self.PVEHOMELAB_MENU || 'http://127.0.0.1:8900/';
 const isMenu = (t) => (t.url || t.pendingUrl || '').startsWith(MENU);
 
 async function menuTab() {

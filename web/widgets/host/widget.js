@@ -21,7 +21,7 @@ function spark(hist) {
 
 export default {
   zones: ['login', 'side'],
-  public: true,
+  public: 'local',   // host figures: not on a browser elsewhere before sign-in
   source: '/api/host',
   every: 5,
   options: [
@@ -38,6 +38,6 @@ export default {
     const g = app.guestCounts();
     return `<h4>${zone === 'side' ? `${t('host')}<span class="sp"></span><span style="text-transform:none;letter-spacing:0">${ui.fmt.uptime(h.uptime)}</span>` : t('now')}</h4>
       <div class="rings">${rings}</div>
-      ${zone === 'side' ? (opts.graph ? spark(h.cpu_hist) : '') : `<div class="foot-line"><span class="mute">${t('guests')}</span><span><b class="ok">${t('running', { n: g.running })}</b> · ${t('stopped', { n: g.stopped })}</span></div>`}`;
+      ${zone === 'side' ? (opts.graph ? spark(h.cpu_hist) : '') : g ? `<div class="foot-line"><span class="mute">${t('guests')}</span><span><b class="ok">${t('running', { n: g.running })}</b> · ${t('stopped', { n: g.stopped })}</span></div>` : ''}`;
   },
 };

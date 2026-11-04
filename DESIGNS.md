@@ -109,8 +109,8 @@ clock.
 /*
  * @kind theme
  * @name.en Phosphor
- * @background vector
- * @clock tty
+ * @background night
+ * @clock neon
  * @option color = amber | green
  * @option.en color Phosphor: amber | green
  * @option.uk color Люмінофор: бурштиновий | зелений
@@ -262,7 +262,8 @@ widgets/uptime/
 ```js
 export default {
   zones: ['side', 'login'],          // where it may be placed
-  public: true,                      // allowed on the sign-in screen (it reads only public data)
+  public: true,                      // allowed on the sign-in screen (it reads only public data);
+                                     // 'local': only where host figures may show (not a browser elsewhere)
   source: '/api/host', every: 10,    // what it reads (a GET of the menu's API, or (ctx) => Promise) and how often (s)
   options: [                         // a ⚙ form with a live preview in Settings; label: a key of its strings
     { key: 'load', type: 'toggle', label: 'opt_load', default: true },

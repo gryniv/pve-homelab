@@ -2,7 +2,7 @@
    so a theme (themes/*.css) changes the look without touching the components. */
 
 html,body{margin:0;height:100%;background:#05080e}
-.A{position:fixed;inset:0;font-size:min(1.25vw,2.15vh);line-height:1.4;overflow:hidden;color:#e8edf3;
+.A{position:fixed;inset:0;font-size:calc(min(1.25vw,2.15vh) * var(--ui-scale,1));line-height:1.4;overflow:hidden;color:#e8edf3;
   font-family:var(--font-ui,"Onest",system-ui,sans-serif);background:var(--solid);-webkit-font-smoothing:antialiased;user-select:none;
   --glass:rgba(16,22,31,.62);--glass2:rgba(255,255,255,.06);--edge:rgba(255,255,255,.09);--mute:rgba(226,233,242,.62);
   --ok:#4cd694;--warn:#f5c451;--bad:#ff6b6b;--off:#6b7684;
@@ -137,6 +137,19 @@ html,body{margin:0;height:100%;background:#05080e}
 .A .other{display:flex;gap:.5em}
 .A .other input{flex:1;min-width:0;background:rgba(0,0,0,.28);border:1px solid var(--edge);border-radius:.6em;padding:.6em .8em;user-select:text}
 .A .loginerr{color:#ffb3b3;font-size:.9em;margin-top:-.5em}
+/* the second factor: a code typed or picked on the keypad (arrows on a remote), or a recovery key */
+.A .who.tfa-on .users,.A .who.tfa-on .other,.A .who.tfa-on .pwlabel,.A .who.tfa-on .pwrow{display:none}
+.A .tfa{display:flex;flex-direction:column;gap:.9em}
+.A .tfa-lead{font-size:1em}
+.A .tfa input{background:rgba(0,0,0,.28);border:1px solid var(--edge);border-radius:.6em;padding:.6em .9em;font-size:1.6em;user-select:text;text-align:center;letter-spacing:.35em;font-variant-numeric:tabular-nums}
+.A .tfa input.key{font-size:1.1em;letter-spacing:.05em}
+.A .tfa-pad{display:grid;grid-template-columns:repeat(3,1fr);gap:.5em}
+.A .tfa-pad button{font:inherit;font-size:1.25em;padding:.55em 0;border-radius:.6em;border:1px solid var(--edge);background:rgba(255,255,255,.06);color:inherit;cursor:pointer}
+.A .tfa-pad button:hover,.A .tfa-pad button:focus-visible{background:rgba(255,255,255,.14);outline:2px solid var(--acc);outline-offset:1px}
+.A .tfa-pad .ok{background:var(--acc);color:#111;font-weight:700;font-size:1em}
+.A .tfa-pad[hidden]{display:none}
+.A .tfa-more{display:flex;gap:.5em;flex-wrap:wrap;align-items:center}
+.A .tfa-more #tfaOther{display:contents}
 .A .seatnote{font-size:.82em;color:var(--mute);border-top:1px solid var(--edge);padding-top:1em;display:flex;gap:.6em;align-items:center}
 .A .seatnote b{color:#e8edf3;font-weight:500}
 /* a browser elsewhere (the "web" seat): no "this monitor is connected to" */
@@ -325,6 +338,21 @@ html,body{margin:0;height:100%;background:#05080e}
 .A .glegend i{display:inline-block;width:.8em;height:.25em;border-radius:1em;margin-right:.35em;vertical-align:middle}
 .A .gextra{display:grid;grid-template-columns:1fr 1.4fr;gap:1em;font-size:.88em}
 .A .gextra:empty{display:none}
+/* a guest's resources and options, in its dialog */
+.A .mres{display:flex;flex-wrap:wrap;align-items:center;gap:.6em 1em;font-size:.88em;margin:.4em 0}
+.A .mres label{display:flex;align-items:center;gap:.4em;color:var(--mute)}
+.A .mres input{width:5em;background:rgba(0,0,0,.25);border:1px solid var(--edge);border-radius:.45em;padding:.35em .5em;color:#e8edf3;font:inherit;user-select:text}
+.A .gres{margin-top:1em;border-top:1px solid var(--edge);padding-top:.7em;font-size:.88em}
+.A .gres summary{cursor:pointer;font-weight:600}
+.A .gres form{display:grid;grid-template-columns:repeat(auto-fill,minmax(10em,1fr));gap:.6em 1em;margin-top:.8em}
+.A .gres label{display:flex;flex-direction:column;gap:.25em;color:var(--mute)}
+.A .gres label.wide{grid-column:1/-1}
+.A .gres label.chk{flex-direction:row;align-items:center;gap:.5em;color:inherit}
+.A .gres input:not([type=checkbox]),.A .gres textarea{background:rgba(0,0,0,.25);border:1px solid var(--edge);border-radius:.45em;padding:.45em .6em;color:#e8edf3;font:inherit;user-select:text}
+.A .gres input:disabled,.A .gres textarea:disabled{opacity:.5}
+.A .gres .note{grid-column:1/-1;color:var(--mute);font-size:.92em}
+.A .gres .note.warn{color:#f5c451}
+.A .gres .gres-btns{grid-column:1/-1;display:flex;gap:.6em;align-items:center}
 .A .gextra section{display:flex;flex-direction:column;gap:.3em;min-width:0}
 .A .gextra .snaps{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.35em}
 .A .gextra .snaps li{display:flex;flex-direction:column;min-width:0}
@@ -511,6 +539,30 @@ html,body{margin:0;height:100%;background:#05080e}
 .A .addw{display:flex;gap:.5em;margin-top:.6em}
 .A .addw select{flex:1;min-width:0;background:rgba(0,0,0,.25);border:1px solid var(--edge);border-radius:.5em;padding:.4em .6em;font-size:.9em}
 .A .addw .btn{padding:.4em .8em;font-size:.88em}
+/* Settings → System: the host's settings, described by the server */
+.A .sys-bar{display:flex;flex-wrap:wrap;gap:.7em;align-items:center;margin-bottom:1em}
+.A .sys-bar input{flex:1 1 14em;min-width:10em;background:rgba(0,0,0,.25);border:1px solid var(--edge);border-radius:.5em;padding:.55em .7em;font-size:1em;color:#e8edf3;user-select:text}
+.A .sys-item{display:grid;grid-template-columns:minmax(14em,1fr) minmax(12em,1.1fr);gap:.4em 1.4em;align-items:start;padding:.8em 0;border-top:1px solid var(--edge);max-width:60em}
+.A .sys-item.wide{grid-template-columns:1fr}
+.A .sys-label label{font-size:.95em}
+.A .sys-label small{display:block;color:var(--mute);font-size:.8em;margin-top:.15em}
+.A .sys-meta{display:flex;flex-wrap:wrap;gap:.4em .6em;align-items:center;margin-top:.3em;font-size:.74em;color:var(--mute)}
+.A .sys-meta code{opacity:.6}
+.A .sys-src{border:1px solid var(--edge);border-radius:1em;padding:.05em .55em}
+.A .sys-src.menu{border-color:var(--acc);color:var(--acc)}
+.A .sys-src.warn{border-color:#f5c451;color:#f5c451}
+.A .sys-err{color:#ffb3b3;font-size:.82em;margin-top:.3em}
+.A .sys-field input:not([type=checkbox]),.A .sys-field textarea{width:100%;box-sizing:border-box;background:rgba(0,0,0,.25);border:1px solid var(--edge);border-radius:.5em;padding:.5em .7em;font-size:.95em;color:#e8edf3;user-select:text;font-family:inherit}
+.A .sys-field .sw{justify-self:start}
+.A .sys-table table{width:100%;border-collapse:collapse;font-size:.88em}
+.A .sys-table th{text-align:left;font-weight:500;color:var(--mute);padding:.2em .3em;font-size:.85em}
+.A .sys-table td{padding:.2em .3em}
+.A .sys-table td input{width:100%;box-sizing:border-box;background:rgba(0,0,0,.25);border:1px solid var(--edge);border-radius:.4em;padding:.4em .5em;color:#e8edf3;font:inherit;user-select:text}
+.A .sys-tbtns{display:flex;gap:.5em;margin-top:.5em}
+.A .sys-restart{display:flex;align-items:center;gap:.8em;flex-wrap:wrap;padding:.8em 1em;border:1px solid #f5c451;border-radius:.7em;margin-bottom:1em;color:#f5c451}
+.A .sys-restart .btn{margin-left:auto}
+.A .sys-note{font-size:.8em;margin-top:1.2em;max-width:50em}
+@media (max-width:900px){.A .sys-item{grid-template-columns:1fr}}
 .A .fld{display:flex;flex-direction:column;gap:.3em;font-size:.85em;color:var(--mute);margin-bottom:.8em;max-width:24em}
 .A .fld input,.A .fld select,.A .fld textarea{background:rgba(0,0,0,.25);border:1px solid var(--edge);border-radius:.5em;padding:.55em .7em;font-size:1.1em;color:#e8edf3;user-select:text}
 .A .svclist{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.1em 1.4em}
@@ -604,7 +656,7 @@ html,body{margin:0;height:100%;background:#05080e}
    The kiosk layout is one fixed screen sized by the viewport; here the type gets a readable size,
    the screens scroll, and columns stack. Dialogs and settings take the whole width. */
 @media (max-width:900px){
-  .A{font-size:clamp(13.5px,1.6vw + 8px,16px)}
+  .A{font-size:calc(clamp(13.5px,1.6vw + 8px,16px) * var(--ui-scale,1))}
   .A .scr{overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain}
   .A .overlay,.A .settings{position:fixed}
   .A .toast{max-width:92%;bottom:1em}
@@ -687,3 +739,9 @@ html,body{margin:0;height:100%;background:#05080e}
 }
 
 @media (prefers-reduced-motion:reduce){.A *{animation:none!important;transition:none!important}}
+/* Settings → Interface: calm (no animations or transitions), and parts of the dashboard left out */
+.A.calm *,.A.calm *::before,.A.calm *::after{animation-duration:0s!important;animation-iteration-count:1!important;transition:none!important}
+.A.no-systems .sysrail{display:none}
+.A.no-web [data-ptab=web],.A.no-guests [data-ptab=guests]{display:none}
+.A.no-web.no-guests [data-part=services]{display:none}
+

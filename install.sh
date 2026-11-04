@@ -114,12 +114,7 @@ fi
 
 echo "==> Services"
 cp systemd/pve-homelab.service systemd/pve-homelab-kiosk@.service systemd/pve-homelab-update.service systemd/pve-homelab-update.timer /etc/systemd/system/
-SEATS=$(python3 -c "
-import yaml
-c = yaml.safe_load(open('/etc/pve-homelab/config.yaml')) or {}
-for sid, s in (c.get('seats') or {}).items():
-    if s.get('kiosk'): print(sid, s.get('tty', 7))
-")
+SEATS=$(cd /opt/pve-homelab/backend && python3 -m pvehomelab.config seats)
 systemctl daemon-reload
 systemctl enable --now pve-homelab.service >/dev/null
 systemctl enable --now pve-homelab-update.timer >/dev/null 2>&1

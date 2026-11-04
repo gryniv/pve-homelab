@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "PVE Homelab: service tabs",
-  "version": "2.1",
+  "version": "2.2",
   "description": "Services open as tabs next to the menu; a dock on every page switches between them.",
   "permissions": [
     "tabs",
@@ -17,6 +17,7 @@
         "https://*/*"
       ],
       "js": [
+        "menu.js",
         "content.js"
       ],
       "run_at": "document_start",

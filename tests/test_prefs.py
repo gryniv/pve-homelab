@@ -97,3 +97,13 @@ async def test_prefs_body_must_be_an_object(client):
     await login(client)
     assert (await client.put("/api/prefs", data="nope", headers={"Content-Type": "application/json"})).status == 400
     assert (await client.put("/api/prefs", json=[1, 2])).status == 400
+
+
+def test_interface_settings_keep_to_their_choices():
+    got = prefs._merge(prefs.DEFAULT, {"ui": {"scale": 125, "motion": "calm", "clock": "12", "date": "iso", "confirm": False,
+                                              "toast_sec": 8, "sections": {"systems": False, "web": "no", "evil": True}}})["ui"]
+    assert got == {"scale": 125, "motion": "calm", "clock": "12", "date": "iso", "confirm": False, "toast_sec": 8,
+                   "sections": {"systems": False, "web": True, "guests": True}}
+    bad = prefs._merge(prefs.DEFAULT, {"ui": {"scale": 9000, "motion": "wild", "clock": 12, "toast_sec": True, "confirm": "yes"}})["ui"]
+    assert bad == prefs.DEFAULT["ui"]
+    assert prefs._merge(prefs.DEFAULT, {"ui": "junk"})["ui"] == prefs.DEFAULT["ui"]

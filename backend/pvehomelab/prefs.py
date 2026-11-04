@@ -26,6 +26,9 @@ DEFAULT = {
     "launch": {"gpu": "auto", "ask": True, "pass_input": True},
     "saver": {"fx": True, "clock": True},
     "top": {"pve_updates": True},  # the top bar's Proxmox updates button (shown only to those who may update)
+    # How the menu feels (Settings → Interface): see UI_CHOICES / UI_RANGES for what each takes.
+    "ui": {"scale": 100, "motion": "full", "clock": "24", "date": "long", "confirm": True, "toast_sec": 3,
+           "sections": {"systems": True, "web": True, "guests": True}},
     "hidden_services": [],
     "hidden_systems": [],
     # manual = the user's own order (drag on the dashboard or ↑↓ in settings), name, status = running first
@@ -137,6 +140,29 @@ def _looks(v):
     return out
 
 
+UI_CHOICES = {"motion": ("full", "calm"), "clock": ("24", "12"), "date": ("long", "short", "iso")}
+UI_RANGES = {"scale": (70, 160), "toast_sec": (2, 15)}
+
+
+def _ui(v, base):
+    """prefs.ui: choices from UI_CHOICES, numbers within UI_RANGES; anything else keeps the default."""
+    out = copy.deepcopy(base)
+    if not isinstance(v, dict):
+        return out
+    for k, (lo, hi) in UI_RANGES.items():
+        if isinstance(v.get(k), int) and not isinstance(v.get(k), bool) and lo <= v[k] <= hi:
+            out[k] = v[k]
+    for k, allowed in UI_CHOICES.items():
+        if v.get(k) in allowed:
+            out[k] = v[k]
+    if isinstance(v.get("confirm"), bool):
+        out["confirm"] = v["confirm"]
+    if isinstance(v.get("sections"), dict):
+        out["sections"] = {k: v["sections"][k] if isinstance(v["sections"].get(k), bool) else d
+                           for k, d in base["sections"].items()}
+    return out
+
+
 def _merge(base, over):
     """Defaults overlaid with `over`: unknown keys are dropped, values of the wrong type keep
     the default, and strings and lists are capped."""
@@ -151,6 +177,8 @@ def _merge(base, over):
             out[k] = _theme_opts(v)
         elif k == "looks":
             out[k] = _looks(v)
+        elif k == "ui" and base is DEFAULT:
+            out[k] = _ui(v, d)
         elif isinstance(d, dict):
             if not isinstance(v, dict):
                 continue

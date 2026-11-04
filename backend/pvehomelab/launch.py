@@ -2,9 +2,12 @@
 
 import asyncio
 import itertools
+import json
+import os
 import re
 import time
 
+from . import config
 from . import gpus as G
 from .i18n import _
 from .pve import PVEError
@@ -13,6 +16,9 @@ from .util import log, run
 _job_ids = itertools.count(1)
 
 HOSTPCI = re.compile(r"^hostpci(\d+):\s*(.*)$", re.M)
+VGA = re.compile(r"^vga:\s*(.*)$", re.M)
+FOLLOW_WINDOW = 180      # s: a VM up for less than this was just started
+BOOT_WINDOW = 600        # s: the host is still booting (its onboot VMs come up now)
 
 
 def pci_addr(val, node=None, mappings=None):
@@ -22,29 +28,77 @@ def pci_addr(val, node=None, mappings=None):
     return devs[0] if devs else ""
 
 
-def plan_hostpci(conf, display, gpu, node=None, mappings=None):
+def plan_hostpci(conf, display, gpu, node=None, mappings=None, remembered=None):
     """Where `gpu` goes in a VM config (text of `qm config`): the hostpci slot that already holds a
-    display GPU, else the first free one. Returns (slot, new value, old value or None). The new
-    value keeps the old entry's options (x-vga, romfile, rombar, ...) and only swaps the device."""
+    display GPU, else the slot VirGL emptied (`remembered`: {slot: value} it took out), else the
+    first free one. Returns (slot, new value, old value or None). The new value keeps that entry's
+    options (x-vga, romfile, rombar, ...) and its form: an entry that names a resource mapping
+    names the mapping of the new GPU (raw address if it has none), a raw address stays raw, and a
+    new entry uses the GPU's mapping when there is one."""
     target = gpu.rsplit(".", 1)[0]  # whole device: VGA + its audio function
+    mapping = G.mapping_for(target, node, mappings)
     used, slot, old = set(), None, None
     for m in HOSTPCI.finditer(conf):
         n, val = int(m.group(1)), m.group(2).strip()
         used.add(n)
         if slot is None and G.gpu_of(pci_addr(val, node, mappings) or "-") in display:
             slot, old = n, val
+    base = old
+    if slot is None:
+        slot, base = next(((n, v) for n, v in sorted((remembered or {}).items()) if n not in used), (None, None))
     if slot is None:
         slot = next(i for i in range(16) if i not in used)
-        return slot, f"{target},pcie=1", None
-    opts = [o for o in old.split(",")[1:] if o]
+    if base is None:
+        return slot, f"{f'mapping={mapping}' if mapping else target},pcie=1", None
+    dev = f"mapping={mapping}" if mapping and base.startswith("mapping=") else target
+    opts = [o for o in base.split(",")[1:] if o]
     if not any(o.split("=")[0] == "pcie" for o in opts):
         opts.append("pcie=1")
-    return slot, ",".join([target] + opts), old
+    return slot, ",".join([dev] + opts), old
+
+
+def _remembered_path(vmid):
+    return os.path.join(config.STATE_DIR, "launch", f"{int(vmid)}.json")
+
+
+def remembered(vmid):
+    """What the last switch to VirGL took out of the VM: {"hostpci": {slot: value}, "vga": old}."""
+    try:
+        with open(_remembered_path(vmid), encoding="utf-8") as f:
+            d = json.load(f)
+        return {"hostpci": {int(k): str(v) for k, v in (d.get("hostpci") or {}).items()}, "vga": d.get("vga")}
+    except (OSError, ValueError, AttributeError, TypeError):
+        return {"hostpci": {}, "vga": None}
+
+
+def remember(vmid, data):
+    path = _remembered_path(vmid)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump({**data, "hostpci": {str(k): v for k, v in data["hostpci"].items()}, "at": int(time.time())}, f)
+    os.replace(tmp, path)
+
+
+def forget(vmid):
+    try:
+        os.remove(_remembered_path(vmid))
+    except OSError:
+        pass
+
+
+def host_uptime():
+    try:
+        with open("/proc/uptime", encoding="ascii") as f:
+            return float(f.read().split()[0])
+    except (OSError, ValueError):
+        return float("inf")
 
 
 class Job:
-    def __init__(self, steps):
+    def __init__(self, steps, owner=None):
         self.id = next(_job_ids)
+        self.owner = owner
         self.created = time.time()
         self.steps = [{"text": s, "state": "todo"} for s in steps]
         self.error = None
@@ -103,8 +157,19 @@ class Launcher:
 
     _addr = staticmethod(pci_addr)
 
-    async def options(self, seat_id, vm):
-        """GPUs the user could start `vm` on from this seat."""
+    async def options(self, seat_id, vm, seen=None):
+        """GPUs the user could start `vm` on from this seat. `seen`: the VMs this user may see;
+        a GPU busy with any other VM says so without naming it."""
+        opts = await self._options(seat_id, vm)
+        if seen is not None:
+            for o in opts:
+                if o["busy_vm"] and o["busy_vm"] not in seen:
+                    o["busy_vm"] = 0
+                    if o["disabled"]:
+                        o["disabled"] = _("busy_other")
+        return opts
+
+    async def _options(self, seat_id, vm):
         seat = self.cfg["seats"][seat_id]
         if not seat.get("gpu"):
             return await self._remote_options(vm)
@@ -190,8 +255,8 @@ class Launcher:
         return self.start_job(go, steps)
 
     # ---------- actions ----------
-    def start_job(self, coro_fn, steps):
-        job = Job(steps)
+    def start_job(self, coro_fn, steps, owner=None):
+        job = Job(steps, owner)
         self.jobs[job.id] = job
 
         async def runner():
@@ -205,7 +270,25 @@ class Launcher:
         asyncio.create_task(runner())
         return job
 
-    async def launch(self, t, seat_id, vmid, gpu):
+    async def launch(self, t, seat_id, vmid, gpu, resources=None):
+        """Start (or show, or switch to) `vmid` on `gpu`; the job is its starter's alone to follow.
+        `resources` ({memory: MB, cores}) are written into a stopped VM's config first, with the
+        user's own ticket (Proxmox checks VM.Config.Memory / VM.Config.CPU); they stay there."""
+        if resources:
+            await self._set_resources(t, vmid, resources)
+        job = await self._launch(t, seat_id, vmid, gpu)
+        job.owner = t.user
+        return job
+
+    async def _set_resources(self, t, vmid, resources):
+        if vmid in await self.app["running"](fresh=True):
+            raise PVEError(409, _("resources_running"))
+        data = {k: int(v) for k, v in resources.items() if k in ("memory", "cores")}
+        if data:
+            await self.app["pve"].req(t, "PUT", f"/nodes/{self.cfg['node']}/qemu/{vmid}/config", data)
+            log.info("VM %s before its start: %s", vmid, ", ".join(f"{k} {v}" for k, v in data.items()))
+
+    async def _launch(self, t, seat_id, vmid, gpu):
         pve, node = self.app["pve"], self.cfg["node"]
         vm = next((s for s in await self.systems(t) if s["vmid"] == vmid), None)
         if not vm:
@@ -257,7 +340,7 @@ class Launcher:
                 i, undo = 0, None
                 if need_assign:
                     job.step(i)
-                    undo = await self._assign_gpu(vmid, gpu)
+                    undo = await self._assign_gpu(vmid, gpu, t)
                     i += 1
                 job.step(i)
                 try:
@@ -271,6 +354,8 @@ class Launcher:
                 # even if the wait or the switch below fails.
                 self.watch[vmid] = (mon, seat_gpu)
                 await pve.wait_task(t, node, upid, timeout=180)
+                if undo is not None:
+                    forget(vmid)   # the GPU entry VirGL took out is back for good
                 i += 1
                 job.step(i)
                 await asyncio.sleep(2)
@@ -316,45 +401,76 @@ class Launcher:
         return self.start_job(go, steps)
 
     async def _to_virgl(self, vmid):
+        """VirGL on the menu's GPU: the display GPU entries come out of the VM config. What they
+        said (x-vga, romfile, a mapping) and the old display are kept beside the config, and the
+        next start on a passed-through GPU puts them back."""
         conf = await run("qm", "config", str(vmid))
         display = {g["pci"] for g in await G.list_gpus(set())}
         args = ["qm", "set", str(vmid), "--vga", "virtio-gl,memory=256"]
-        drop = [f"hostpci{m.group(1)}" for m in HOSTPCI.finditer(conf)
-                if G.gpu_of(pci_addr(m.group(2), self.cfg["node"]) or "-") in display]
+        drop = {int(m.group(1)): m.group(2).strip() for m in HOSTPCI.finditer(conf)
+                if G.gpu_of(pci_addr(m.group(2), self.cfg["node"]) or "-") in display}
         if drop:
-            args += ["--delete", ",".join(drop)]
+            args += ["--delete", ",".join(f"hostpci{n}" for n in sorted(drop))]
+        vga = (VGA.search(conf) or [None, None])[1]
+        kept = remembered(vmid)
+        if drop or not (vga or "").startswith("virtio-gl"):
+            remember(vmid, {"hostpci": {**kept["hostpci"], **drop},
+                            "vga": kept["vga"] if (vga or "").startswith("virtio-gl") else vga})
         log.info("VM %s -> VirGL %s", vmid, " ".join(args[3:]))
         await run(*args)
 
-    async def _assign_gpu(self, vmid, gpu):
-        """Point the VM's display-GPU hostpci entry at `gpu` (other passthrough stays).
-        Returns what _undo_assign needs to put it back."""
+    async def _assign_gpu(self, vmid, gpu, t=None):
+        """Point the VM's display-GPU hostpci entry at `gpu` (other passthrough stays); after VirGL,
+        bring back the entry and the display it had. With the user's ticket `t`, writing a resource
+        mapping needs Mapping.Use on it, as in Proxmox itself. Returns what _undo_assign needs."""
         conf = await run("qm", "config", str(vmid))
         display = {g["pci"] for g in await G.list_gpus(set())}
-        slot, value, old = plan_hostpci(conf, display, gpu, self.cfg["node"])
-        log.info("VM %s: hostpci%s %s -> %s", vmid, slot, old or "(new)", value)
-        await run("qm", "set", str(vmid), f"--hostpci{slot}", value)
-        return (slot, old)
+        back = remembered(vmid)
+        slot, value, old = plan_hostpci(conf, display, gpu, self.cfg["node"], remembered=back["hostpci"])
+        mapping = value.split(",")[0][8:] if value.startswith("mapping=") else None
+        if mapping and t is not None and not await self.app["pve"].can(t, f"/mapping/pci/{mapping}", "Mapping.Use"):
+            raise PVEError(403, _("no_mapping_use", name=mapping))
+        args = ["qm", "set", str(vmid), f"--hostpci{slot}", value]
+        vga = (VGA.search(conf) or [None, None])[1]
+        if (vga or "").startswith("virtio-gl") and (back["hostpci"] or back["vga"] is not None):
+            args += ["--vga", back["vga"]] if back["vga"] else ["--delete", "vga"]
+        else:
+            vga = None
+        log.info("VM %s: hostpci%s %s -> %s%s", vmid, slot, old or "(new)", value, f", vga {vga} -> {back['vga'] or 'default'}" if vga else "")
+        await run(*args)
+        return (slot, old, vga)
 
     async def _undo_assign(self, vmid, undo):
-        slot, old = undo
+        slot, old, vga = (tuple(undo) + (None,))[:3]
         try:
-            if old:
-                await run("qm", "set", str(vmid), f"--hostpci{slot}", old)
-            else:
-                await run("qm", "set", str(vmid), "--delete", f"hostpci{slot}")
+            args = ["qm", "set", str(vmid)]
+            args += [f"--hostpci{slot}", old] if old else ["--delete", f"hostpci{slot}"]
+            if vga:
+                args += ["--vga", vga]
+            await run(*args)
             log.info("VM %s: hostpci%s restored", vmid, slot)
         except Exception as e:
             log.warning("VM %s: could not restore hostpci%s (%s): %s", vmid, slot, old, e)
 
     ADOPT_EVERY = 8   # turns of the watch loop (4 s each): about every half a minute
 
+    def _follows(self, uptime):
+        """Does the monitor go to a VM the menu found just started? launch.follow_start:
+        "boot" while the host is still coming up (its onboot VMs), "always", or "never"."""
+        follow = self.cfg["launch"].get("follow_start", "boot")
+        if follow == "never" or uptime is None or uptime >= FOLLOW_WINDOW:
+            return False
+        return follow == "always" or host_uptime() < BOOT_WINDOW
+
     async def adopt(self):
         """Watch VMs that hold a GPU wired to a menu monitor though the menu did not start them:
         started before it (an update restarts the menu at night) or from Proxmox itself. Otherwise
-        the monitor stays on that GPU's input, with no picture, after the VM stops."""
+        the monitor stays on that GPU's input, with no picture, after the VM stops. One that has
+        just started (with the host, or from Proxmox when follow_start is "always") also gets the
+        monitor, as if it had been started from the menu."""
         cfg, ddc = self.cfg, self.app["ddc"]
         running = await self.app["running"]()
+        uptime = {g["vmid"]: g.get("uptime") for g in await self.app["resources"].get() if g.get("status") == "running"}
         for g in await G.list_gpus(running):
             vm, mon = g["running_vm"], ddc.monitor_for_gpu(g["pci"])
             if not vm or not mon or vm in self.watch:
@@ -364,6 +480,12 @@ class Launcher:
             if seat_gpu:
                 self.watch[vm] = (mon, seat_gpu)
                 log.info("watching VM %s on monitor %s", vm, mon)
+                if self._follows(uptime.get(vm)):
+                    log.info("VM %s just started: monitor %s goes to it", vm, mon)
+                    try:
+                        await ddc.switch_to_gpu(mon, g["pci"])
+                    except Exception as e:
+                        log.warning("switch to VM %s failed: %s", vm, e)
 
     async def give_back(self):
         """The watched VMs that stopped: the monitor goes back to the menu."""

@@ -7,7 +7,7 @@ export default {
   render(_d, { ui, t, opts }) {
     const B = { pve: 'i-ext', saver: 'i-moon', reboot: 'i-restart', shutdown: 'i-power' };
     return `<h4>${t('title')}</h4><div class="qa">${Object.entries(B).filter(([k]) => opts.buttons.includes(k))
-      .map(([k, ic]) => `<button type="button" data-q="${k}">${ui.icon(ic)}${t(k)}</button>`).join('')}</div>`;
+      .map(([k, ic]) => `<button type="button" data-q="${k}"${k === 'reboot' || k === 'shutdown' ? ' data-needs="host_power"' : ''}>${ui.icon(ic)}${t(k)}</button>`).join('')}</div>`;
   },
   after(el, _d, { app, ui, t }) {
     el.querySelectorAll('[data-q]').forEach((b) => b.addEventListener('click', async () => {

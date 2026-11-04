@@ -61,6 +61,9 @@ export function keepFocus(root, fn) {
 // One message at a time; the next waits instead of overwriting it (a repeat is dropped).
 const toastQueue = [];
 let toastBusy = false;
+let toastMs = 3000;
+export function setToastTime(sec) { toastMs = Math.max(2, Math.min(15, Number(sec) || 3)) * 1000; }
+
 export function toast(msg, bad = false) {
   if (toastQueue.some((x) => x.msg === msg) || ($('#toast').textContent === msg && toastBusy)) return;
   toastQueue.push({ msg, bad });
@@ -75,7 +78,7 @@ function nextToast() {
   t.classList.toggle('bad', m.bad);
   t.hidden = false;
   // a queued message shortens the current one, never below 1.5 s
-  const ms = toastQueue.length ? 1500 : (m.bad ? 6000 : 3000);
+  const ms = toastQueue.length ? 1500 : (m.bad ? toastMs * 2 : toastMs);
   setTimeout(nextToast, ms);
 }
 

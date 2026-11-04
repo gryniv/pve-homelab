@@ -12,11 +12,11 @@ from urllib.parse import quote
 import aiohttp
 from aiohttp import web
 
-from . import caddy, config, designs, discover, errlog, feedback, gpus as G, i18n, icons, prefs, update, userwidgets, weather, wol
+from . import backup, caddy, config, designs, discover, errlog, feedback, gpus as G, i18n, icons, prefs, settings, update, userwidgets, weather, wol
 from .ddc import DDC
 from .host import HostStats
 from .launch import Launcher
-from .pve import PVE, PVEError
+from .pve import PVE, TFA_KINDS, PVEError, TfaChallenge
 from .util import Cached, log, pvesh, run
 
 COOKIE = "pvehomelab_sid"
@@ -56,6 +56,13 @@ def client_ip(req):
     return req.headers.get("X-Forwarded-For", "").split(",")[0].strip() or peer(req)
 
 
+def over_https(req):
+    """The browser reached us over HTTPS: directly, or through the proxy, which says so."""
+    if req.secure:
+        return True
+    return is_remote(req) and req.headers.get("X-Forwarded-Proto", "").split(",")[0].strip().lower() == "https"
+
+
 def seat_of(req):
     seats = req.app["cfg"]["seats"]
     # A browser elsewhere is always the "web" seat, whatever it asks for: only the screens
@@ -80,6 +87,39 @@ async def session(req):
     s["seen"] = time.time()
     await req.app["pve"].renew(s["ticket"])
     return s
+
+
+async def maybe_session(req):
+    """The session if this browser is signed in, else None (for pages that work either way)."""
+    try:
+        return await session(req)
+    except web.HTTPUnauthorized:
+        return None
+
+
+async def require(req, s, priv, path="/"):
+    """The signed-in user holds `priv` on `path` in Proxmox, or the request ends with 403."""
+    if not await req.app["pve"].can(s["ticket"], path, priv):
+        raise PVEError(403, i18n._("forbidden"))
+
+
+SIGN_IN_LEVELS = ("minimal", "users", "full")
+
+
+def sign_in_level(req):
+    """How much the sign-in screen tells a browser that hasn't signed in. The screens plugged into
+    the host show everything; a browser elsewhere gets web.sign_in: "minimal" (no people, no host
+    figures), "users" (the people too) or "full" (all of it, as on the host)."""
+    if not is_remote(req):
+        return "full"
+    level = (req.app["cfg"].get("web") or {}).get("sign_in", "minimal")
+    return level if level in SIGN_IN_LEVELS else "minimal"
+
+
+async def visible_guests(req, s):
+    """{(type, vmid): resource row} of the guests this user may see."""
+    rows = await req.app["pve"].get(s["ticket"], "/cluster/resources", type="vm") or []
+    return {(g["type"], g["vmid"]): g for g in rows}
 
 
 LOOPBACK = {"127.0.0.1", "localhost", "::1"}
@@ -136,6 +176,49 @@ async def guard(req, handler):
         if req.method not in ("GET", "HEAD", "OPTIONS") and origin and origin != "null" \
                 and _hostname(origin) not in ok_origins:
             return err(403, "cross-origin request refused")
+    return await handler(req)
+
+
+# Which feature each part of the API belongs to: (method or "*", path prefix or pattern, feature).
+FEATURE_ROUTES = [
+    ("*", "/api/alerts", "alerts"),
+    ("*", "/api/node-updates", "node_updates"),
+    ("*", "/api/update", "app_updates"),
+    ("*", "/api/weather", "weather"),
+    ("*", "/api/console", "consoles"),
+    ("POST", re.compile(r"^/api/guests/[a-z]+/\d+/[a-z]+$"), "guest_actions"),
+    ("PUT", re.compile(r"^/api/guests/[a-z]+/\d+/config$"), "guest_settings"),
+    ("*", "/api/host/power", "host_power"),
+    ("*", "/api/wol", "wol"),
+    ("POST", "/api/designs", "my_designs"),
+    ("DELETE", "/api/designs/", "my_designs"),
+    ("POST", "/api/widgets", "my_widgets"),
+    ("DELETE", "/api/widgets/", "my_widgets"),
+]
+
+
+def feature_on(app, name):
+    return (app["cfg"].get("features") or {}).get(name, True) is not False
+
+
+def feature_of(method, path):
+    for m, where, name in FEATURE_ROUTES:
+        if m not in ("*", method):
+            continue
+        if hasattr(where, "match"):
+            if where.match(path):
+                return name
+        elif path == where or path.startswith(where if where.endswith("/") else where + "/"):
+            return name
+    return None
+
+
+@web.middleware
+async def features(req, handler):
+    """A part of the menu switched off in Settings → System → Components is gone from the API too."""
+    name = feature_of(req.method, req.path)
+    if name and not feature_on(req.app, name):
+        return web.json_response({"error": i18n._("feature_off")}, status=404)
     return await handler(req)
 
 
@@ -207,20 +290,26 @@ def languages():
 async def public(req):
     app, cfg = req.app, req.app["cfg"]
     seat = seat_of(req)
-    res = await app["resources"].get()
-    guests = [g for g in res if not g.get("template")]
+    s = await maybe_session(req)
+    level = "full" if s else sign_in_level(req)
+    full = level == "full"
+    if s:   # signed in: the guests this person may see
+        guests = [g for g in (await visible_guests(req, s)).values() if not g.get("template")]
+    else:   # the screen plugged into the host (or web.sign_in: full): all of them
+        guests = [g for g in await app["resources"].get() if not g.get("template")] if full else []
     return web.json_response({
         "node": cfg["node"],
         "demo": app.get("demo", False),
         "app": {"version": update.installed()["version"], "repo": update.settings(cfg)["repo"]},
-        "version": app["pveversion"],
-        "ip": app["host_ip"],
+        "version": app["pveversion"] if full else "",
+        "ip": app["host_ip"] if full else "",
         "seat": {"id": seat, **cfg["seats"][seat],
                  "gpu_name": await G.pretty_name(cfg["seats"][seat]["gpu"]) if cfg["seats"][seat].get("gpu") else ""},
-        "host": app["stats"].snapshot(),
+        "stats": full,   # host figures before sign-in: the host and network widgets may show
+        "host": app["stats"].snapshot() if full else None,
         "guests": {"running": sum(g.get("status") == "running" for g in guests),
-                   "stopped": sum(g.get("status") != "running" for g in guests)},
-        "users": pve_users(app),
+                   "stopped": sum(g.get("status") != "running" for g in guests)} if full else None,
+        "users": pve_users(app) if level != "minimal" else [],
         "language": cfg["language"],
         "languages": languages(),
         "systems_tag": cfg["systems_tag"],
@@ -235,6 +324,7 @@ async def public(req):
         "widget_styles": [m["id"] for m in designs.catalog("widgets")],
         "designer": designer_mode(app),
         "feedback": feedback_cfg(cfg)["enabled"],
+        "features": {f: feature_on(app, f) for f in settings.FEATURES},
         "login": prefs.load_login(),
         "widgets": userwidgets.all_ids(),
     })
@@ -289,6 +379,8 @@ async def get_weather(req):
     cfg = req.app["cfg"]["weather"]
     city = (req.query.get("city") or cfg["city"])[:100]
     units = req.query.get("units") or cfg["units"]
+    if is_remote(req) and not await maybe_session(req):
+        city, units = cfg["city"], cfg["units"]   # a stranger's browser can't make us ask about any city
     if units not in ("c", "f"):
         units = "c"
     try:
@@ -306,6 +398,8 @@ async def health(req):
 
 @routes.get("/api/host")
 async def host(req):
+    if sign_in_level(req) != "full":
+        await session(req)
     return web.json_response(req.app["stats"].snapshot())
 
 
@@ -319,6 +413,28 @@ async def icon(req):
 
 # ---------------- session ----------------
 LOGIN_TRIES, LOGIN_WINDOW = 5, 60  # wrong passwords per user name per minute
+LOGIN_TRIES_PER_PLACE = 20         # ... and from one address (or one screen on the host), any names
+TFA_TTL, TFA_TRIES = 110, 5        # s to answer the second factor; codes per challenge
+
+
+def _place(req):
+    """Where a sign-in comes from, for the limit: the screen on the host, or the browser's address."""
+    return f"seat:{seat_of(req)}" if not is_remote(req) else f"ip:{client_ip(req)}"
+
+
+def _check_limits(req, user):
+    """Too many wrong answers lately for this name, or from this place: wait."""
+    fails, now = req.app["login_fails"], time.time()
+    for key, most in ((user.lower(), LOGIN_TRIES), (_place(req), LOGIN_TRIES_PER_PLACE)):
+        recent = [x for x in fails.get(key, []) if now - x < LOGIN_WINDOW]
+        if len(recent) >= most:
+            raise web.HTTPTooManyRequests(text=i18n._("too_many_logins", s=int(LOGIN_WINDOW - (now - recent[0])) + 1))
+
+
+def _failed(req, user):
+    fails, now = req.app["login_fails"], time.time()
+    for key in (user.lower(), _place(req)):
+        fails[key] = [x for x in fails.get(key, []) if now - x < LOGIN_WINDOW] + [now]
 
 
 @routes.post("/api/login")
@@ -326,23 +442,60 @@ async def login(req):
     body = await req.json()
     seat = seat_of(req)
     user = str(body.get("user", ""))
-    fails = req.app["login_fails"]
-    now = time.time()
-    recent = [x for x in fails.get(user.lower(), []) if now - x < LOGIN_WINDOW]
-    if len(recent) >= LOGIN_TRIES:
-        raise web.HTTPTooManyRequests(text=i18n._("too_many_logins", s=int(LOGIN_WINDOW - (now - recent[0])) + 1))
+    _check_limits(req, user)
     try:
         t = await req.app["pve"].login(user, body.get("password", ""))
     except PVEError as e:
         if e.status == 401:
-            fails[user.lower()] = recent + [now]
+            _failed(req, user)
         raise
-    fails.pop(user.lower(), None)
+    if isinstance(t, TfaChallenge):
+        # The password was right; the session waits for the second factor, kept here, not in the browser.
+        cid = secrets.token_urlsafe(24)
+        req.app["tfa"][cid] = {"ch": t, "seat": seat, "place": _place(req), "until": time.time() + TFA_TTL, "tries": 0}
+        usable = [m for m in t.methods if m in TFA_KINDS]
+        return web.json_response({"tfa": {"id": cid, "methods": usable, "ttl": TFA_TTL,
+                                          "webauthn_only": not usable and "webauthn" in t.methods}})
+    return await _start_session(req, t, seat)
+
+
+@routes.post("/api/login/tfa")
+async def login_tfa(req):
+    body = await req.json()
+    if not isinstance(body, dict):
+        raise web.HTTPBadRequest(text="JSON object expected")
+    pending = req.app["tfa"]
+    c = pending.get(str(body.get("id", "")))
+    if not c or c["seat"] != seat_of(req) or c["place"] != _place(req):
+        raise PVEError(404, i18n._("tfa_gone"))
+    if time.time() > c["until"]:
+        pending.pop(str(body["id"]), None)
+        raise PVEError(410, i18n._("tfa_gone"))
+    kind, code = str(body.get("kind", "")), str(body.get("code", "")).strip().replace(" ", "")
+    if kind not in TFA_KINDS or kind not in c["ch"].methods or not code or len(code) > 128:
+        raise web.HTTPBadRequest(text="kind and code expected")
+    _check_limits(req, c["ch"].user)
+    try:
+        t = await req.app["pve"].finish_tfa(c["ch"], kind, code)
+    except PVEError as e:
+        if e.status == 401:
+            _failed(req, c["ch"].user)
+            c["tries"] += 1
+            if c["tries"] >= TFA_TRIES:
+                pending.pop(str(body["id"]), None)
+                raise PVEError(410, i18n._("tfa_too_many"))
+        raise
+    pending.pop(str(body["id"]), None)
+    return await _start_session(req, t, c["seat"])
+
+
+async def _start_session(req, t, seat):
+    req.app["login_fails"].pop(t.user.lower(), None)
     sid = secrets.token_urlsafe(32)
     req.app["sessions"][sid] = {"ticket": t, "seat": seat, "user": t.user, "seen": time.time()}
     admin = await req.app["pve"].can(t, "/", "Sys.Modify")
     resp = web.json_response({"user": t.user, "prefs": prefs.load(t.user), "admin": admin})
-    resp.set_cookie(COOKIE, sid, httponly=True, samesite="Strict", path="/")
+    resp.set_cookie(COOKIE, sid, httponly=True, samesite="Strict", path="/", secure=over_https(req))
     log.info("login %s on seat %s from %s", t.user, seat, client_ip(req))
     return resp
 
@@ -685,6 +838,149 @@ async def guest_info(req):
                               "backup": backup})
 
 
+# ---------------- a guest's resources and options, changed with the user's own rights ----------------
+TAG = re.compile(r"^[a-z0-9_][a-z0-9_.+-]{0,31}$")
+GUEST_PRIVS = (("memory", "VM.Config.Memory"), ("cpu", "VM.Config.CPU"), ("options", "VM.Config.Options"))
+
+
+def parse_startup(value):
+    """Proxmox "order=2,up=30,down=60" -> {"order": 2, "up": 30, "down": 60}."""
+    out = {}
+    for part in str(value or "").split(","):
+        k, _, v = part.partition("=")
+        if k.strip() in ("order", "up", "down") and v.strip().isdigit():
+            out[k.strip()] = int(v)
+    return out
+
+
+def guest_settings(typ, conf, pending=()):
+    """The part of a guest's config the menu edits, in plain values."""
+    return {
+        "type": typ,
+        "memory": int(conf.get("memory") or 512),
+        "balloon": (int(conf["balloon"]) if str(conf.get("balloon", "")).isdigit() else None) if typ == "qemu" else None,
+        "swap": int(conf.get("swap") or 0) if typ == "lxc" else None,
+        "cores": int(conf.get("cores") or 1),
+        "sockets": int(conf.get("sockets") or 1) if typ == "qemu" else 1,
+        "onboot": str(conf.get("onboot", "0")) == "1",
+        "startup": parse_startup(conf.get("startup")),
+        "tags": [x for x in re.split(r"[;, ]+", str(conf.get("tags") or "")) if x],
+        "description": str(conf.get("description") or ""),
+        "passthrough": any(k.startswith("hostpci") for k in conf),
+        "pending": sorted(pending),
+    }
+
+
+def guest_changes(typ, body):
+    """A body from the guest dialog -> (PVE config fields, fields to delete); 400 on anything odd."""
+    if not isinstance(body, dict):
+        raise web.HTTPBadRequest(text="JSON object expected")
+    data, delete = {}, []
+
+    def num(key, lo, hi):
+        v = body[key]
+        if isinstance(v, bool) or not isinstance(v, int) or not lo <= v <= hi:
+            raise web.HTTPBadRequest(text=f"{key}: {lo}…{hi}")
+        return v
+    if "memory" in body:
+        data["memory"] = num("memory", 16, 4 * 1024 * 1024)
+    if "cores" in body:
+        data["cores"] = num("cores", 1, 512)
+    if typ == "qemu" and "balloon" in body:
+        if body["balloon"] is None:
+            delete.append("balloon")
+        else:
+            data["balloon"] = num("balloon", 0, 4 * 1024 * 1024)
+    if typ == "lxc" and "swap" in body:
+        data["swap"] = num("swap", 0, 4 * 1024 * 1024)
+    if "onboot" in body:
+        if not isinstance(body["onboot"], bool):
+            raise web.HTTPBadRequest(text="onboot: true or false")
+        data["onboot"] = 1 if body["onboot"] else 0
+    if "startup" in body:
+        st = body["startup"] or {}
+        if not isinstance(st, dict):
+            raise web.HTTPBadRequest(text="startup: {order, up, down}")
+        parts = []
+        for k, hi in (("order", 9999), ("up", 86400), ("down", 86400)):
+            v = st.get(k)
+            if v in (None, ""):
+                continue
+            if isinstance(v, bool) or not isinstance(v, int) or not 0 <= v <= hi:
+                raise web.HTTPBadRequest(text=f"startup.{k}: 0…{hi}")
+            parts.append(f"{k}={v}")
+        if parts:
+            data["startup"] = ",".join(parts)
+        else:
+            delete.append("startup")
+    if "tags" in body:
+        tags = body["tags"]
+        if not isinstance(tags, list) or len(tags) > 32 or not all(isinstance(x, str) and TAG.match(x) for x in tags):
+            raise web.HTTPBadRequest(text="tags: lower-case words")
+        if tags:
+            data["tags"] = ";".join(dict.fromkeys(tags))
+        else:
+            delete.append("tags")
+    if "description" in body:
+        d = body["description"]
+        if not isinstance(d, str) or len(d) > 8192 or "\0" in d:
+            raise web.HTTPBadRequest(text="description: text up to 8 KB")
+        if d.strip():
+            data["description"] = d
+        else:
+            delete.append("description")
+    if not data and not delete:
+        raise web.HTTPBadRequest(text="nothing to change")
+    if "memory" in data and data.get("balloon", 0) > data["memory"]:
+        raise web.HTTPBadRequest(text="balloon: not above memory")
+    return data, delete
+
+
+async def _guest_settings(req, s, typ, vmid):
+    pve, node, t = req.app["pve"], req.app["cfg"]["node"], s["ticket"]
+    conf = await pve.get(t, f"/nodes/{node}/{typ}/{vmid}/config")
+    pending = []
+    if typ == "qemu":
+        try:
+            pending = [p["key"] for p in await pve.get(t, f"/nodes/{node}/qemu/{vmid}/pending") or []
+                       if "pending" in p or p.get("delete")]
+        except PVEError:
+            pass
+    can = {k: await pve.can(t, f"/vms/{vmid}", p) for k, p in GUEST_PRIVS}
+    return {**guest_settings(typ, conf or {}, pending), "can": can}
+
+
+@routes.get("/api/guests/{type}/{vmid}/config")
+async def guest_config(req):
+    s = await session(req)
+    typ, vmid = req.match_info["type"], vmid_of(req.match_info["vmid"])
+    if typ not in ("qemu", "lxc"):
+        raise web.HTTPBadRequest(text="bad type")
+    return web.json_response(await _guest_settings(req, s, typ, vmid))
+
+
+@routes.put("/api/guests/{type}/{vmid}/config")
+async def guest_config_put(req):
+    """Memory, cores, start at boot and its order, tags, notes: written with the user's own ticket,
+    so Proxmox itself decides (VM.Config.Memory, VM.Config.CPU, VM.Config.Options). A container takes
+    them at once; a running VM keeps the new memory and cores pending until its next start."""
+    s = await session(req)
+    typ, vmid = req.match_info["type"], vmid_of(req.match_info["vmid"])
+    if typ not in ("qemu", "lxc"):
+        raise web.HTTPBadRequest(text="bad type")
+    try:
+        body = await req.json()
+    except ValueError:
+        body = None
+    data, delete = guest_changes(typ, body)
+    if delete:
+        data["delete"] = ",".join(delete)
+    await req.app["pve"].req(s["ticket"], "PUT", f"/nodes/{req.app['cfg']['node']}/{typ}/{vmid}/config", data)
+    req.app["resources"].invalidate()
+    log.info("%s changed %s %s: %s", s["user"], typ, vmid, ", ".join(sorted(k for k in data if k != "delete") + delete))
+    return web.json_response(await _guest_settings(req, s, typ, vmid))
+
+
 @routes.post("/api/guests/{type}/{vmid}/{action}")
 async def guest_action(req):
     s = await session(req)
@@ -701,15 +997,18 @@ async def guest_action(req):
 async def services(req):
     s = await session(req)
     data = await req.app["services"].get()
-    visible = {(g["type"], g["vmid"]): g for g in await req.app["pve"].get(s["ticket"], "/cluster/resources", type="vm") or []}
+    visible = await visible_guests(req, s)
     out = []
     for svc in data:
         g = svc["guest"]
-        st = None
         if g and g["type"] == "node":
             st = "running"
-        elif g and (g["type"], g["vmid"]) in visible:
+        elif g:
+            if (g["type"], g["vmid"]) not in visible:
+                continue   # a service of a guest this person may not see is not theirs to see either
             st = visible[(g["type"], g["vmid"])].get("status")
+        else:
+            st = None      # a link, or something beyond this host
         out.append({**svc, "status": st})
     return web.json_response(out)
 
@@ -988,9 +1287,14 @@ async def wol_wake(req):
 
 @routes.get("/api/gpus")
 async def gpus(req):
-    await session(req)
+    s = await session(req)
     running = await req.app["running"]()
-    return web.json_response(await G.list_gpus(running))
+    seen = {vmid for (typ, vmid) in await visible_guests(req, s) if typ == "qemu"}
+    out = []
+    for g in await G.list_gpus(running):
+        out.append({**g, "assigned_vms": [v for v in g["assigned_vms"] if v in seen],
+                    "running_vm": g["running_vm"] if g["running_vm"] in seen else (0 if g["running_vm"] else None)})
+    return web.json_response(out)
 
 
 @routes.get("/api/systems")
@@ -999,8 +1303,9 @@ async def systems(req):
     seat = seat_of(req)
     L = req.app["launcher"]
     out = []
+    seen = {vmid for (typ, vmid) in await visible_guests(req, s) if typ == "qemu"}
     for vm in await L.systems(s["ticket"]):
-        out.append({**vm, "options": await L.options(seat, vm)})
+        out.append({**vm, "options": await L.options(seat, vm, seen)})
     return web.json_response(out)
 
 
@@ -1013,17 +1318,25 @@ async def launch(req):
         raise web.HTTPBadRequest(text="JSON expected")
     if not isinstance(body, dict) or not isinstance(body.get("gpu"), str):
         raise web.HTTPBadRequest(text="vmid and gpu expected")
-    job = await req.app["launcher"].launch(s["ticket"], seat_of(req), vmid_of(body.get("vmid")), body["gpu"])
+    resources = {}
+    for k, lo, hi in (("memory", 512, 4 * 1024 * 1024), ("cores", 1, 512)):
+        v = body.get(k)
+        if v is None:
+            continue
+        if isinstance(v, bool) or not isinstance(v, int) or not lo <= v <= hi:
+            raise web.HTTPBadRequest(text=f"{k}: {lo}…{hi}")
+        resources[k] = v
+    job = await req.app["launcher"].launch(s["ticket"], seat_of(req), vmid_of(body.get("vmid")), body["gpu"], resources)
     req.app["resources"].invalidate()
     return web.json_response(job.as_dict())
 
 
 @routes.get("/api/jobs/{id}")
 async def job(req):
-    await session(req)
+    s = await session(req)
     jid = req.match_info["id"]
     j = req.app["launcher"].jobs.get(int(jid)) if jid.isdigit() else None
-    if not j:
+    if not j or (j.owner and j.owner != s["user"]):
         raise web.HTTPNotFound()
     return web.json_response(j.as_dict())
 
@@ -1087,6 +1400,134 @@ async def update_status(req):
 
 
 UPDATE_CHECK_GAP = 30   # s: GitHub limits how often a host may ask
+
+
+# ---------------- a copy of the menu's settings (Settings → About), and putting one back ----------------
+BACKUP_TTL = 600   # s an inspected copy waits to be put back
+
+
+@routes.get("/api/backup/export")
+async def backup_export(req):
+    s = await session(req)
+    await require(req, s, "Sys.Modify")
+    blob = backup.export(version=update.installed()["version"])
+    name = time.strftime(f"pve-homelab-{req.app['cfg']['node']}-%Y%m%d-%H%M.tar.gz")
+    log.info("settings copy taken by %s", s["user"])
+    return web.Response(body=blob, content_type="application/gzip",
+                        headers={"Content-Disposition": f'attachment; filename="{name}"', "Cache-Control": "no-store"})
+
+
+@routes.post("/api/backup/inspect")
+async def backup_inspect(req):
+    """A copy, uploaded: what putting it back would change, part by part. Nothing is written yet."""
+    s = await session(req)
+    await require(req, s, "Sys.Modify")
+    files = await uploaded_files(req)
+    if len(files) != 1:
+        raise web.HTTPBadRequest(text="one file expected")
+    try:
+        found = backup.plan(files[0][1])
+    except backup.BadCopy as e:
+        raise PVEError(400, i18n._("backup_bad", why=str(e)))
+    held = req.app["runtime"].setdefault("copies", {})
+    for k in [k for k, v in held.items() if v["until"] < time.time()]:
+        del held[k]
+    token = secrets.token_urlsafe(16)
+    held[token] = {"blob": files[0][1], "user": s["user"], "until": time.time() + BACKUP_TTL}
+    return web.json_response({**found, "token": token})
+
+
+@routes.post("/api/backup/apply")
+async def backup_apply(req):
+    s = await session(req)
+    await require(req, s, "Sys.Modify")
+    body = await req.json()
+    if not isinstance(body, dict) or not isinstance(body.get("parts"), list):
+        raise web.HTTPBadRequest(text='{"token", "parts": [...]} expected')
+    c = req.app["runtime"].get("copies", {}).pop(str(body.get("token", "")), None)
+    if not c or c["user"] != s["user"] or c["until"] < time.time():
+        raise PVEError(410, i18n._("backup_gone"))
+    parts = [p for p in body["parts"] if p in backup.PARTS]
+    if not parts:
+        raise web.HTTPBadRequest(text="no parts")
+    snap, written = backup.apply(c["blob"], parts)
+    if {"config", "host"} & set(parts):
+        req.app["runtime"]["restart"] = "all"
+    log.info("settings copy put back by %s: %s (%d files; before: %s)", s["user"], ", ".join(parts), len(written), snap)
+    return web.json_response({"written": len(written), "snapshot": os.path.basename(snap), "restart": req.app["runtime"].get("restart")})
+
+
+# ---------------- Settings → System: the host's settings, changed in the menu ----------------
+def _system_form(app):
+    return {"groups": list(settings.GROUPS), "settings": settings.describe(config.load_file(), settings.load_overlay()),
+            "restart": app["runtime"].get("restart"), "not_in_menu": sorted(settings.NOT_IN_MENU)}
+
+
+def apply_settings(app, paths):
+    """Settings that take effect at once: the running config gets the new values of `paths`
+    (the rest of it, changed at run time, stays), and what was built from them is built again."""
+    fresh = config.load()
+    cfg = app["cfg"]
+    for p in paths:
+        v, there = settings._get(fresh, p)
+        if there:
+            settings._set(cfg, p, v)
+    hosts = app["allowed_hosts_cache"]
+    hosts.clear()
+    hosts.update(allowed_hosts(app))
+    if any(p.split(".")[0] in ("caddy", "discovery", "services", "links") for p in paths):
+        app["services"].invalidate()
+        if any(p.startswith("discovery") for p in paths):
+            app["discovered"].invalidate()
+    if any(p.startswith(("update.", "feedback.")) for p in paths):
+        app["update"].invalidate()
+
+
+@routes.get("/api/system/settings")
+async def system_settings(req):
+    s = await session(req)
+    await require(req, s, "Sys.Modify")
+    return web.json_response(_system_form(req.app))
+
+
+@routes.put("/api/system/settings")
+async def system_settings_put(req):
+    """{"set": {path: value}, "reset": [path, ...]}: reset takes a setting back to config.yaml."""
+    s = await session(req)
+    await require(req, s, "Sys.Modify")
+    try:
+        body = await req.json()
+    except ValueError:
+        body = None
+    if not isinstance(body, dict) or not isinstance(body.get("set", {}), dict) or not isinstance(body.get("reset", []), list):
+        raise web.HTTPBadRequest(text='{"set": {...}, "reset": [...]} expected')
+    sets, resets = body.get("set") or {}, [str(p) for p in body.get("reset") or []]
+    _, errors = settings.change(sets, resets)
+    if errors:
+        return web.json_response({"error": "; ".join(errors.values()), "errors": errors}, status=400)
+    paths = list(sets) + resets
+    apply_settings(req.app, paths)
+    need = settings.restart_needed(paths)
+    if need:
+        rt = req.app["runtime"]
+        rt["restart"] = "all" if rt.get("restart") and rt["restart"] != need else need
+    log.info("settings changed by %s: %s", s["user"], ", ".join(paths))
+    return web.json_response(_system_form(req.app))
+
+
+@routes.post("/api/system/restart")
+async def system_restart(req):
+    """Restart what the changed settings need: the backend, the kiosk screens, or both."""
+    s = await session(req)
+    await require(req, s, "Sys.Modify")
+    what = req.app["runtime"].get("restart") or "backend"
+    req.app["runtime"]["restart"] = None
+    units = (["pve-homelab.service"] if what in ("backend", "all") else []) + (["pve-homelab-kiosk@*"] if what in ("kiosk", "all") else [])
+    log.info("restart of %s asked by %s", ", ".join(units), s["user"])
+    if not req.app.get("demo"):
+        # its own unit: restarting the backend must not cut the command that does it
+        await run("systemd-run", "--unit=pve-homelab-restart", "--collect", "--quiet", "systemctl", "restart", *units)
+    return web.json_response({"restarting": what})
 
 
 @routes.put("/api/update/auto")
@@ -1173,6 +1614,8 @@ async def on_startup(app):
     app["host_ip"] = _host_ip()
     app["allowed_hosts_cache"] = allowed_hosts(app)
     app["login_fails"] = {}
+    app["tfa"] = {}   # id -> a sign-in waiting for its second factor
+    app["runtime"] = {}   # what changes while the menu runs: a restart the settings are waiting for
     app["apt_lock"] = asyncio.Lock()
     try:
         app["pveversion"] = (await pvesh("/version"))["version"]
@@ -1196,16 +1639,22 @@ async def on_startup(app):
     # Probing every guest takes a few seconds: refresh in the background every 5 minutes.
     app["discovered"] = Cached(find_services, 300, stale=True)
 
+    app["known_ips"] = {}
+
     async def build_services():
         res = await app["resources"].get()
-        ips = await caddy.guest_ips(cfg["node"], res)
+        live = await caddy.guest_ips(cfg["node"], res)
+        # A stopped guest has no live address, and its Caddy site would belong to nobody (and be
+        # shown to everyone): the address it last had, or a static one in its config, still says whose.
+        app["known_ips"].update(live)
+        ips = {**caddy.static_ips(res), **app["known_ips"], **live}
         listed = caddy.build(cfg, await caddy.routes(cfg), ips, app["host_ip"])
         try:
             found = await app["discovered"].get()
         except Exception as e:
             log.warning("discovery failed: %s", e)
             found = []
-        return discover.merge(listed, found)
+        return discover.merge(listed, discover.decorate(found, cfg.get("services")))
     app["services"] = Cached(build_services, 60, stale=True)
 
     async def check_update():
@@ -1248,6 +1697,8 @@ def housekeeping(app, now=None):
     fails = app["login_fails"]
     for user in [k for k, v in fails.items() if not v or now - v[-1] > LOGIN_WINDOW]:
         del fails[user]
+    for cid in [k for k, v in app["tfa"].items() if now > v["until"]]:
+        del app["tfa"][cid]
 
 
 async def housekeeping_loop(app):
@@ -1286,7 +1737,7 @@ async def _no_stale_code(req, resp):
 
 def make_app():
     errlog.setup()
-    app = web.Application(middlewares=[gate, errors, guard])
+    app = web.Application(middlewares=[gate, errors, guard, features])
     app.on_response_prepare.append(_no_stale_code)
     app["cfg"] = config.load()
     app["code"] = {k: update.installed()[k] for k in ("version", "commit")}  # what this process runs

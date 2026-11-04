@@ -62,6 +62,33 @@ async def guest_ips(node, resources):
     return ips
 
 
+STATIC_IP = re.compile(r"(?:^|,)ip=(\d+\.\d+\.\d+\.\d+)")
+
+
+def static_ips(resources, read=None):
+    """{ip: (type, vmid, name)} from addresses written in guest configs: a container's netN ip=,
+    a VM's cloud-init ipconfigN ip=. They say whose an address is while the guest is stopped."""
+    def _read(path):
+        try:
+            with open(path, encoding="utf-8") as f:
+                return f.read()
+        except OSError:
+            return ""
+    read = read or _read
+    ips = {}
+    for g in resources:
+        typ, vmid = g.get("type"), g.get("vmid")
+        if typ not in ("lxc", "qemu"):
+            continue
+        text = read(f"/etc/pve/{'lxc' if typ == 'lxc' else 'qemu-server'}/{vmid}.conf").split("\n[", 1)[0]
+        for line in text.splitlines():
+            key, _, val = line.partition(":")
+            if re.fullmatch(r"(net|ipconfig)\d+", key.strip()):
+                for a in STATIC_IP.findall(val.strip()):
+                    ips.setdefault(a, (typ, vmid, g.get("name")))
+    return ips
+
+
 def _slug(name):
     return re.sub(r"[^a-z0-9-]+", "-", (name or "").lower()).strip("-")
 

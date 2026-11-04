@@ -67,12 +67,14 @@ def _menu():
 
 
 def set_auto(on):
-    """The menu's switch: install new releases by night (the pve-homelab-update timer), or not."""
-    os.makedirs(config.STATE_DIR, exist_ok=True)
-    p = os.path.join(config.STATE_DIR, MENU_FILE)
-    with open(p + ".tmp", "w", encoding="utf-8") as f:
-        json.dump({"auto": bool(on)}, f)
-    os.replace(p + ".tmp", p)
+    """The menu's switch: install new releases by night (the pve-homelab-update timer), or not.
+    Kept with the other settings changed in the menu (settings.yaml); the older file goes."""
+    from . import settings
+    settings.change({"update.auto": bool(on)})
+    try:
+        os.remove(os.path.join(config.STATE_DIR, MENU_FILE))
+    except OSError:
+        pass
 
 
 def settings(cfg):
@@ -82,7 +84,12 @@ def settings(cfg):
     u.setdefault("auto", False)
     u.setdefault("auto_main", False)  # nightly install of whatever was pushed to the branch: opt-in only
     u.setdefault("check_hours", 6)
-    u.update(_menu())
+    from . import settings
+    auto, there = settings._get(settings.load_overlay(), "update.auto")
+    if there:
+        u["auto"] = auto          # changed in the menu: wins over config.yaml
+    else:
+        u.update(_menu())         # the file versions before 0.8 kept it in
     u["repo"] = _repo_slug(u.get("repo") or installed()["repo"] or DEFAULT_REPO)
     return u
 
@@ -195,14 +202,12 @@ def _install(src, env):
 
 def _healthy(cfg, want, timeout=60, interval=3):
     """The menu answers again, running the commit just installed (as /api/health reports it)."""
-    host, port = cfg["listen"].rsplit(":", 1)
-    host = host.strip("[]")
-    host = "127.0.0.1" if host in ("0.0.0.0", "::", "") else host
+    port = cfg["listen"].rsplit(":", 1)[1]
     end = time.monotonic() + timeout
     while time.monotonic() < end:
         time.sleep(interval)
         try:
-            req = urllib.request.Request(f"http://{host}:{port}/api/health", headers={"Host": f"127.0.0.1:{port}"})
+            req = urllib.request.Request(config.menu_url(cfg) + "api/health", headers={"Host": f"127.0.0.1:{port}"})
             with urllib.request.urlopen(req, timeout=5) as r:
                 if (json.load(r).get("commit") or "")[:7] == want[:7]:
                     return True

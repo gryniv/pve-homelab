@@ -79,5 +79,7 @@ async def test_automatic_updates_switched_in_the_menu(client, tmp_path, monkeypa
     assert (await client.put("/api/update/auto", json={"auto": False})).status == 200
     assert update.settings({"update": {"auto": True}})["auto"] is False     # the menu wins
     assert (await (await client.get("/api/update")).json())["auto"] is False
-    (tmp_path / update.MENU_FILE).write_text("junk", encoding="utf-8")
+    from pvehomelab import settings
+    settings.change(resets=["update.auto"])                                 # back to config.yaml
+    (tmp_path / update.MENU_FILE).write_text("junk", encoding="utf-8")     # the pre-0.8 file, broken
     assert update.settings({"update": {"auto": True}})["auto"] is True      # a broken file is ignored

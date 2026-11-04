@@ -108,8 +108,8 @@ CSS-змінні на селекторі теми; усе інше виводи�
 /*
  * @kind theme
  * @name.uk Фосфор
- * @background vector
- * @clock tty
+ * @background night
+ * @clock neon
  * @option color = amber | green
  * @option.uk color Люмінофор: бурштиновий | зелений
  * @option.en color Phosphor: amber | green
@@ -261,7 +261,8 @@ widgets/uptime/
 ```js
 export default {
   zones: ['side', 'login'],          // куди його можна ставити
-  public: true,                      // дозволений на екрані входу (читає лише публічні дані)
+  public: true,                      // дозволений на екрані входу (читає лише публічні дані);
+                                     // 'local': лише там, де можна показувати цифри хоста (не в браузері деінде)
   source: '/api/host', every: 10,    // що читає (GET з API меню або (ctx) => Promise) і як часто (с)
   options: [                         // форма ⚙ з живим переглядом у Налаштуваннях; label — ключ його рядків
     { key: 'load', type: 'toggle', label: 'opt_load', default: true },

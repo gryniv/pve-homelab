@@ -124,6 +124,21 @@ def hostpci_devices(value, node=None, mappings=None):
     return [(d if d.count(":") == 2 else "0000:" + d).lower() for d in devs if d]
 
 
+def mapping_for(pci, node=None, mappings=None):
+    """The resource mapping that passes the whole device of `pci` on `node` (its path is the device,
+    or names its function 0), so a VM entry can say mapping=<name> as Proxmox prefers; None if none."""
+    dev = gpu_of(pci).rsplit(".", 1)[0]
+    node = node or local_node()
+    for name, entries in sorted((pci_mappings() if mappings is None else mappings).items()):
+        hit = next((m for m in entries if m["node"] == node), None) or (entries[0] if len(entries) == 1 else None)
+        if not hit:
+            continue
+        paths = [(d if d.count(":") == 2 else "0000:" + d).lower() for d in hit["path"].split(";") if d]
+        if dev in paths or dev + ".0" in paths:
+            return name
+    return None
+
+
 def vm_gpus():
     """{pci_prefix: [vmid, ...]} from VM configs (hostpci lines, resource mappings resolved)."""
     used = {}

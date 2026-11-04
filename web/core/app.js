@@ -26,7 +26,7 @@ import * as guests from './guests.js';
 import * as dnd from './dnd.js';
 import * as search from './search.js';
 import { st } from './state.js';
-import { $, $$, icon, esc, avatar, fmt, toast, keepFocus, t, wxIcon, kindLabel } from './ui.js';
+import { $, $$, icon, esc, avatar, fmt, toast, keepFocus, t, wxIcon, kindLabel, setToastTime } from './ui.js';
 
 /* ---------------- app facade given to widgets & settings ---------------- */
 const app = {
@@ -41,6 +41,9 @@ const app = {
   systems: () => st.systems,
   updateStatus: () => updates.status(),
   checkUpdate: () => updates.checkNow(),
+  feature: (name) => feature(name),
+  // after Settings → System changed something the page shows (components switched off, say)
+  refreshPub: async () => { st.pub = await api.get('/api/public'); paintPub(); W.renderZone('side', st.prefs.layout.side || [], { app, opts: st.prefs.widget_opts }); },
   nodeUpdatesAllowed: () => nodeUpdates.allowed(),
   showNodeUpdates: (from) => nodeUpdates.show(from),
   showHelp: () => help.show(),
@@ -102,6 +105,7 @@ function renderLoginLang() {
 
 /* ---------------- weather ---------------- */
 async function weather(force = false) {
+  if (!feature('weather')) return null;
   const p = st.prefs?.weather || {};
   const city = p.city || st.pub.weather.city, units = p.units || st.pub.weather.units;
   const key = city + '|' + units;
@@ -152,10 +156,23 @@ function applyLook(look = {}) {
   if ((look.clock || 'digital') !== clockId) { clockId = look.clock || 'digital'; tick(); }
 }
 
+// Settings → Interface: size, calm, hours, date, which parts of the dashboard show, toasts.
+function applyUi(ui) {
+  document.documentElement.style.setProperty('--ui-scale', String((ui.scale || 100) / 100));
+  document.body.classList.toggle('calm', ui.motion === 'calm');
+  for (const k of ['systems', 'web', 'guests']) document.body.classList.toggle('no-' + k, ui.sections?.[k] === false);
+  if (ui.sections?.web === false && ui.sections?.guests !== false) $('[data-ptab=guests]')?.click();
+  clocks.setHours(ui.clock);
+  setToastTime(ui.toast_sec);
+  st.dateStyle = ui.date;
+  tick();
+}
+
 function applyPrefs({ relayout = false } = {}) {
   const p = st.prefs;
   applyLook(p);
-  scene.configure({ react: p.weather_react, byTime: p.sky_by_time, fx: p.saver.fx });
+  applyUi(p.ui || {});
+  scene.configure({ react: p.weather_react, byTime: p.sky_by_time, fx: p.saver.fx && p.ui?.motion !== 'calm' });
   $('.scr-saver').classList.toggle('sv-clockless', !p.saver.clock);
   paintMe();
   nodeUpdates.paint();
@@ -205,6 +222,21 @@ function go(screen) {
 }
 
 /* ---------------- login ---------------- */
+// What /api/public says about the host; a browser elsewhere gets less before signing in.
+function paintPub() {
+  const p = st.pub;
+  $$('[data-hostline]').forEach((x) => (x.textContent = [p.node, p.version && `Proxmox VE ${p.version}`, p.ip].filter(Boolean).join(' · ')));
+  $$('[data-node]').forEach((x) => (x.textContent = p.node));
+  W.setHostFigures(p.stats);
+  W.setFeatures(p.features);
+  // What is switched off on this host (Settings → System → Components) leaves the page.
+  const off = Object.entries(p.features || {}).filter(([, on]) => on === false).map(([k]) => k);
+  let style = $('#featuresOff');
+  if (!style) { style = document.createElement('style'); style.id = 'featuresOff'; document.head.appendChild(style); }
+  style.textContent = off.map((f) => `[data-needs~="${f}"]{display:none!important}`).join('\n');
+}
+const feature = (name) => st.pub?.features?.[name] !== false;
+
 // Per seat; the seat is known once /api/public has answered (setSeat), hence a function.
 const lastKey = () => 'pvehomelab.last.' + SEAT;
 const lastUser = () => { try { return localStorage.getItem(lastKey()) || ''; } catch { return ''; } };
@@ -225,6 +257,8 @@ function renderUsers() {
   if (st.selUser == null && L.remember_last !== false && users.some((u) => u.id === lastUser())) st.selUser = lastUser();
   if (!st.selUser && users.length) st.selUser = users[0].id;
   if (st.selUser === '' && L.other_user === false) st.selUser = users[0]?.id ?? '';
+  // No people listed (a browser elsewhere): the name typed last time is the likely one.
+  if (!users.length && !$('#otherUser').value && L.remember_last !== false) $('#otherUser').value = lastUser();
   $('#users').innerHTML = users.map((u, i) => {
     const av = avatar(u, u.avatar);
     return `<button class="user${u.id === st.selUser ? ' sel' : ''}" style="--i:${i + 4}" type="button" data-user="${esc(u.id)}">
@@ -238,6 +272,7 @@ function renderUsers() {
 }
 
 function selectUser(id, initial = false) {
+  if (tfa && !initial) { tfa = null; paintTfa(false); }
   st.selUser = id;
   $$('[data-user]').forEach((b) => b.classList.toggle('sel', b.dataset.user === id));
   const u = st.pub.users.find((x) => x.id === id);
@@ -250,8 +285,99 @@ function selectUser(id, initial = false) {
   if (!initial) { $('#pw').value = ''; (u ? $('#pw') : $('#otherUser')).focus(); }
 }
 
+/* the second factor: after the password, Proxmox may want a code (TOTP), a recovery key or a YubiKey */
+const TFA_LEAD = { totp: 'login.tfa_totp', recovery: 'login.tfa_recovery', yubico: 'login.tfa_yubico' };
+const TFA_USE = { totp: 'login.tfa_use_totp', recovery: 'login.tfa_use_recovery', yubico: 'login.tfa_use_yubico' };
+let tfa = null;   // {id, methods, kind} while the code is asked
+
+function paintTfa(focus = true) {
+  const on = !!tfa;
+  $('#loginForm').classList.toggle('tfa-on', on);
+  $('#tfaBox').hidden = !on;
+  if (!on) return;
+  const code = $('#tfaCode');
+  const digits = tfa.kind === 'totp';
+  $('#tfaLead').textContent = t(TFA_LEAD[tfa.kind]);
+  code.value = '';
+  code.classList.toggle('key', !digits);
+  code.inputMode = digits ? 'numeric' : 'text';
+  code.maxLength = digits ? 6 : 128;
+  code.placeholder = digits ? '••••••' : '';
+  $('#tfaPad').hidden = !digits;
+  $('#tfaOther').innerHTML = tfa.methods.filter((m) => m !== tfa.kind && TFA_USE[m])
+    .map((m) => `<button type="button" class="chipbtn" data-tfa-kind="${m}">${esc(t(TFA_USE[m]))}</button>`).join('');
+  $$('[data-tfa-kind]').forEach((b) => (b.onclick = () => { tfa.kind = b.dataset.tfaKind; $('#loginErr').hidden = true; paintTfa(); }));
+  if (focus) (digits ? $('#tfaPad [data-k="1"]') : code).focus();
+}
+
+function startTfa(ch) {
+  if (!ch.methods.length) {   // only a security key: that works in the Proxmox web UI alone
+    $('#loginErr').textContent = t('login.tfa_webauthn');
+    $('#loginErr').hidden = false;
+    return;
+  }
+  tfa = { id: ch.id, methods: ch.methods, kind: ch.methods.includes('totp') ? 'totp' : ch.methods[0] };
+  $('#loginErr').hidden = true;
+  paintTfa();
+}
+
+function leaveTfa(message) {
+  tfa = null;
+  paintTfa(false);
+  $('#loginErr').textContent = message || '';
+  $('#loginErr').hidden = !message;
+  (st.selUser ? $('#pw') : $('#otherUser')).focus();
+}
+
+function typeDigit(k) {
+  const code = $('#tfaCode');
+  if (k === 'del') code.value = code.value.slice(0, -1);
+  else if (code.value.length < 6) code.value += k;
+  if (code.value.length === 6) $('#loginForm').requestSubmit();
+}
+
+$$('#tfaPad [data-k]').forEach((b) => (b.onclick = () => typeDigit(b.dataset.k)));
+$('#tfaCode').addEventListener('input', (e) => {
+  if (tfa?.kind !== 'totp') return;
+  e.target.value = e.target.value.replace(/\D/g, '').slice(0, 6);
+  if (e.target.value.length === 6) $('#loginForm').requestSubmit();
+});
+$('#tfaBack').onclick = () => leaveTfa();
+$('#loginForm').addEventListener('keydown', (e) => {
+  if (!tfa) return;
+  if (e.key === 'Escape') { e.preventDefault(); leaveTfa(); return; }
+  // digit keys work while the keypad has the focus, as on a remote with numbers
+  if (tfa.kind === 'totp' && document.activeElement !== $('#tfaCode') && /^[0-9]$/.test(e.key)) { e.preventDefault(); typeDigit(e.key); }
+  if (tfa.kind === 'totp' && document.activeElement !== $('#tfaCode') && e.key === 'Backspace') { e.preventDefault(); typeDigit('del'); }
+});
+
+async function submitTfa() {
+  const code = $('#tfaCode').value.trim();
+  if (!code) { $('#tfaCode').focus(); return; }
+  try {
+    const r = await api.post('/api/login/tfa', { id: tfa.id, kind: tfa.kind, code });
+    try { localStorage.setItem(lastKey(), r.user); } catch {}
+    tfa = null;
+    paintTfa(false);
+    await enter(r.user, r.prefs, r.admin);
+  } catch (err) {
+    // the challenge is gone (too slow, too many wrong codes, too many tries here): back to the password
+    if ([404, 410, 429].includes(err.status)) return leaveTfa(err.message);
+    $('#loginErr').textContent = err.message;
+    $('#loginErr').hidden = false;
+    $('#tfaCode').value = '';
+    (tfa.kind === 'totp' ? $('#tfaPad [data-k="1"]') : $('#tfaCode')).focus();
+  }
+}
+
 $('#loginForm').addEventListener('submit', async (e) => {
   e.preventDefault();
+  if (tfa) {
+    const btn = $('#tfaPad .ok');
+    btn.disabled = true;
+    try { await submitTfa(); } finally { btn.disabled = false; }
+    return;
+  }
   const user = st.selUser || $('#otherUser').value.trim();
   if (!user) { $('#otherUser').focus(); return; }
   const btn = $('#loginBtn');
@@ -259,6 +385,7 @@ $('#loginForm').addEventListener('submit', async (e) => {
   try {
     const r = await api.post('/api/login', { user, password: $('#pw').value });
     $('#pw').value = '';
+    if (r.tfa) { startTfa(r.tfa); return; }
     try { localStorage.setItem(lastKey(), r.user); } catch {}
     await enter(r.user, r.prefs, r.admin);
   } catch (err) {
@@ -269,6 +396,8 @@ $('#loginForm').addEventListener('submit', async (e) => {
 });
 
 async function enter(userid, prefs, admin = false) {
+  // Signed in, /api/public tells more (the people, host figures, versions) than before.
+  try { st.pub = await api.get('/api/public'); paintPub(); } catch {}
   const u = st.pub.users.find((x) => x.id === userid) || { id: userid, name: userid.split('@')[0] };
   st.me = { ...u };
   st.prefs = prefs;
@@ -288,12 +417,9 @@ async function enter(userid, prefs, admin = false) {
   if (st.screen === 'dash' && (!a || a === document.body || a.closest('.top'))) nav.focusFirst(undefined, '.sys .play');
   st.timers.push(setInterval(refreshDash, 10000));
   updates.resetReminder();
-  setTimeout(updates.check, 2500);
-  setTimeout(alerts.check, 1500);
-  setTimeout(nodeUpdates.check, 3500);
-  st.timers.push(setInterval(alerts.check, 60000));
-  st.timers.push(setInterval(updates.check, 30 * 60000));
-  st.timers.push(setInterval(nodeUpdates.check, 30 * 60000));
+  if (feature('app_updates')) { setTimeout(updates.check, 2500); st.timers.push(setInterval(updates.check, 30 * 60000)); }
+  if (feature('alerts')) { setTimeout(alerts.check, 1500); st.timers.push(setInterval(alerts.check, 60000)); }
+  if (feature('node_updates')) { setTimeout(nodeUpdates.check, 3500); st.timers.push(setInterval(nodeUpdates.check, 30 * 60000)); }
 }
 
 // Installing or removing a design reloads the page (new stylesheets, new lists); it asks to come
@@ -320,7 +446,7 @@ async function logout() {
   guests.reset();
   st.admin = false;
   st.me = null; st.prefs = null;
-  try { st.pub = await api.get('/api/public'); clocks.init(st.pub.clocks); } catch {}
+  try { st.pub = await api.get('/api/public'); clocks.init(st.pub.clocks); paintPub(); } catch {}
   await useLang();
   renderUsers();
   go('login');
@@ -473,7 +599,9 @@ setInterval(() => {
 function tick() {
   const d = new Date();
   $$('[data-clock]').forEach((e) => clocks.paint(e, clockId, d, i18n.locale()));
-  $$('[data-date]').forEach((e) => (e.textContent = d.toLocaleDateString(i18n.locale(), { weekday: 'long', day: 'numeric', month: 'long' })));
+  const date = st.dateStyle === 'iso' ? d.toLocaleDateString('sv-SE')
+    : d.toLocaleDateString(i18n.locale(), st.dateStyle === 'short' ? { day: 'numeric', month: 'short', year: 'numeric' } : { weekday: 'long', day: 'numeric', month: 'long' });
+  $$('[data-date]').forEach((e) => (e.textContent = date));
 }
 
 /* ---------------- keyboard help, alerts, updates: their own modules ---------------- */
@@ -513,8 +641,7 @@ async function boot() {
   setSeat(st.pub.seat.id);
   document.body.classList.toggle('remote', !!st.pub.seat.remote);
   paintSeat();
-  $$('[data-hostline]').forEach((x) => (x.textContent = `${st.pub.node} · Proxmox VE ${st.pub.version} · ${st.pub.ip}`));
-  $$('[data-node]').forEach((x) => (x.textContent = st.pub.node));
+  paintPub();
   try { about = await (await fetch('/about.json', { cache: 'no-cache' })).json(); } catch {}
   if (st.pub.demo) {
     document.body.classList.add('demo');

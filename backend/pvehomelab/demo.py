@@ -16,17 +16,17 @@ from aiohttp import web
 
 from . import app as A, caddy, discover, gpus as G, i18n, launch as L, update, util, weather, wol
 from .ddc import DDC
-from .pve import PVE, PVEError, Ticket
+from .pve import PVE, PVEError, TfaChallenge, Ticket
 
 GB = 1024 ** 3
 T0 = time.time()
 NODE = "demo"
 
-# vmid -> guest. "hostpci" lists GPUs passed through; "ip" is what Caddy proxies to.
+# vmid -> guest. "hostpci" is {slot: value} as in a VM config (hostpci0: ...); "ip" is what Caddy proxies to.
 WORLD = {
     100: dict(type="qemu", name="ubuntu-desktop", status="stopped", tags="seat", cores=8, mem=16, ostype="l26", vga="virtio"),
     101: dict(type="qemu", name="home-server", status="running", tags="", cores=4, mem=8, ostype="l26", vga="std", ip="10.0.0.101"),
-    102: dict(type="qemu", name="win11-gaming", status="stopped", tags="seat", cores=12, mem=32, ostype="win11", vga="std", hostpci=["0000:01:00"]),
+    102: dict(type="qemu", name="win11-gaming", status="stopped", tags="seat", cores=12, mem=32, ostype="win11", vga="std", hostpci={0: "mapping=rtx,pcie=1,x-vga=1"}),
     103: dict(type="qemu", name="fedora-workstation", status="stopped", tags="seat", cores=8, mem=12, ostype="l26", vga="virtio"),
     200: dict(type="lxc", name="caddy", status="running", cores=1, mem=0.5, ip="10.0.0.200"),
     201: dict(type="lxc", name="jellyfin", status="running", cores=4, mem=4, ip="10.0.0.201"),
@@ -37,8 +37,17 @@ WORLD = {
     206: dict(type="lxc", name="adguard", status="running", cores=1, mem=0.5, ip="10.0.0.206"),
 }
 for g in WORLD.values():
-    g.setdefault("hostpci", [])
+    g.setdefault("hostpci", {})
     g["started"] = T0 - random.randint(3600, 9 * 86400) if g["status"] == "running" else None
+
+# A PVE resource mapping for the RTX (/etc/pve/mapping/pci.cfg), as VM 102 uses it.
+MAPPINGS = {"rtx": [{"node": NODE, "path": "0000:01:00"}]}
+
+
+def devices(g):
+    """The PCI devices a guest passes through, mappings resolved."""
+    return [d for v in g["hostpci"].values() for d in G.hostpci_devices(v, NODE, MAPPINGS)]
+
 
 # What "Caddy" proxies. AdGuard, Forgejo and Grafana are left out on purpose: the demo finds
 # them the other ways (an open port in CT 206 / VM 101, a link in VM 101's notes).
@@ -50,6 +59,7 @@ DISCOVERED = [(206, 3000, "AdGuard Home", "adguard-home", "port"), (101, 3000, "
 USERS = [
     {"id": "ihor@pve", "first": "Ihor"},
     {"id": "guest@pve", "first": "Guest"},
+    {"id": "olena@pve", "first": "Olena"},   # signs in with a code too (TFA_USERS)
     {"id": "root@pam", "first": ""},
 ]
 APT_UPDATES = [
@@ -133,18 +143,68 @@ def rrddata(user, vmid, timeframe):
 
 def qemu_config(vmid):
     g = WORLD[vmid]
-    conf = {"name": g["name"], "ostype": g["ostype"], "cores": g["cores"], "sockets": 1,
-            "memory": str(int(g["mem"] * 1024)), "vga": g["vga"], "tags": g.get("tags", "")}
-    for i, dev in enumerate(g["hostpci"]):
-        conf[f"hostpci{i}"] = f"{dev},pcie=1"
+    conf = {"name": g["name"], "ostype": g.get("ostype", "l26"), "cores": g["cores"], "sockets": 1,
+            "memory": str(int(g["mem"] * 1024)), "vga": g.get("vga", "std"), "tags": g.get("tags", "")}
+    for k in ("onboot", "startup", "description", "balloon", "swap"):
+        if g.get(k) not in (None, ""):
+            conf[k] = g[k]
+    conf.update({f"hostpci{n}": v for n, v in g["hostpci"].items()})
     return conf
 
 
+# Sign-ins with a second factor: the code and the recovery key that let these users in.
+TFA_USERS = {"olena@pve": {"totp": "123456", "recovery": "demo-1111-2222"}}
+
+
+CONFIG_PRIVS = {"memory": "VM.Config.Memory", "cores": "VM.Config.CPU", "balloon": "VM.Config.Memory",
+                "swap": "VM.Config.Memory", "onboot": "VM.Config.Options", "startup": "VM.Config.Options",
+                "tags": "VM.Config.Options", "description": "VM.Config.Options"}
+
+
 class DemoPVE(PVE):
+    async def req(self, t, method, path, data=None):
+        """PUT /nodes/<node>/<type>/<id>/config, as Proxmox would: each field needs its privilege;
+        a running VM keeps memory and cores pending, a container takes them at once."""
+        parts = path.strip("/").split("/")
+        if method != "PUT" or len(parts) != 5 or parts[4] != "config":
+            return await super().req(t, method, path, data)
+        vmid = int(parts[3])
+        g = WORLD.get(vmid)
+        if not g or vmid not in _visible(t.user):
+            raise PVEError(403, i18n._("forbidden"))
+        data = dict(data or {})
+        fields = [k for k in data if k != "delete"] + [k for k in (data.get("delete") or "").split(",") if k]
+        if any(CONFIG_PRIVS.get(k, "VM.Config.Options") not in self._privs(t.user, f"/vms/{vmid}") for k in fields):
+            raise PVEError(403, i18n._("forbidden"))
+        for k in (data.get("delete") or "").split(","):
+            if k:
+                g.pop(k, None)
+        for k, v in data.items():
+            if k == "delete":
+                continue
+            if g["type"] == "qemu" and g["status"] == "running" and k in ("memory", "cores"):
+                g.setdefault("pending", {})[k] = v
+            elif k == "memory":
+                g["mem"] = int(v) / 1024
+            elif k == "cores":
+                g["cores"] = int(v)
+            else:
+                g[k] = v
+        A_app["resources"].invalidate()
+        return None
+
     async def login(self, username, password):
         if not username:
             raise PVEError(401, i18n._("bad_login"))
+        if username in TFA_USERS:
+            return TfaChallenge(username, f"PVE:{username}:!tfa!%7B%22totp%22%3Atrue%2C%22recovery%22%3A%22available%22%7D:0::demo",
+                                ["totp", "recovery"])
         return Ticket(username, "demo", "demo")
+
+    async def finish_tfa(self, ch, kind, code):
+        if TFA_USERS.get(ch.user, {}).get(kind) != code:
+            raise PVEError(401, i18n._("bad_tfa"))
+        return Ticket(ch.user, "demo", "demo")
 
     async def renew(self, t):
         return t
@@ -162,8 +222,13 @@ class DemoPVE(PVE):
                     for n, age, d, ram in SNAPSHOTS.get(vmid, [])] + [{"name": "current", "running": 1}]
         if endpoint.endswith("/rrddata"):
             return rrddata(t.user, int(endpoint.split("/")[4]), params.get("timeframe", "hour"))
-        if endpoint.startswith(f"/nodes/{NODE}/qemu/") and endpoint.endswith("/config"):
-            return qemu_config(int(endpoint.split("/")[4]))
+        if endpoint.startswith((f"/nodes/{NODE}/qemu/", f"/nodes/{NODE}/lxc/")) and endpoint.endswith("/config"):
+            vmid = int(endpoint.split("/")[4])
+            if vmid not in _visible(t.user):
+                raise PVEError(403, i18n._("forbidden"))
+            return qemu_config(vmid)
+        if endpoint.endswith("/pending"):
+            return [{"key": k, "value": v, "pending": v} for k, v in WORLD[int(endpoint.split("/")[4])].get("pending", {}).items()]
         if endpoint == f"/nodes/{NODE}/storage" and params.get("content") == "backup":
             return [{"storage": "pbs", "type": "pbs", "active": 1, "content": "backup"}]
         if endpoint == f"/nodes/{NODE}/storage/pbs/content":
@@ -195,7 +260,8 @@ class DemoPVE(PVE):
     @staticmethod
     def _privs(user, path):
         if user != "guest@pve":
-            return ["VM.PowerMgmt", "VM.Config.HWType", "Sys.Audit", "Sys.Modify", "Sys.PowerMgmt"]
+            return ["VM.PowerMgmt", "VM.Config.HWType", "Sys.Audit", "Sys.Modify", "Sys.PowerMgmt", "Mapping.Use",
+                    "VM.Config.Memory", "VM.Config.CPU", "VM.Config.Options"]
         if path.startswith("/vms/") and int(path.split("/")[2]) in GUEST_SEES:
             return ["VM.PowerMgmt"]
         return []
@@ -213,6 +279,8 @@ class DemoPVE(PVE):
                 g["status"], g["started"] = "running", time.time()
             elif action in ("stop", "shutdown"):
                 g["status"], g["started"] = "stopped", None
+                for k, v in g.pop("pending", {}).items():   # what waited for the next start is the config now
+                    g["mem" if k == "memory" else k] = int(v) / 1024 if k == "memory" else int(v)
             elif action == "reboot":
                 g["started"] = time.time()
             A_app["resources"].invalidate()
@@ -261,7 +329,7 @@ class DemoStats:
 async def demo_gpus(running):
     out = []
     for pci, d in GPUS.items():
-        vms = [vmid for vmid, g in WORLD.items() if any(G.gpu_of(x) == pci for x in g["hostpci"])]
+        vms = [vmid for vmid, g in WORLD.items() if any(G.gpu_of(x) == pci for x in devices(g))]
         out.append({"pci": pci, **d, "assigned_vms": vms,
                     "running_vm": next((v for v in vms if v in running), None)})
     return out
@@ -280,6 +348,10 @@ async def demo_routes(cfg):
            [{"key": "pve", "host": "pve.home.example", "upstream": f"{A._host_ip()}:8006"}]
 
 
+def demo_static_ips(res, read=None):
+    return {g["ip"]: (g["type"], vmid, g["name"]) for vmid, g in WORLD.items() if g.get("ip")}
+
+
 async def demo_ips(node, res):
     return {g["ip"]: (g["type"], vmid, g["name"]) for vmid, g in WORLD.items() if g.get("ip") and g["status"] == "running"}
 
@@ -294,23 +366,6 @@ async def demo_discover(cfg, res, ips, host_ip=None):
                     "url": f"http://{g['ip']}:{port}", "host": f"{g['ip']}:{port}", "upstream": f"{g['ip']}:{port}",
                     "guest": {"type": g["type"], "vmid": vmid, "name": g["name"]}, "source": source, "port": port})
     return out
-
-
-async def assign_gpu(self, vmid, gpu):
-    old = list(WORLD[vmid].get("hostpci") or [])
-    WORLD[vmid]["hostpci"] = [gpu.rsplit(".", 1)[0]]
-    log.info("demo: %s now owns %s", WORLD[vmid]["name"], gpu)
-    return old
-
-
-async def undo_assign(self, vmid, old):
-    WORLD[vmid]["hostpci"] = old
-    log.info("demo: %s got its GPU back", WORLD[vmid]["name"])
-
-
-async def to_virgl(self, vmid):
-    WORLD[vmid].update(vga="virtio-gl", hostpci=[])
-    log.info("demo: %s switched to VirGL", WORLD[vmid]["name"])
 
 
 WOKEN = []
@@ -351,7 +406,34 @@ async def demo_update_status(cfg):
             "latest": {"ref": "v9.9.0", "version": "9.9.0", "commit": None, "url": "https://github.com/", "notes": "Demo release"}}
 
 
+def fake_qm(args):
+    """`qm config <id>` and `qm set <id> ...` over the demo world, so the launcher's own planning
+    (hostpci slots, mappings, VirGL and back) runs in the demo and the tests as it does on a host."""
+    vmid = int(args[2])
+    g = WORLD[vmid]
+    if args[1] == "config":
+        lines = [f"name: {g['name']}", f"vga: {g['vga']}"] + [f"hostpci{n}: {v}" for n, v in sorted(g["hostpci"].items())]
+        return "\n".join(lines) + "\n"
+    it = iter(args[3:])
+    for opt in it:
+        val = next(it)
+        if opt == "--delete":
+            for k in val.split(","):
+                if k.startswith("hostpci"):
+                    g["hostpci"].pop(int(k[7:]), None)
+                elif k == "vga":
+                    g["vga"] = "std"   # Proxmox's default
+        elif opt.startswith("--hostpci"):
+            g["hostpci"][int(opt[9:])] = val
+        elif opt == "--vga":
+            g["vga"] = val
+    log.info("demo: %s", " ".join(args))
+    return ""
+
+
 async def demo_run(*args, **kw):
+    if args[:1] == ("qm",) and len(args) > 2 and args[1] in ("config", "set"):
+        return fake_qm(args)
     log.info("demo: would run %s", " ".join(args))
     return ""
 
@@ -427,7 +509,7 @@ async def demo_add_vm(req):
     vmid = _free_id(104, 200)
     WORLD[vmid] = dict(type="qemu", name=_slug(b.get("name") or f"{os_key}-{vmid}"), status="running" if b.get("running") else "stopped",
                        tags="seat", cores=int(b.get("cores") or 4), mem=float(b.get("mem") or 8), ostype=OS_TYPES[os_key][0],
-                       vga="std" if b.get("gpu") else "virtio", hostpci=["0000:01:00"] if b.get("gpu") else [],
+                       vga="std" if b.get("gpu") else "virtio", hostpci={0: "0000:01:00,pcie=1"} if b.get("gpu") else {},
                        started=time.time() if b.get("running") else None, demo_what=OS_TYPES[os_key][1])
     STATE["added"].append(vmid)
     await _refresh()
@@ -443,7 +525,7 @@ async def demo_add_service(req):
     vmid = _free_id(207, 300)
     port = APP_PORTS.get(icon, 8080)
     WORLD[vmid] = dict(type="lxc", name=_slug(name), status="running", cores=2, mem=2, ip=f"10.0.1.{vmid - 200}",
-                       hostpci=[], started=time.time(), demo_what=f"{name} · {via}")
+                       hostpci={}, started=time.time(), demo_what=f"{name} · {via}")
     if via == "caddy":
         key = _slug(name)
         ROUTES.append((key, vmid, port))
@@ -505,10 +587,11 @@ def make_app():
     G.pretty_name = lambda pci, _n=GPUS: asyncio.sleep(0, (_n.get(pci) or {}).get("name", pci))
     caddy.routes = demo_routes
     caddy.guest_ips = demo_ips
+    caddy.static_ips = demo_static_ips
     discover.discover = demo_discover
-    L.Launcher._assign_gpu = assign_gpu
-    L.Launcher._undo_assign = undo_assign
-    L.Launcher._to_virgl = to_virgl
+    L.run = demo_run
+    G.pci_mappings = lambda: MAPPINGS
+    G.local_node = lambda: NODE
     DDC.switch_to_gpu = switch_input
     weather.get = demo_weather
     wol.send = demo_wake

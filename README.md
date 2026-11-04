@@ -8,7 +8,7 @@ Plug a monitor into your Proxmox VE host and get a beautiful sign-in screen, a l
 of your homelab, your web services one click away, and a launcher that boots your desktop VMs
 straight onto the GPU that monitor is wired to.
 
-![version](https://img.shields.io/badge/version-0.7.0-ff8a3d)
+![version](https://img.shields.io/badge/version-0.8.0-ff8a3d)
 ![Proxmox VE](https://img.shields.io/badge/Proxmox%20VE-8%20%7C%209-e57000)
 ![python](https://img.shields.io/badge/python-3.10%2B-3776ab)
 ![no build step](https://img.shields.io/badge/frontend-no%20build%20step-4cc9f0)
@@ -45,11 +45,18 @@ signed in, so each person sees and controls exactly what PVE allows them to.
 ### Sign-in and people
 - **Proxmox users are the users.** Sign in with `user@pve` or `root@pam`. Every call to the PVE
   API uses that person's own ticket, so Proxmox permissions apply as they are.
+- **Two-factor sign-in.** Accounts with a second factor in Proxmox get asked for it after the
+  password: a code from the authenticator app (on a keypad the remote's arrows can reach, or typed),
+  a recovery key, or a YubiKey. Security keys (WebAuthn) work only in the Proxmox web UI itself.
+  Wrong answers are limited per name and per place (an address, or a screen on the host).
 - **A visual user picker** with avatars. You choose who appears there and how it looks:
   compact avatars, a title line above the clock, "remember who signed in last", and an optional
   "someone else" tile.
 - **Everything is per user:** language, theme, background, fonts, clock, widgets, order of
   systems and services, and weather city.
+- **Interface, per user too:** size (80–160 %, for a TV across the room), a calm mode without
+  animations, 12 or 24 hours, the date's form, which parts the dashboard shows, whether guest
+  shutdowns ask first, and how long messages stay.
 
 ### Seats: one menu per GPU and monitor
 - Every GPU the host drives with a monitor attached becomes a **seat** with its own menu and its
@@ -63,10 +70,18 @@ signed in, so each person sees and controls exactly what PVE allows them to.
 - **On a discrete GPU:** PVE Homelab assigns the GPU to the VM, starts it and switches the
   monitor input over **DDC/CI**. When the VM stops, the monitor comes back to the menu.
 - **On the integrated GPU:** the VM starts with **VirGL** and its screen opens right inside the
-  menu over a built-in noVNC relay. **Ctrl+Alt+Q** brings you back.
+  menu over a built-in noVNC relay. **Ctrl+Alt+Q** brings you back. What the VM's GPU entry said
+  (`x-vga`, `romfile`, a mapping) and its display are kept, and the next start on a discrete GPU
+  puts them back.
 - Each step (assign GPU, start, switch monitor) shows as a clear checklist while it happens.
+- **Memory and cores for a start:** the dialog of a stopped VM offers both; a change is written into
+  its config with your own rights before the start, and stays.
 - GPUs given to VMs as Proxmox **resource mappings** (`hostpci0: mapping=…`, PVE 8+) are understood
-  like plain PCI addresses.
+  like plain PCI addresses. A VM that names a mapping keeps naming one when it gets another GPU, and
+  writing a mapping needs `Mapping.Use` on it, as in Proxmox.
+- **A VM started without the menu** (with the host, or from the Proxmox UI) on a GPU wired to the
+  menu's monitor is watched too: the monitor comes back when it stops. One that starts while the host
+  boots also gets the monitor; `launch.follow_start: always` does that for any start, `never` for none.
 
 ### Web services, found by themselves
 Your services are collected from three places and merged:
@@ -82,7 +97,12 @@ or sort by name or status.
 
 ### Containers and VMs
 A compact list of every guest you're allowed to see, with state, CPU and memory, and start,
-shut down, reboot and console where your rights allow it.
+shut down, reboot and console where your rights allow it. A guest's row opens its history:
+CPU, memory and network graphs for an hour, a day or a week, its snapshots and its last backup.
+Under *Resources and options* there: memory, balloon minimum or swap, cores, start with the host
+and its order, tags and notes, written with your own ticket, so Proxmox decides
+(`VM.Config.Memory`, `VM.Config.CPU`, `VM.Config.Options`). A container takes them at once; a
+running VM shows what waits for its next start.
 
 ### Looks: themes, backgrounds, fonts, clocks
 - **4 themes** (Dusk, Forest, Graphite, North) that recolour everything, including the landscapes.
@@ -114,6 +134,9 @@ settings form (⚙) and a live preview:
 | Services | how many services are up, and which are down | list style |
 | Network | traffic, address, load | fields |
 | Storage | how full each storage is | which storages, used or free |
+| Disks | SMART health and SSD wear of each disk, ZFS pools | only problems |
+| Backups | guests without a recent backup | stale after how many days, guests to list |
+| Wake up | Wake-on-LAN buttons for the machines in `wol:` | |
 | Proxmox updates | packages waiting on the node, a new kernel, when the lists were checked | packages to list |
 | Links | your own bookmarks, opened as tabs | links |
 | Note | your text | heading, text |
@@ -144,6 +167,22 @@ cards, and settings and dialogs take the whole width.
   packages waiting; an amber dot means a new kernel is among them. Its dialog lists them, says when
   the package lists were last checked, checks again on request, and opens Proxmox, where they are
   installed (*Node → Updates → Upgrade*). It can be turned off in *Settings → Dashboard*.
+- **Settings → System** (admins): every setting of the host, grouped and searchable: access,
+  systems, web services, weather, alerts, Wake-on-LAN, updates. A change is kept in `settings.yaml`
+  next to `config.yaml` and wins over it, takes effect at once (or offers the restart it needs), and
+  goes back to the file in one click; `config.yaml` itself is never written.
+- **Components.** Parts of the menu can be switched off for the whole host: the bell, Proxmox
+  updates, updates of the menu, weather, consoles, guest actions, host power, Wake-on-LAN,
+  installing designs and widgets. What is off leaves the menu and its API answers 404.
+- **Alerts.** A bell in the top bar counts what needs a look, worst first: a failing disk or ZFS
+  pool, a storage nearly full, a hot host, guests without a recent backup, a service whose guest is
+  down. The limits are under `alerts:` in `config.yaml`.
+- **A copy of the settings.** *Settings → About* (admins) downloads everyone's settings, installed
+  designs and widgets, the sign-in screen, what was changed in System and `config.yaml` as one file,
+  and puts a copy back by parts after showing what each would change. What was there before is saved
+  first (`/etc/pve-homelab/backups`, the last five). Nothing that looks like a secret goes in a copy.
+  Also from a shell: `python3 -m pvehomelab.backup export|inspect|import`. Neither vzdump nor PBS
+  takes `/etc/pve-homelab` on their own, so keep a copy somewhere.
 - **Error journal.** Backend warnings and the screens' own errors (JavaScript, failed widgets,
   server errors) are collected in *Settings → About*, and also in `/var/log/pve-homelab/errors.log`.
 - **Write to the author.** *Settings → About → Write to the author* composes a GitHub issue: a bug,
@@ -241,8 +280,10 @@ The installer:
 Installer options: `--no-kiosk`, `--city Lviv`, `--lang en|uk`.
 Your config and user settings are never overwritten by a re-install or an update.
 
-The text console stays on **Ctrl+Alt+F1** and the menu is on **Ctrl+Alt+F7**. To remove everything
-except your settings, run `./uninstall.sh`.
+The text console stays on **Ctrl+Alt+F1** and the menu is on **Ctrl+Alt+F7**. `./uninstall.sh`
+removes it, the kiosk's browser profiles (with the services' cookies) included; your settings in
+`/etc/pve-homelab`, the packages and the `pvehomelab` user stay. `./uninstall.sh --purge` first saves
+a copy of the settings to `/root`, then removes them and the user too.
 
 > **Upgrading from PVE Seat 0.3** (the old name) is automatic: `install.sh` moves
 > `/etc/pve-seat` to `/etc/pve-homelab`, keeps a copy as `/etc/pve-seat.migrated`, and replaces
@@ -277,8 +318,17 @@ After installing:
    and proxy a site to it in Caddy (`reverse_proxy 192.168.8.146:8900`). Everyone else beyond
    loopback gets 403. A browser that comes through the proxy is the **web seat**: it never switches
    a monitor or hands over a GPU; a system opens right in the browser (noVNC) or starts on the GPU
-   it already has. `web: {enabled: false}` turns this off.
-5. Apply the changes with `systemctl restart pve-homelab 'pve-homelab-kiosk@*'`.
+   it already has. Before signing in it shows a name field, the weather and clocks: no people, no
+   host figures (`web.sign_in: users` lists the people, `full` shows everything, as on the host).
+   Signed in, everyone sees only the guests, services and GPUs their Proxmox rights allow.
+   `web: {enabled: false}` turns this off.
+5. **Wake-on-LAN.** Machines the *Wake up* widget can switch on go under `wol:`; whoever presses
+   the button needs `Sys.PowerMgmt` on the node:
+   ```yaml
+   wol:
+     - {name: NAS, mac: "aa:bb:cc:dd:ee:ff"}
+   ```
+6. Apply the changes with `systemctl restart pve-homelab 'pve-homelab-kiosk@*'`.
 
 Every option is explained in [`etc/config.example.yaml`](etc/config.example.yaml).
 

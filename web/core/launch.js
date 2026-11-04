@@ -69,6 +69,9 @@ export function open(vm, fromButton = null) {
       <span class="radio"></span><span class="chip" style="background:${color}">${icon(o.mode === 'console' ? 'i-monitor' : o.integrated ? 'i-chip' : 'i-gpu')}</span>
       <b>${esc(o.name)}</b>${pill}<small>${o.mode === 'console' ? '' : `${o.pci.slice(5)} · `}${esc(noteOf(o))}</small></button>`;
   }).join('') : `<div class="errbox">${esc(t('launch.no_gpus'))}</div>`)
+    + (run ? '' : `<div class="mres"><span class="mute">${esc(t('launch.res'))}</span>
+        <label>${esc(t('launch.res_memory'))}<input id="mMem" inputmode="decimal" value="${Math.round((vm.memory / 1024) * 100) / 100}"></label>
+        <label>${esc(t('launch.res_cores'))}<input id="mCores" inputmode="numeric" value="${vm.cores}"></label></div>`)
     + `<div class="warnbox">${icon('i-info')}<span>${info}</span></div>`;
   $$('#mOpts [data-gpu]').forEach((b) => (b.onclick = () => {
     launchGpu = b.dataset.gpu;
@@ -88,7 +91,13 @@ async function start() {
   $('#mErr').hidden = true;
   $('#mSteps').hidden = true; // a retry must not show the failed run's steps
   try {
-    const job = await api.post('/api/launch', { vmid: launchVm.vmid, gpu: launchGpu });
+    const body = { vmid: launchVm.vmid, gpu: launchGpu };
+    // memory and cores for this start, if changed in the dialog (they stay in the VM's config)
+    const mem = $('#mMem') ? Math.round(parseFloat($('#mMem').value.replace(',', '.')) * 1024) : NaN;
+    const cores = $('#mCores') ? parseInt($('#mCores').value, 10) : NaN;
+    if (mem && mem !== launchVm.memory) body.memory = mem;
+    if (cores && cores !== launchVm.cores) body.cores = cores;
+    const job = await api.post('/api/launch', body);
     $('#mOpts').hidden = true;
     showJob(job);
     clearInterval(polling);

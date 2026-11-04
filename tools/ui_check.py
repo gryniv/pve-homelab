@@ -177,6 +177,35 @@ async def logout(r):
     r.check("sign-out hides the bell", await p.js("return document.querySelector('#alertBell').hidden;"))
 
 
+async def tfa_signin(r):
+    """A second factor with the keyboard alone: the keypad takes the focus, digits type, the sixth signs in."""
+    p = r.p
+    await r.open(None)
+    await p.js("document.querySelector('[data-user=\"olena@pve\"]').click();", 0.3)
+    await p.js("document.querySelector('#pw').value = 'x'; document.querySelector('#loginForm').requestSubmit();")
+    shown = await p.until("return !document.querySelector('#tfaBox').hidden && document.activeElement?.dataset.k === '1'", 5)
+    r.check("after the password the code is asked, the keypad has the focus", shown)
+    r.check("the password row is out of the way", await p.js("return getComputedStyle(document.querySelector('.pwrow')).display === 'none';"))
+    for d in "000000":
+        await p.key(d, 48, d)
+    err = await p.until("const e = document.querySelector('#loginErr'); return !e.hidden && e.textContent;", 5)
+    r.check("a wrong code says so and the code is asked again", err and await p.js("return !document.querySelector('#tfaBox').hidden && document.querySelector('#tfaCode').value === '';"), err)
+    await p.js("document.querySelector('[data-tfa-kind=recovery]').click();", 0.3)
+    r.check("a recovery key can be typed instead", await p.js("return document.querySelector('#tfaPad').hidden && document.activeElement?.id === 'tfaCode';"))
+    await p.js("document.querySelector('[data-tfa-kind=totp]').click();", 0.3)
+    for d in "123456":
+        await p.key(d, 48 + int(d), d)
+    r.check("the sixth digit signs in", await p.until("return document.querySelector('[data-scr=dash]')?.hidden === false", 8))
+    await p.js("document.querySelector('#logoutBtn').click();")
+    await p.until("return !document.querySelector('[data-scr=login]').hidden", 5)
+    await p.js("document.querySelector('[data-user=\"olena@pve\"]').click();", 0.3)
+    await p.js("document.querySelector('#pw').value = 'x'; document.querySelector('#loginForm').requestSubmit();")
+    await p.until("return !document.querySelector('#tfaBox').hidden", 5)
+    await p.key("Escape", 27)
+    await asyncio.sleep(0.3)
+    r.check("Esc goes back to the password", await p.js("return document.querySelector('#tfaBox').hidden && document.activeElement?.id === 'pw';"))
+
+
 async def widgets(r):
     p = r.p
     await r.open()
@@ -254,7 +283,8 @@ async def alerts(r):
     p = r.p
     await r.open()
     n = await p.until("const b = document.querySelector('#alertBell'); return !b.hidden && b.querySelector('.n').textContent;", 6)
-    r.check("the bell counts what needs a look", n == "1", n)
+    # stale backups, and Nextcloud's site: its container is stopped
+    r.check("the bell counts what needs a look", n == "2", n)
     await p.js("const b = document.querySelector('#alertBell'); b.focus(); b.click();", 0.4)
     items = await p.js("return [...document.querySelectorAll('#alertsList li')].map(l => l.textContent);")
     r.check("its dialog lists the stale backups", items and "backup" in items[0], items)
@@ -297,6 +327,126 @@ async def settings_focus(r):
         before = await p.js(f"const b = [...document.querySelectorAll('[{attr}]:not([disabled])')][2]; b.focus(); b.click(); return b.getAttribute('{attr}');", 1.0)
         after = await p.js(f"const a = document.activeElement; return a?.getAttribute('{attr}') || (a && a.tagName + '.' + a.className);")
         r.check(f"focus stays on {attr} after a change", before and before == after, f"{before} -> {after}")
+
+
+async def system_settings(r):
+    """Settings → System: admins only; a change shows where it comes from and goes back to the file."""
+    p = r.p
+    await r.open("guest@pve")
+    await p.js("document.querySelector('.top [data-go=settings]').click();", 0.8)
+    r.check("someone who isn't an admin has no System section", await p.js("return !document.querySelector('[data-sp=system]');"))
+    await r.open()
+    await p.js("document.querySelector('.top [data-go=settings]').click();", 0.8)
+    await p.js("document.querySelector('[data-sp=system]').click();")
+    shown = await p.until("return document.querySelectorAll('.sys-item').length > 2 && document.querySelectorAll('#sysGroups button').length", 6)
+    r.check("an admin gets the host's settings in groups", shown and shown > 5, shown)
+    await p.js("[...document.querySelectorAll('#sysGroups button')].find(b => b.dataset.v === 'alerts').click();", 0.5)
+    await p.js("const i = document.querySelector('[data-sys=\"alerts.storage_pct\"]'); i.value = '77'; i.dispatchEvent(new Event('change'));")
+    badge = await p.until("return document.querySelector('[data-path=\"alerts.storage_pct\"] .sys-src.menu')?.textContent", 5)
+    r.check("a change is saved and marked as made here", badge, badge)
+    await p.js("const i = document.querySelector('[data-sys=\"alerts.temp_c\"]'); i.value = '500'; i.dispatchEvent(new Event('change'));")
+    err = await p.until("return document.querySelector('[data-path=\"alerts.temp_c\"] .sys-err')?.textContent", 5)
+    r.check("a wrong value is refused next to the setting", err, err)
+    await p.js("document.querySelector('[data-sys-reset=\"alerts.storage_pct\"]').click();")
+    back = await p.until("return !document.querySelector('[data-path=\"alerts.storage_pct\"] .sys-src.menu') && document.querySelector('[data-sys=\"alerts.storage_pct\"]').value", 5)
+    r.check("Back to config.yaml takes the change out", back == "90", back)
+    await p.js("const s = document.querySelector('#sysSearch'); s.value = 'caddy'; s.dispatchEvent(new Event('input'));", 0.5)
+    found = await p.js("return [...document.querySelectorAll('.sys-item')].map(e => e.dataset.path);")
+    want = {"caddy.ct", "caddy.admin", "caddy.prefer_suffix", "caddy.hide"}
+    r.check("search finds settings across groups", found and want <= set(found) and not any(x.startswith("alerts") for x in found), found)
+
+
+async def components(r):
+    """Settings → System → Components: a part switched off leaves the page at once."""
+    p = r.p
+    await r.open()
+    r.check("the weather is in the top bar", await p.js("return getComputedStyle(document.querySelector('.tw[data-needs=weather]')).display !== 'none';"))
+    await p.js("document.querySelector('.top [data-go=settings]').click();", 0.8)
+    await p.js("document.querySelector('[data-sp=system]').click();")
+    await p.until("return document.querySelectorAll('#sysGroups button').length", 6)
+    await p.js("[...document.querySelectorAll('#sysGroups button')].find(b => b.dataset.v === 'components').click();", 0.5)
+    await p.js("const c = document.querySelector('[data-sys=\"features.weather\"]'); c.checked = false; c.dispatchEvent(new Event('change'));")
+    gone = await p.until("return getComputedStyle(document.querySelector('.tw[data-needs=weather]')).display === 'none'", 5)
+    r.check("switched off, the weather leaves the top bar", gone)
+    offered = await p.js("const W = await import('/core/widgets.js'); return W.allowed('side').map(w => w.id);")
+    r.check("and its widget is no longer offered", offered and "weather" not in offered and "host" in offered, offered)
+    await p.js("const c = document.querySelector('[data-sys=\"features.weather\"]'); c.checked = true; c.dispatchEvent(new Event('change'));")
+    back = await p.until("return getComputedStyle(document.querySelector('.tw[data-needs=weather]')).display !== 'none'", 5)
+    r.check("switched on again, it is back", back)
+
+
+async def interface(r):
+    """Settings → Interface: size, calm, parts of the dashboard, 12 hours."""
+    p = r.p
+    await r.open()
+    await p.js("document.querySelector('.top [data-go=settings]').click();", 0.8)
+    await p.js("document.querySelector('[data-sp=ui]').click();", 0.5)
+    before = await p.js("return parseFloat(getComputedStyle(document.querySelector('.A')).fontSize);")
+    await p.js("document.querySelector('#uiScale [data-v=\"140\"]').click();", 0.5)
+    after = await p.js("return parseFloat(getComputedStyle(document.querySelector('.A')).fontSize);")
+    r.check("a larger size makes everything larger", after > before * 1.3, (before, after))
+    await p.js("const c = document.querySelector('#uiCalm'); c.checked = true; c.dispatchEvent(new Event('change'));", 0.3)
+    r.check("calm stops the animations", await p.js("return document.body.classList.contains('calm');"))
+    await p.js("const c = document.querySelector('#uiSecSystems'); c.checked = false; c.dispatchEvent(new Event('change'));", 0.3)
+    r.check("systems can leave the dashboard", await p.js("return getComputedStyle(document.querySelector('.sysrail')).display === 'none';"))
+    await p.js("document.querySelector('#uiClock [data-v=\"12\"]').click();", 1.2)
+    clock = await p.js("return document.querySelector('[data-clock]')?.textContent || '';")
+    r.check("12 hours shows no hour above 12", clock and int(clock.split(':')[0].strip() or 0) <= 12, clock)
+    saved = await p.js(API + "return (await q('GET', '/api/me')).prefs.ui;", 0.8)
+    r.check("and it is saved", saved and saved["scale"] == 140 and saved["motion"] == "calm" and saved["sections"]["systems"] is False, saved)
+
+
+async def guest_resources(r):
+    """A guest's dialog: memory, cores, start at boot, tags; saved through Proxmox with your rights."""
+    p = r.p
+    await r.open()
+    await p.js("document.querySelector('[data-ptab=guests]').click();", 0.6)
+    await p.js("document.querySelector('#guestrows [data-guest*=\"201\"]')?.click() || [...document.querySelectorAll('#guestrows [data-guest]')].find(b => b.textContent.includes('jellyfin')).click();")
+    ok = await p.until("return !document.querySelector('#guestLayer').hidden && !!document.querySelector('#grMem')", 6)
+    r.check("a guest's dialog has its resources", ok)
+    await p.js("document.querySelector('#gRes').open = true; document.querySelector('#grMem').value = '6'; document.querySelector('#grCores').value = '5';"
+               "document.querySelector('#grOnboot').checked = true; document.querySelector('#grTags').value = 'media, home';"
+               "document.querySelector('#gResForm').requestSubmit();")
+    msg = await p.until("return document.querySelector('#grMsg')?.textContent", 5)
+    saved = await p.js(API + "return await q('GET', '/api/guests/lxc/201/config');")
+    r.check("saving writes them", saved and saved["memory"] == 6144 and saved["cores"] == 5 and saved["onboot"] and saved["tags"] == ["media", "home"], (msg, saved))
+    await p.key("Escape", 27)
+    await asyncio.sleep(0.3)
+    await r.open("guest@pve")
+    await p.js("document.querySelector('[data-ptab=guests]').click();", 0.6)
+    await p.js("[...document.querySelectorAll('#guestrows [data-guest]')].find(b => b.textContent.includes('jellyfin')).click();")
+    dis = await p.until("return document.querySelector('#grMem')?.disabled && !document.querySelector('#gResForm [type=submit]')", 6)
+    r.check("without the rights the fields are read-only", dis)
+
+
+async def settings_copy(r):
+    """Settings → About: a copy of the settings, downloaded and put back by parts."""
+    p = r.p
+    await r.open()
+    await p.js("document.querySelector('.top [data-go=settings]').click();", 0.8)
+    await p.js("document.querySelector('[data-sp=about]').click();", 0.8)
+    href = await p.js("return document.querySelector('#copyGet')?.getAttribute('href');")
+    r.check("an admin can download a copy", href and href.startswith("/api/backup/export"), href)
+    await p.js(API + "await q('PUT', '/api/prefs', {skin: 'forest'});")
+    await p.js("window.__copy = await (await fetch(document.querySelector('#copyGet').href)).blob();"
+               + API + "await q('PUT', '/api/prefs', {skin: 'graphite'});")
+    await p.js("const dt = new DataTransfer(); dt.items.add(new File([window.__copy], 'copy.tar.gz', {type: 'application/gzip'}));"
+               "const i = document.querySelector('#copyFile'); i.files = dt.files; i.dispatchEvent(new Event('change'));")
+    parts = await p.until("return [...document.querySelectorAll('[data-copy-part]')].map(c => c.dataset.copyPart + ':' + c.checked);", 5)
+    r.check("choosing a copy shows its parts, ticked", parts and "users:true" in parts, parts)
+    await p.js("document.querySelector('#copyApply').click();", 0.5)
+    await p.js("document.querySelector('#confirmLayer .btn:not(.ghost)')?.click() || document.querySelector('#confirmYes')?.click();", 0.3)
+    skin = None
+    for _ in range(20):
+        await asyncio.sleep(0.4)
+        try:
+            skin = await p.js(API + "return (await q('GET', '/api/me')).prefs.skin;")
+        except RuntimeError:
+            continue
+        if skin == "forest":
+            break
+    r.check("putting it back brings the settings back", skin == "forest", skin)
+    await p.until("return document.readyState === 'complete' && !!document.querySelector('[data-scr]')", 8)
 
 
 async def console(r):
@@ -973,7 +1123,7 @@ async def misc(r):
     r.check("the weather icon exists", icon and code == 200, f"{icon} {code}")
 
 
-CHECKS = {"guests": guests, "logout": logout, "widgets": widgets, "toasts": toasts, "offline": offline,
+CHECKS = {"guests": guests, "logout": logout, "tfa_signin": tfa_signin, "system_settings": system_settings, "components": components, "interface": interface, "guest_resources": guest_resources, "settings_copy": settings_copy, "widgets": widgets, "toasts": toasts, "offline": offline,
           "aria": dialogs_aria, "alerts": alerts, "update": failed_update, "focus": settings_focus,
           "console": console, "launch": launch, "search": search, "order": reorder, "guests_table": guest_table, "designs": my_designs, "design_pack": design_pack, "widget_strings": widget_strings, "my_widgets": my_widgets, "feedback": write_to_author, "node_updates": node_updates, "narrow": narrow, "layout_hooks": layout_hooks, "layout_theme": layout_theme, "theme_whole": theme_whole, "design_folders": design_folders, "update_check": update_check, "designing": designing, "quiet_faults": quiet_faults, "tabs": service_tabs, "misc": misc}
 

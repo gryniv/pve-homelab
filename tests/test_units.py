@@ -265,3 +265,55 @@ async def test_pvesh_takes_a_path_parameter(monkeypatch):
     assert out == {"/nodes/pve": {"Sys.Modify": 1}}
     assert seen[0] == ("pvesh", "get", "/access/permissions", "--output-format", "json",
                        "--path", "/nodes/pve", "--userid", "ihor@pve")
+
+
+# ---------- services: names for UIs found without Caddy ----------
+def test_found_services_take_their_names_from_config():
+    found = [{"key": "ct206-3000", "name": "AdGuard Home", "icon": "adguard-home", "desc": "", "url": "http://a"},
+             {"key": "vm101-3001", "name": "Grafana", "icon": "grafana", "desc": "", "url": "http://b"}]
+    meta = {"ct206-3000": {"name": "DNS", "icon": "adguard", "desc": "filter"}, "vm101-3001": None, "photos": {"name": "x"}}
+    got = discover.decorate(found, meta)
+    assert got[0] == {**found[0], "name": "DNS", "icon": "adguard", "desc": "filter"}
+    assert got[1] == found[1]
+    assert discover.decorate(found, None) == found
+
+
+# ---------- where the menu answers on this machine ----------
+@pytest.mark.parametrize("listen,url,loop", [
+    ("127.0.0.1:8900", "http://127.0.0.1:8900/", True),
+    ("0.0.0.0:9000", "http://127.0.0.1:9000/", True),
+    ("[::]:8900", "http://[::1]:8900/", True),
+    ("192.168.8.146:8900", "http://192.168.8.146:8900/", False),
+])
+def test_menu_url(listen, url, loop):
+    cfg = {"listen": listen}
+    assert config.menu_url(cfg) == url
+    assert config.menu_url(cfg, "igpu") == url + "?seat=igpu"
+    assert config.listens_on_loopback(cfg) is loop
+
+
+def test_config_cli_for_the_kiosk(tmp_path, monkeypatch, capsys):
+    p = tmp_path / "config.yaml"
+    p.write_text("listen: 0.0.0.0:9100\nseats:\n  igpu: {gpu: '0000:79:00.0', kiosk: true, tty: 7}\n"
+                 "  web: {gpu: null}\nkiosk: {debug_port: 9222}\n", encoding="utf-8")
+    monkeypatch.setattr(config, "CONFIG_PATH", str(p))
+    assert config._cli(["kiosk", "igpu"]) == 0
+    assert capsys.readouterr().out.split() == ["0000:79:00.0", "9222", "http://127.0.0.1:9100/?seat=igpu"]
+    assert config._cli(["seats"]) == 0
+    assert capsys.readouterr().out.split() == ["igpu", "7"]
+    assert config._cli(["nonsense"]) == 2
+
+
+# The demo replaces caddy.static_ips once an app is made: keep the real one from collection time.
+REAL_STATIC_IPS = caddy.static_ips
+
+
+def test_static_ips_from_guest_configs():
+    confs = {"/etc/pve/lxc/203.conf": "hostname: cloud\nnet0: name=eth0,bridge=vmbr0,ip=10.0.0.203/24,gw=10.0.0.1\n"
+                                      "[snap1]\nnet0: name=eth0,ip=10.9.9.9/24\n",
+             "/etc/pve/qemu-server/110.conf": "ipconfig0: ip=10.0.0.110/24,gw=10.0.0.1\nnet0: virtio=AA:BB,bridge=vmbr0\n",
+             "/etc/pve/lxc/204.conf": "net0: name=eth0,ip=dhcp\n"}
+    res = [{"type": "lxc", "vmid": 203, "name": "cloud"}, {"type": "qemu", "vmid": 110, "name": "db"},
+           {"type": "lxc", "vmid": 204, "name": "vault"}, {"type": "node", "node": "pve"}]
+    ips = REAL_STATIC_IPS(res, read=lambda p: confs.get(p, ""))
+    assert ips == {"10.0.0.203": ("lxc", 203, "cloud"), "10.0.0.110": ("qemu", 110, "db")}

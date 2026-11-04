@@ -8,6 +8,7 @@ import { arrange, moved } from './order.js';
 import { current as currentLang } from './i18n.js';
 import { label as updLabel, check as updCheck } from './updates.js';
 import { $, $$, icon, esc, AVATARS, toast, confirmBox, keepFocus, t } from './ui.js';
+import * as SYS from './system.js';
 
 const ZONES = {
   login: { title: 'set.layout.zone_login', sub: 'set.layout.zone_login_sub' },
@@ -15,13 +16,16 @@ const ZONES = {
 };
 
 const SECTIONS = [
-  ['look', 'i-palette'], ['login', 'i-lock'], ['dash', 'i-layout'], ['systems', 'i-monitor'],
-  ['weather', 'i-cloud'], ['about', 'i-info'],
+  ['look', 'i-palette', 'set.s.look'], ['ui', 'i-chip', 'set.s.ui'], ['login', 'i-lock', 'set.s.login'], ['dash', 'i-layout', 'set.s.dash'],
+  ['systems', 'i-monitor', 'set.s.systems'], ['weather', 'i-cloud', 'set.s.weather'], ['system', 'i-gear', 'set.s.system', 'admin'],
+  ['about', 'i-info', 'set.s.about'],
 ];
+const sections = () => SECTIONS.filter(([, , , who]) => who !== 'admin' || app.isAdmin());
 // Settings → Look: a grid of designs (grid); one opens like a folder with everything it is worn
 // with (design: the current one); My designs installs and removes them (mine).
 const LOOK_AT = ['grid', 'design', 'mine'];
 
+let copyPlan = null;   // Settings → About: a settings copy chosen to put back, and what it would change
 let app, current = 'look', lookAt = 'grid', updAsked = false, saveTimer, loginCfg = null, loginTimer, openW = '', stopPreview = null, logs = null, myDesigns = null, myWidgets = null;
 
 const sw = (id, on) => `<span class="sw"><input type="checkbox" id="${id}" ${on ? 'checked' : ''}><i></i></span>`;
@@ -202,7 +206,7 @@ const lookViews = {
       <button type="button" class="skin lkfold${(p.skin || 'dusk') === th.id ? ' sel' : ''}" data-skinpick="${th.id}">${monitor(lookFor(p, th.id))}
         <span>${esc(pick(th.name, lang))}<small>${esc(pick(th.desc, lang))}</small></span>
         <i class="lkopen" aria-hidden="true">${icon('i-chev')}</i></button>`).join('');
-    const mine = `<button type="button" class="skin lkmine" data-lookmine><span class="mon"><span class="lkplus">${icon(admin ? 'i-plus' : 'i-box')}</span></span>
+    const mine = `<button type="button" class="skin lkmine" data-lookmine data-needs="my_designs"><span class="mon"><span class="lkplus">${icon(admin ? 'i-plus' : 'i-box')}</span></span>
         <span>${esc(t('set.designs.title'))}<small>${esc(t(admin ? 'set.look.mine_sub' : 'set.look.mine_sub_view'))}</small></span></button>`;
     return `${hoverHint()}${grp('set.look.designs', `<div class="skins looks">${tiles}${mine}</div>`)}`;
   },
@@ -319,7 +323,26 @@ function journal() {
     <div class="llist">${rows || `<p class="ok" style="margin:.4em 0">${t('log.empty')}</p>`}</div>`);
 }
 
+const UI_SCALES = [80, 90, 100, 110, 125, 140, 160];
+const UI_TOASTS = [2, 3, 5, 8];
+
 const views = {
+  system: () => SYS.view(),
+  ui(p) {
+    const u = p.ui;
+    const now = new Date();
+    const sample = { long: now.toLocaleDateString(currentLang(), { weekday: 'long', day: 'numeric', month: 'long' }),
+      short: now.toLocaleDateString(currentLang(), { day: 'numeric', month: 'short', year: 'numeric' }), iso: now.toLocaleDateString('sv-SE') };
+    return `<h3>${t('set.s.ui')}</h3>${lead('set.ui.lead')}
+      ${grp('set.ui.size', seg('uiScale', String(u.scale), UI_SCALES.map((n) => [String(n), `${n}%`])))}
+      ${grp('set.ui.feel', tgl('uiCalm', u.motion === 'calm', 'set.ui.calm', 'set.ui.calm_sub')
+        + tgl('uiConfirm', u.confirm, 'set.ui.confirm', 'set.ui.confirm_sub'))}
+      ${grp('set.ui.time', `<div class="grp2">${seg('uiClock', u.clock, [['24', t('set.ui.h24')], ['12', t('set.ui.h12')]])}</div>
+        <div class="grp2" style="margin-top:.6em">${seg('uiDate', u.date, ['long', 'short', 'iso'].map((k) => [k, sample[k]]))}</div>`)}
+      ${grp('set.ui.sections', tgl('uiSecSystems', u.sections.systems, 'set.ui.sec_systems')
+        + tgl('uiSecWeb', u.sections.web, 'set.ui.sec_web') + tgl('uiSecGuests', u.sections.guests, 'set.ui.sec_guests'))}
+      ${grp('set.ui.toasts', seg('uiToast', String(u.toast_sec), UI_TOASTS.map((n) => [String(n), t('set.ui.sec_n', { n })])))}`;
+  },
   look(p) {
     const lang = currentLang();
     if (lookAt === 'design') F.all().forEach((m) => F.load(m.id));
@@ -347,7 +370,7 @@ const views = {
     return `<h3>${t('set.s.dash')}</h3>${lead('set.dash.lead')}
       <div class="zones one">${zone(p, 'side')}</div>
       ${app.nodeUpdatesAllowed() ? grp('set.dash.top', tgl('pPveUpd', p.top?.pve_updates !== false, 'set.dash.pve_updates', 'set.dash.pve_updates_sub')) : ''}
-      ${widgetsMine()}
+      <div data-needs="my_widgets">${widgetsMine()}</div>
       <h4 class="subh">${t('set.dash.services')}</h4>${lead('set.services.lead')}
       ${orderEditor('services', app.services(), p, p.hidden_services,
         (x) => `<img src="/icons/${esc(x.icon || x.key)}.svg" alt="" onerror="this.style.visibility='hidden'"><span class="nm">${esc(x.name)}<small>${esc(x.host)}</small></span>`)}`;
@@ -382,13 +405,14 @@ const views = {
     return `<h3>${esc(a.name || 'PVE Homelab')}</h3>${lead('about.lead')}
       <div class="grp about-box">
         ${row('about.version', `v${esc(pub.app.version)}${u?.available ? ` · <span class="acc-text">${esc(t('about.update_new', { v: updLabel(u) }))}</span>` : u?.enabled ? ` · ${esc(t('about.update_ok'))}` : ''}${app.isAdmin() && (u ? u.enabled : !!pub.app.repo)
-          ? ` · <button class="lnk" type="button" id="updCheck">${icon('i-refresh')}<span>${esc(t('about.update_check'))}</span></button>` : ''}`)}
+          ? ` · <button class="lnk" type="button" id="updCheck" data-needs="app_updates">${icon('i-refresh')}<span>${esc(t('about.update_check'))}</span></button>` : ''}`)}
         ${a.author ? row('about.author', a.author_url ? `<a href="${esc(a.author_url)}" target="_blank" rel="noopener">${esc(a.author)}</a>` : esc(a.author)) : ''}
         ${row('about.repo', repo ? `<a href="${esc(repo)}" target="_blank" rel="noopener">${esc(repo.replace(/^https?:\/\//, ''))}</a>` : esc(t('about.none')))}
         ${row('about.license', esc(a.license || t('about.none')))}
         ${row('about.host', `Proxmox VE ${esc(pub.version)} · ${esc(pub.node)}`)}
       </div>
       ${app.isAdmin() && u?.enabled && u.channel === 'release' ? grp('about.updates', tgl('pAutoUpd', !!u.auto, 'about.auto', 'about.auto_sub')) : ''}
+      ${app.isAdmin() ? grp('copy.title', copyView()) : ''}
       <div class="grp"><div class="gl">${t('about.credits')}</div>
         <div class="mute credits">noVNC (MPL-2.0) · Meteocons, Bas Milius (MIT) · dashboard-icons, homarr-labs · Open-Meteo · Google Fonts (OFL) · cage · Chromium</div></div>
       <div class="aboutbtns"><button class="btn ghost" type="button" id="showHelp">${icon('i-info')}${t('help.title')}</button>
@@ -397,10 +421,77 @@ const views = {
   },
 };
 
+// A copy of the menu's settings: download one, or choose one and put back the parts you tick.
+const COPY_PARTS = ['users', 'looks', 'host', 'config'];
+function copyView() {
+  if (!copyPlan) {
+    return `<p class="lead">${esc(t('copy.lead'))}</p><div class="aboutbtns">
+      <a class="btn ghost" id="copyGet" href="/api/backup/export" download>${icon('i-dl')}${esc(t('copy.download'))}</a>
+      <label class="btn ghost" for="copyFile">${icon('i-refresh')}${esc(t('copy.restore'))}</label>
+      <input type="file" id="copyFile" accept=".tar.gz,.tgz,application/gzip" hidden></div>`;
+  }
+  const m = copyPlan.manifest || {};
+  const when = m.created ? new Date(m.created * 1000).toLocaleString(currentLang()) : '';
+  const rows = COPY_PARTS.filter((k) => copyPlan.parts[k]).map((k) => {
+    const n = copyPlan.parts[k];
+    const on = k !== 'config' || !copyPlan.other_node;
+    return `<label class="tgl"><span>${esc(t('copy.part_' + k))}<small>${esc(t('copy.counts', { n: n.new, c: n.changed, s: n.same }))}</small></span>
+      <span class="sw"><input type="checkbox" data-copy-part="${k}" ${on ? 'checked' : ''}><i></i></span></label>`;
+  }).join('');
+  return `<p class="lead">${esc(t('copy.from', { node: m.node || '?', when, v: m.version || '?' }))}</p>
+    ${copyPlan.other_node ? `<p class="lead hint">${icon('i-info')}${esc(t('copy.other_node'))}</p>` : ''}
+    ${rows || `<p class="mute">${esc(t('copy.empty'))}</p>`}
+    <div class="aboutbtns"><button class="btn" type="button" id="copyApply">${esc(t('copy.apply'))}</button>
+      <button class="btn ghost" type="button" id="copyCancel">${esc(t('copy.cancel'))}</button></div>`;
+}
+
+function bindCopy() {
+  const get = $('#copyGet');
+  if (get) get.href = '/api/backup/export?seat=' + encodeURIComponent(app.pub().seat.id);
+  const file = $('#copyFile');
+  if (file) {
+    file.onchange = async () => {
+      const f = file.files[0];
+      if (!f) return;
+      const fd = new FormData();
+      fd.append('file', f, f.name);
+      try { copyPlan = await app.api.post('/api/backup/inspect', fd); } catch (e) { toast(e.message, true); }
+      render();
+    };
+  }
+  $('#copyCancel') && ($('#copyCancel').onclick = () => { copyPlan = null; render(); });
+  $('#copyApply') && ($('#copyApply').onclick = async () => {
+    const parts = $$('[data-copy-part]').filter((c) => c.checked).map((c) => c.dataset.copyPart);
+    if (!parts.length) return;
+    const ok = await confirmBox(t('copy.confirm'), t('copy.confirm_text', { parts: parts.map((k) => t('copy.part_' + k)).join(', ') }), t('copy.apply'));
+    if (!ok) return;
+    try {
+      const r = await app.api.post('/api/backup/apply', { token: copyPlan.token, parts });
+      copyPlan = null;
+      toast(t('copy.done', { n: r.written, snap: r.snapshot }));
+      if (r.restart) toast(t('copy.restart'));
+      setTimeout(() => location.reload(), 1800);
+    } catch (e) { copyPlan = null; toast(e.message, true); render(); }
+  });
+}
+
 function bind(p) {
   const box = $('#settingsBox');
+  if (current === 'about' && app.isAdmin()) bindCopy();
+  if (current === 'system') SYS.bind(app, render);
+  const setUi = (ch) => save({ ui: { ...p.ui, ...ch } });
   const segBind = (id, fn) => $$(`#${id} button`).forEach((b) => (b.onclick = () => { fn(b.dataset.v); render(); }));
   const chk = (id, fn) => { const el = $('#' + id); if (el) el.onchange = () => fn(el.checked); };
+  // interface
+  segBind('uiScale', (v) => setUi({ scale: Number(v) }));
+  segBind('uiClock', (v) => setUi({ clock: v }));
+  segBind('uiDate', (v) => setUi({ date: v }));
+  segBind('uiToast', (v) => setUi({ toast_sec: Number(v) }));
+  chk('uiCalm', (on) => setUi({ motion: on ? 'calm' : 'full' }));
+  chk('uiConfirm', (on) => setUi({ confirm: on }));
+  chk('uiSecSystems', (on) => setUi({ sections: { ...p.ui.sections, systems: on } }));
+  chk('uiSecWeb', (on) => setUi({ sections: { ...p.ui.sections, web: on } }));
+  chk('uiSecGuests', (on) => setUi({ sections: { ...p.ui.sections, guests: on } }));
   // look
   segBind('langSeg', (v) => { save({ lang: v }); app.useLang(v); });
   $$('[data-skinpick]', box).forEach((b) => (b.onclick = () => { putOn(p, b.dataset.skinpick); lookGo('design'); }));
@@ -592,7 +683,8 @@ function draw() {
   const p = app.prefs();
   const me = app.me();
   const av = app.avatarOf(me);
-  if (!SECTIONS.some(([id]) => id === current)) current = 'look';
+  if (!sections().some(([id]) => id === current)) current = 'look';
+  if (current === 'system') SYS.ensure(app, render);
   if (loginCfg && loginCfg.for !== me.id) loginCfg = null;
   if (current === 'login' && !loginCfg) {
     loginCfg = { for: me.id, pending: true };
@@ -601,7 +693,7 @@ function draw() {
   $('#settingsBox').innerHTML = `
     <nav class="snav">
       <div class="me2"><span class="av" style="background:${av.bg}">${av.inner}</span><div><b>${esc(me.name)}</b><small>${esc(me.id)}</small></div></div>
-      ${SECTIONS.map(([id, ic]) => `<button type="button" data-sp="${id}" aria-selected="${id === current}">${icon(ic)}${t('set.s.' + id)}</button>`).join('')}
+      ${sections().map(([id, ic, label]) => `<button type="button" data-sp="${id}" aria-selected="${id === current}">${icon(ic)}${t(label)}</button>`).join('')}
       <span class="sp"></span><span class="saved" id="savedNote">${t('set.saved_hint')}</span>
     </nav>
     <div class="scont"><button class="chipbtn sclose" type="button" id="sClose">${icon('i-x')}${t('set.close')}</button>${views[current](p)}</div>`;

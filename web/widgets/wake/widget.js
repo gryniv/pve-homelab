@@ -1,5 +1,6 @@
 // Wake-on-LAN: switch on the machines listed under `wol:` in config.yaml.
 export default {
+  needs: 'wol',
   zones: ['side'],
   source: '/api/wol',
   every: 300,
