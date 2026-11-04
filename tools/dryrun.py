@@ -2,8 +2,9 @@
 
 Run ON the Proxmox host (never expose it):
     python3 tools/dryrun.py [--port 8901]
-Log in with any listed user and the password "test". Starting VMs, switching
-monitor inputs and changing VM configs are only logged.
+Log in with any listed user and the password "test": what that user may do comes from
+Proxmox itself (root@pam: everything). Starting VMs, switching monitor inputs, changing
+VM configs, the self-update and Wake-on-LAN are only logged.
 """
 
 import argparse
@@ -39,7 +40,12 @@ class DryPVE(P.PVE):
 
     async def get(self, t, endpoint, **params):
         if endpoint == "/access/permissions":
-            return {params["path"]: {"VM.PowerMgmt": 1, "VM.Config.HWType": 1}}
+            # this user's real rights, so admin-only parts (updates, disks, the journal) show as they would
+            try:
+                return await pvesh(endpoint, path=params["path"], userid=t.user)
+            except Exception as e:
+                logging.warning("dry-run: no permissions for %s on %s: %s", t.user, params["path"], e)
+                return {}
         return await pvesh(endpoint, **params)
 
     async def post(self, t, endpoint, **data):
@@ -55,6 +61,20 @@ async def _noop(*a, **k):
     return True
 
 
+_real_run = A.run
+
+
+async def _run(*args, **kw):
+    if args and args[0] == "systemd-run":   # the self-update (POST /api/update/apply)
+        logging.warning("DRY-RUN %s", " ".join(args))
+        return ""
+    return await _real_run(*args, **kw)
+
+
+def _wake(target):
+    logging.warning("DRY-RUN wake-on-lan %s (%s)", target.get("name"), target.get("mac"))
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--port", type=int, default=8901)
@@ -63,6 +83,8 @@ def main():
     L.Launcher._to_virgl = _noop
     D.DDC.switch_to_gpu = _noop
     A.PVE = DryPVE
+    A.run = _run
+    A.wol.send = _wake
     logging.basicConfig(level=logging.INFO)
     web.run_app(A.make_app(), host="127.0.0.1", port=a.port, print=None, access_log=None)
 
