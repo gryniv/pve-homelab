@@ -560,7 +560,11 @@ async def main(a):
         shutil.rmtree(prof, ignore_errors=True)
         if demo:
             demo.terminate()
-            demo.wait(10)
+            try:
+                demo.wait(10)
+            except subprocess.TimeoutExpired:  # never let cleanup decide the result
+                demo.kill()
+                demo.wait(5)
         if demo_state:
             shutil.rmtree(demo_state, ignore_errors=True)
 

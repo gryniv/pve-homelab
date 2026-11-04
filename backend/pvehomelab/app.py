@@ -357,9 +357,14 @@ async def designs_events(req):
     await resp.prepare(req)
     loop = asyncio.get_running_loop()
     prev, quiet = await loop.run_in_executor(None, designs.snapshot), 0
+    stop = req.app["stopping"]  # the server is shutting down: end the stream instead of holding it up
     try:
-        while True:
-            await asyncio.sleep(1)
+        while not stop.is_set():
+            try:
+                await asyncio.wait_for(stop.wait(), 1)
+                break
+            except asyncio.TimeoutError:
+                pass
             cur = await loop.run_in_executor(None, designs.snapshot)
             if cur != prev:
                 await resp.write(f"data: {json.dumps(designs.changes(prev, cur))}\n\n".encode())
@@ -987,6 +992,10 @@ async def housekeeping_loop(app):
             log.warning("housekeeping: %s", e)
 
 
+async def on_shutdown(app):
+    app["stopping"].set()
+
+
 async def on_cleanup(app):
     for t in app.get("tasks", []):
         t.cancel()
@@ -1014,8 +1023,10 @@ def make_app():
     app.on_response_prepare.append(_no_stale_code)
     app["cfg"] = config.load()
     app["code"] = {k: update.installed()[k] for k in ("version", "commit")}  # what this process runs
+    app["stopping"] = asyncio.Event()  # set on shutdown: long-lived streams (live reload) end at once
     app.add_routes(routes)
     app.router.add_static("/", config.WEB_DIR, show_index=False, append_version=False)
     app.on_startup.append(on_startup)
+    app.on_shutdown.append(on_shutdown)
     app.on_cleanup.append(on_cleanup)
     return app

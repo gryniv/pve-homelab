@@ -246,3 +246,13 @@ async def test_live_reload_off_outside_designer_mode(client):
         assert pub["designer"] is False
     finally:
         client.server.app["demo"] = True
+
+
+async def test_live_reload_stream_ends_on_shutdown(client):
+    """An open live-reload stream must not hold the server up when it stops."""
+    r = await client.get("/api/designs/events")
+    await asyncio.sleep(0.2)
+    client.server.app["stopping"].set()
+    rest = await asyncio.wait_for(r.content.read(), 3)   # the server closes the stream: EOF
+    assert rest == b""
+    client.server.app["stopping"].clear()
