@@ -6,9 +6,15 @@ import { report } from './errlog.js';
 
 const loaded = {};
 const version = {}; // id -> a stamp after the file changed (live reload), so import() fetches it again
+let known = null;   // the clock designs this host has (/api/public); null until the page knows them
 
+export function init(list) { known = new Set((list || []).map((c) => c.id)); }
+
+// The module of clock `id` and the id it really is: a design removed since someone chose it is not
+// a fault of the page, so the digital clock stands in, quietly; one that fails to load stands in too.
 export function load(id) {
   id = id || 'digital';
+  if (known && !known.has(id)) id = 'digital';
   return (loaded[id] ||= import(`/clocks/${id}.js${version[id] ? `?v=${version[id]}` : ''}`).then((m) => {
     document.getElementById('clock-css-' + id)?.remove();
     if (m.css) {
@@ -17,7 +23,7 @@ export function load(id) {
       s.textContent = m.css;
       document.head.appendChild(s);
     }
-    return m;
+    return { m, id };
   }).catch((e) => {
     report('clock', `${id}: ${e.message}`, e.stack);
     return id === 'digital' ? null : load('digital');
@@ -39,9 +45,10 @@ const parts = (d, locale) => {
 };
 
 // Draw clock `id` into `el` (switching design if needed).
+// It is marked with the design it really shows, whose CSS is scoped by [data-clockk].
 export async function paint(el, id, d, locale) {
-  const m = await load(id);
-  if (!m) return;
-  if (el.dataset.clockk !== id) { el.dataset.clockk = id; el.innerHTML = ''; }
-  m.render(el, parts(d, locale), { locale });
+  const got = await load(id);
+  if (!got) return;
+  if (el.dataset.clockk !== got.id) { el.dataset.clockk = got.id; el.innerHTML = ''; }
+  got.m.render(el, parts(d, locale), { locale });
 }

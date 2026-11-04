@@ -315,7 +315,7 @@ async function logout() {
   guests.reset();
   st.admin = false;
   st.me = null; st.prefs = null;
-  try { st.pub = await api.get('/api/public'); } catch {}
+  try { st.pub = await api.get('/api/public'); clocks.init(st.pub.clocks); } catch {}
   await useLang();
   renderUsers();
   go('login');
@@ -504,6 +504,7 @@ async function boot() {
   }
   bg.init(st.pub.backgrounds);
   fonts.init(st.pub.fonts);
+  clocks.init(st.pub.clocks);
   setSeat(st.pub.seat.id);
   document.body.classList.toggle('remote', !!st.pub.seat.remote);
   paintSeat();

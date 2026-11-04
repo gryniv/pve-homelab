@@ -34,7 +34,7 @@ export function init() {
   addEventListener('unhandledrejection', (e) => {
     const r = e.reason;
     // a 401 after the session ended is handled by the app itself
-    if (r?.status === 401) return;
+    if (r?.status === 401 || r?.offline) return;   // …and a lost connection has its own banner
     report('promise', r?.message || String(r), r?.stack || '');
   });
 }

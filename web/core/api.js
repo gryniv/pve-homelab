@@ -33,7 +33,10 @@ async function call(method, path, body) {
     });
   } catch (e) {
     backendLost();
-    throw new Error(t('error.backend'));
+    // not a fault to record: the banner says it, and a request cut by the page reloading lands here too
+    const lost = new Error(t('error.backend'));
+    lost.offline = true;
+    throw lost;
   }
   const data = await r.json().catch(() => ({}));
   if (!r.ok) {

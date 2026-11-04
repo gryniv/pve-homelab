@@ -220,6 +220,27 @@ async def offline(r):
     await p.js("window.fetch = window.__rf;")
 
 
+async def quiet_faults(r):
+    """What is no fault of the page stays out of the error journal: a chosen clock design that was
+    removed since (the digital one shows), and a widget whose request was cut (the banner shows it)."""
+    p = r.p
+    await r.open()
+    await p.js(API + "await q('DELETE', '/api/logs'); await q('PUT', '/api/prefs', {...(await q('GET', '/api/me')).prefs, clock: 'uicheck-gone'});")
+    await p.send("Page.navigate", url=r.base)
+    await p.until("return document.querySelector('[data-scr=dash]')?.hidden === false && document.querySelectorAll('.sys .play').length > 0", 15)
+    await asyncio.sleep(1.5)
+    shown = await p.js("return document.querySelector('[data-clock]').dataset.clockk;")
+    logged = await p.js(API + "return (await q('GET', '/api/logs')).entries.filter(e => e.source.startsWith('client:')).map(e => e.msg);")
+    r.check("a removed clock design: the digital one, nothing in the journal", shown == "digital" and logged == [], [shown, logged])
+    await p.js("window.__rf = window.fetch; window.__urls = [];"
+               "window.fetch = (u) => { window.__urls.push(String(u)); return Promise.reject(new TypeError('Failed to fetch')); };"
+               "const W = await import('/core/widgets.js'); const box = document.createElement('div'); document.body.append(box);"
+               "W.mount(box, 'disks', 'side', {opts: {}});", 1.0)
+    st = await p.js("return [!!document.querySelector('.werr'), window.__urls.filter(u => u.includes('/api/client-log')).length];")
+    await p.js("window.fetch = window.__rf;")
+    r.check("a widget whose request was cut says so, but records no fault", st == [True, 0], st)
+
+
 async def dialogs_aria(r):
     p = r.p
     await r.open(None)
@@ -899,7 +920,7 @@ async def misc(r):
 
 CHECKS = {"guests": guests, "logout": logout, "widgets": widgets, "toasts": toasts, "offline": offline,
           "aria": dialogs_aria, "alerts": alerts, "update": failed_update, "focus": settings_focus,
-          "console": console, "launch": launch, "search": search, "order": reorder, "guests_table": guest_table, "designs": my_designs, "widget_strings": widget_strings, "my_widgets": my_widgets, "feedback": write_to_author, "node_updates": node_updates, "narrow": narrow, "layout_hooks": layout_hooks, "layout_theme": layout_theme, "theme_whole": theme_whole, "design_folders": design_folders, "update_check": update_check, "designing": designing, "tabs": service_tabs, "misc": misc}
+          "console": console, "launch": launch, "search": search, "order": reorder, "guests_table": guest_table, "designs": my_designs, "widget_strings": widget_strings, "my_widgets": my_widgets, "feedback": write_to_author, "node_updates": node_updates, "narrow": narrow, "layout_hooks": layout_hooks, "layout_theme": layout_theme, "theme_whole": theme_whole, "design_folders": design_folders, "update_check": update_check, "designing": designing, "quiet_faults": quiet_faults, "tabs": service_tabs, "misc": misc}
 
 
 # ---------------------------------------------------------------- driver
