@@ -94,6 +94,9 @@ users:
 saver:
   after_min: 5                # screensaver on the login screen
 lock_after_min: 15            # log out of the dashboard after this much inactivity
+screen:                       # the menu's monitors go dark (DDC standby + a black page); any key wakes them
+  off_after_min: 0            # minutes without a key; 0 = never
+  night: ""                   # e.g. "23:00-07:00": dark after a minute without a key
 
 designer: false               # live reload of designs while you work on them on the host (the demo has it on)
 

@@ -16,7 +16,7 @@ from . import backup, caddy, config, designs, discover, inputs, errlog, feedback
 from .ddc import DDC
 from .host import HostStats
 from .launch import Launcher
-from .seats import Seats
+from .seats import Power, Seats
 from .inputs import Passer
 from .pve import PVE, TFA_KINDS, PVEError, TfaChallenge
 from .util import Cached, log, pvesh, run
@@ -1354,6 +1354,14 @@ async def seat_events(req):
     return resp
 
 
+@routes.post("/api/seat/activity")
+async def seat_activity(req):
+    """Someone touched this screen: it stays lit, or lights up again."""
+    sid = local_kiosk_seat(req)
+    await req.app["power"].wake(sid)
+    return web.json_response({"screen": req.app["seats"].get(sid).get("screen", "on")})
+
+
 @routes.post("/api/seat/focus")
 async def seat_focus(req):
     """{"to": "menu" | "vm" | <vmid>}: the monitor to the menu (whoever sits there, signed in or not),
@@ -1753,9 +1761,11 @@ async def on_startup(app):
 
     app["seats"] = Seats(cfg)
     app["input"] = Passer(app)
+    app["power"] = Power(app)
     app["launcher"] = Launcher(app)
     app["tasks"] = [asyncio.create_task(app["stats"].loop()),
                     asyncio.create_task(app["launcher"].watch_loop()),
+                    asyncio.create_task(app["power"].loop()),
                     asyncio.create_task(housekeeping_loop(app)),
                     asyncio.create_task(app["services"].get())]
     await _adopt_running(app)

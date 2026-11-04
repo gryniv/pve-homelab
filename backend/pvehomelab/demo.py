@@ -446,6 +446,11 @@ async def switch_input(self, mon, pci):
     return True
 
 
+async def demo_power(self, mon, on):
+    log.info("demo: monitor %s %s (DDC skipped)", mon, "on" if on else "dark")
+    return True
+
+
 _real_weather = weather.get
 
 
@@ -567,6 +572,13 @@ async def demo_state(req):
                               "os": list(OS_TYPES), "apps": sorted(APP_PORTS)})
 
 
+@A.routes.post("/api/demo/screen-off")
+async def demo_screen_off(req):
+    """As if the screen had been idle long enough: the monitor goes dark."""
+    await A_app["app"]["power"]._set(A.seat_of(req), False)
+    return web.json_response({"ok": True})
+
+
 @A.routes.post("/api/demo/input-release")
 async def demo_input_release(req):
     """As if both Ctrl were pressed inside the system: QEMU lets the keyboard go."""
@@ -676,6 +688,7 @@ def make_app():
     G.pci_mappings = lambda: MAPPINGS
     G.local_node = lambda: NODE
     DDC.switch_to_gpu = switch_input
+    DDC.power = demo_power
     weather.get = demo_weather
     wol.send = demo_wake
     update.status = demo_update_status

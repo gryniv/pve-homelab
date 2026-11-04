@@ -86,6 +86,9 @@ signed in, so each person sees and controls exactly what PVE allows them to.
   alone. A tick in the launch dialog, a default in *Settings → Systems*, the devices and the hotkey in
   *Settings → System*. It takes `VM.Console` on the VM. `tools/input_probe.py` lists the host's
   devices and tries lending them to a VM for a few seconds.
+- **Monitors go dark** after some minutes without a key, and at night (`screen.off_after_min`,
+  `screen.night: "23:00-07:00"`): DDC standby (VCP D6) and a black page, for monitors that ignore D6.
+  Any key or touch wakes them; never while a system is on the monitor.
 - **The page stands aside** while its monitor shows a system: no widgets, no effects, keys act on
   nothing. **Both Ctrl keys** bring the monitor back to the menu (the system keeps running), and from
   the menu take it to the system running on a GPU wired to this monitor.

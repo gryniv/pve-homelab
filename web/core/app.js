@@ -600,7 +600,19 @@ setInterval(() => {
 /* ---------------- away: this seat's monitor shows a system (seats.py, /api/seat/events) ---------------- */
 // While away the page acts on nothing but both Ctrl keys (back to the menu); from the menu, both
 // Ctrl keys go to the system running on a GPU wired to this monitor.
+let activitySent = 0;
+function touched() {
+  if (st.pub?.seat?.remote || !st.pub?.seat?.gpu) return;
+  const dark = document.body.classList.contains('blank');
+  if (!dark && Date.now() - activitySent < 20000) return;
+  activitySent = Date.now();
+  document.body.classList.remove('blank');
+  api.post('/api/seat/activity').catch(() => {});
+}
+['pointerdown', 'keydown', 'wheel', 'touchstart'].forEach((ev) => addEventListener(ev, touched, { passive: true, capture: true }));
+
 function onSeat(state) {
+  document.body.classList.toggle('blank', state.screen === 'off');
   if (state.shows !== 'menu') {
     st.awayVm = state.shows;
     const vm = st.systems.find((s) => s.vmid === state.shows);

@@ -369,6 +369,7 @@ html,body{margin:0;height:100%;background:#05080e}
 
 /* ---------- console (VM screen inside the menu) ---------- */
 .A .scr-console{background:#000;z-index:5}
+.A.blank::after{content:"";position:fixed;inset:0;background:#000;z-index:100;cursor:none}
 .A .scr-away{background:#000;z-index:6;display:flex;align-items:center;justify-content:center;cursor:none}
 .A .scr-away[hidden]{display:none}
 .A .away-box{text-align:center;color:#9aa4b2;max-width:36em;padding:2em}

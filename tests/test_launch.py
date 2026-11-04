@@ -372,3 +372,31 @@ async def test_seat_events_tell_the_page(client):
     line = await asyncio.wait_for(r.content.readline(), 3)
     assert b'"shows": 102' in line
     r.close()
+
+
+# ---------- the monitor's power ----------
+@pytest.mark.parametrize("window,hour,inside", [("23:00-07:00", 23, True), ("23:00-07:00", 3, True), ("23:00-07:00", 12, False),
+                                                ("09:00-17:00", 10, True), ("", 3, False), ("junk", 3, False)])
+def test_night_window(window, hour, inside):
+    from pvehomelab import seats
+    import time as _t
+    now = _t.mktime((2026, 11, 5, hour, 30, 0, 0, 0, -1))
+    assert seats.in_window(window, now) is inside
+
+
+async def test_monitors_go_dark_when_idle_and_wake_on_a_key(client, monkeypatch):
+    import time as _t
+    app = client.server.app
+    monkeypatch.setitem(app["cfg"], "screen", {"off_after_min": 10, "night": ""})
+    power = app["power"]
+    power.touched["igpu"] = _t.time() - 11 * 60
+    await power.check()
+    assert app["seats"].get("igpu")["screen"] == "off"
+    r = await client.post("/api/seat/activity", headers={"X-Seat": "igpu"})
+    assert (await r.json())["screen"] == "on"
+    # never while a system is on the monitor
+    app["seats"].set("igpu", shows=102)
+    power.touched["igpu"] = _t.time() - 60 * 60
+    await power.check()
+    assert app["seats"].get("igpu")["screen"] == "on"
+

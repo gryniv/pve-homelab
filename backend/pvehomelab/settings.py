@@ -75,6 +75,8 @@ REGISTRY = [
     S("language", "choice", "general", choices=("uk", "en")),
     S("lock_after_min", "int", "general", lo=0, hi=1440),
     S("saver.after_min", "int", "general", lo=0, hi=1440),
+    S("screen.off_after_min", "int", "general", lo=0, hi=1440),
+    S("screen.night", "str", "general", pattern=r"^(\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2})?$"),
     S("designer", "bool", "general"),
     S("kiosk.debug_port", "int", "general", lo=0, hi=65535, restart="kiosk"),
     # systems and how they start

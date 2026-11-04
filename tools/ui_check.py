@@ -537,6 +537,18 @@ async def gamepad(r):
     await p.js("document.querySelector('#sClose').click();", 0.3)
 
 
+async def screen_power(r):
+    """A monitor gone dark takes the page with it; any key lights both again."""
+    p = r.p
+    await r.open()
+    await p.js(API + "await q('POST', '/api/demo/screen-off', {});")
+    r.check("dark: the page goes black", await p.until("return document.body.classList.contains('blank')", 5))
+    await p.key("ArrowRight", 39)
+    r.check("a key lights it again", await p.until("return !document.body.classList.contains('blank')", 5))
+    seat = await p.js(API + "return await q('GET', '/api/seat');")
+    r.check("and the seat says so", seat and seat.get("screen") == "on", seat)
+
+
 async def console(r):
     p = r.p
     await r.open()
@@ -1214,7 +1226,7 @@ async def misc(r):
     r.check("the weather icon exists", icon and code == 200, f"{icon} {code}")
 
 
-CHECKS = {"guests": guests, "logout": logout, "tfa_signin": tfa_signin, "system_settings": system_settings, "components": components, "interface": interface, "guest_resources": guest_resources, "settings_copy": settings_copy, "away": away, "launch_input": launch_input, "input_settings": input_settings, "gamepad": gamepad, "widgets": widgets, "toasts": toasts, "offline": offline,
+CHECKS = {"guests": guests, "logout": logout, "tfa_signin": tfa_signin, "system_settings": system_settings, "components": components, "interface": interface, "guest_resources": guest_resources, "settings_copy": settings_copy, "away": away, "launch_input": launch_input, "input_settings": input_settings, "gamepad": gamepad, "screen_power": screen_power, "widgets": widgets, "toasts": toasts, "offline": offline,
           "aria": dialogs_aria, "alerts": alerts, "update": failed_update, "focus": settings_focus,
           "console": console, "launch": launch, "search": search, "order": reorder, "guests_table": guest_table, "designs": my_designs, "design_pack": design_pack, "widget_strings": widget_strings, "my_widgets": my_widgets, "feedback": write_to_author, "node_updates": node_updates, "narrow": narrow, "layout_hooks": layout_hooks, "layout_theme": layout_theme, "theme_whole": theme_whole, "design_folders": design_folders, "update_check": update_check, "designing": designing, "quiet_faults": quiet_faults, "tabs": service_tabs, "misc": misc}
 

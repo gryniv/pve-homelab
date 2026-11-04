@@ -590,5 +590,9 @@
   "set.input.goes": "goes",
   "set.input.stays": "stays",
   "set.input.hint": "Nothing is written into a VM's config: the devices are lent for the session. {keys} in the system bring them back.",
-  "help.k_pad": "A gamepad: A is Enter, B is Esc, Start opens settings, LB/RB switch tabs, Guide is both Ctrl"
+  "help.k_pad": "A gamepad: A is Enter, B is Esc, Start opens settings, LB/RB switch tabs, Guide is both Ctrl",
+  "cfg.screen.off_after_min": "Monitors go dark after, minutes without a key",
+  "cfg.screen.off_after_min_hint": "DDC standby and a black page; any key wakes them; 0: never",
+  "cfg.screen.night": "Night",
+  "cfg.screen.night_hint": "e.g. 23:00-07:00: dark after a minute without a key; never while a system is shown"
 }

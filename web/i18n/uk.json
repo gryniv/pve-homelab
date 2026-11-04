@@ -590,5 +590,9 @@
   "set.input.goes": "переходить",
   "set.input.stays": "лишається",
   "set.input.hint": "У конфіг VM нічого не пишеться: пристрої позичаються на сеанс. {keys} у системі повертають їх.",
-  "help.k_pad": "Геймпад: A — Enter, B — Esc, Start — налаштування, LB/RB — вкладки, Guide — обидва Ctrl"
+  "help.k_pad": "Геймпад: A — Enter, B — Esc, Start — налаштування, LB/RB — вкладки, Guide — обидва Ctrl",
+  "cfg.screen.off_after_min": "Монітори гаснуть після, хвилин без клавіш",
+  "cfg.screen.off_after_min_hint": "DDC standby і чорна сторінка; будь-яка клавіша будить; 0 — ніколи",
+  "cfg.screen.night": "Ніч",
+  "cfg.screen.night_hint": "напр. 23:00-07:00: гаснуть після хвилини без клавіш; ніколи, поки показують систему"
 }
