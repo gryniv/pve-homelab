@@ -194,9 +194,14 @@ demo.py            меню поверх вигаданого хоста, без
 pip install -r requirements-dev.txt
 python -m pytest -q                         # бекенд: юніт-тести і HTTP API
 python3 tools/check_web.py                  # фронтенд: синтаксис JS, однакові ключі i18n у всіх мовах
+python tools/ui_check.py --start-demo       # меню в headless Chrome: ~30 перевірок, приблизно хвилина
 ```
 
-GitHub Actions запускає їх на кожен push (Python 3.10–3.13), а також `shellcheck` для скриптів.
+`ui_check.py` входить, клацає й набирає текст у демо, як людина (дії з гостями, вихід, віджети,
+сповіщення, запуск, консолі, налаштування, клавіатура), і падає на будь-якій помилці JavaScript.
+`--only alerts,launch` запускає лише вибрані; без `--start-demo` бере демо, що вже працює на :8900.
+
+GitHub Actions запускає все це на кожен push (Python 3.10–3.13), а також `shellcheck` для скриптів.
 
 На хості, поруч зі справжньою службою:
 

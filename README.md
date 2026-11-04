@@ -344,9 +344,14 @@ Tests and checks run anywhere, no Proxmox needed: the backend is tested through 
 pip install -r requirements-dev.txt
 python -m pytest -q                         # backend: unit tests and the HTTP API
 python3 tools/check_web.py                  # front end: JS syntax, same i18n keys in every language
+python tools/ui_check.py --start-demo       # the menu in a headless Chrome: ~30 checks, about a minute
 ```
 
-GitHub Actions runs both on every push (Python 3.10 to 3.13), plus `shellcheck` on the scripts.
+`ui_check.py` signs in, clicks and types like a person on the demo (guest actions, sign-out,
+widgets, alerts, launching, consoles, settings, keyboard) and fails on any JavaScript error.
+`--only alerts,launch` runs a few; without `--start-demo` it uses a demo already running on :8900.
+
+GitHub Actions runs all of it on every push (Python 3.10 to 3.13), plus `shellcheck` on the scripts.
 
 On the host, next to the real service:
 
