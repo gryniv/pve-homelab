@@ -529,5 +529,8 @@
   "guest.res_nothing": "Nothing changed",
   "guest.res_no_rights": "Changing these takes VM.Config.Memory, VM.Config.CPU or VM.Config.Options in Proxmox.",
   "cfg.features.guest_settings": "Guests' resources and options",
-  "cfg.features.guest_settings_hint": "memory, cores, start at boot, tags and notes in a guest's dialog"
+  "cfg.features.guest_settings_hint": "memory, cores, start at boot, tags and notes in a guest's dialog",
+  "launch.res": "This start:",
+  "launch.res_memory": "Memory, GB",
+  "launch.res_cores": "Cores"
 }

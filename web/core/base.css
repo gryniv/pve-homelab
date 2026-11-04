@@ -339,6 +339,9 @@ html,body{margin:0;height:100%;background:#05080e}
 .A .gextra{display:grid;grid-template-columns:1fr 1.4fr;gap:1em;font-size:.88em}
 .A .gextra:empty{display:none}
 /* a guest's resources and options, in its dialog */
+.A .mres{display:flex;flex-wrap:wrap;align-items:center;gap:.6em 1em;font-size:.88em;margin:.4em 0}
+.A .mres label{display:flex;align-items:center;gap:.4em;color:var(--mute)}
+.A .mres input{width:5em;background:rgba(0,0,0,.25);border:1px solid var(--edge);border-radius:.45em;padding:.35em .5em;color:#e8edf3;font:inherit;user-select:text}
 .A .gres{margin-top:1em;border-top:1px solid var(--edge);padding-top:.7em;font-size:.88em}
 .A .gres summary{cursor:pointer;font-weight:600}
 .A .gres form{display:grid;grid-template-columns:repeat(auto-fill,minmax(10em,1fr));gap:.6em 1em;margin-top:.8em}

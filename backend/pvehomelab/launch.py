@@ -270,11 +270,23 @@ class Launcher:
         asyncio.create_task(runner())
         return job
 
-    async def launch(self, t, seat_id, vmid, gpu):
-        """Start (or show, or switch to) `vmid` on `gpu`; the job is its starter's alone to follow."""
+    async def launch(self, t, seat_id, vmid, gpu, resources=None):
+        """Start (or show, or switch to) `vmid` on `gpu`; the job is its starter's alone to follow.
+        `resources` ({memory: MB, cores}) are written into a stopped VM's config first, with the
+        user's own ticket (Proxmox checks VM.Config.Memory / VM.Config.CPU); they stay there."""
+        if resources:
+            await self._set_resources(t, vmid, resources)
         job = await self._launch(t, seat_id, vmid, gpu)
         job.owner = t.user
         return job
+
+    async def _set_resources(self, t, vmid, resources):
+        if vmid in await self.app["running"](fresh=True):
+            raise PVEError(409, _("resources_running"))
+        data = {k: int(v) for k, v in resources.items() if k in ("memory", "cores")}
+        if data:
+            await self.app["pve"].req(t, "PUT", f"/nodes/{self.cfg['node']}/qemu/{vmid}/config", data)
+            log.info("VM %s before its start: %s", vmid, ", ".join(f"{k} {v}" for k, v in data.items()))
 
     async def _launch(self, t, seat_id, vmid, gpu):
         pve, node = self.app["pve"], self.cfg["node"]

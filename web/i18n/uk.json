@@ -529,5 +529,8 @@
   "guest.res_nothing": "Нічого не змінено",
   "guest.res_no_rights": "Щоб змінювати це, потрібні VM.Config.Memory, VM.Config.CPU або VM.Config.Options у Proxmox.",
   "cfg.features.guest_settings": "Ресурси й параметри гостей",
-  "cfg.features.guest_settings_hint": "пам'ять, ядра, автозапуск, теги й нотатки у вікні гостя"
+  "cfg.features.guest_settings_hint": "пам'ять, ядра, автозапуск, теги й нотатки у вікні гостя",
+  "launch.res": "Цього запуску:",
+  "launch.res_memory": "Пам'ять, ГБ",
+  "launch.res_cores": "Ядра"
 }

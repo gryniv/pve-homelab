@@ -294,3 +294,27 @@ async def test_follow_start(client, monkeypatch, follow, host_up, vm_age, moves)
     await L.adopt()
     assert 102 in L.watch
     assert switched == ([RTX] if moves else [])
+
+
+# ---------- memory and cores for a start ----------
+async def test_memory_and_cores_before_a_start(client):
+    await login(client)
+    vm = await _system(client, "ubuntu-desktop")
+    gpu = next(o["pci"] for o in vm["options"] if o["mode"] == "passthrough")
+    r = await client.post("/api/launch", json={"vmid": vm["vmid"], "gpu": gpu, "memory": 20480, "cores": 10}, headers={"X-Seat": "igpu"})
+    assert r.status == 200, await r.text()
+    j = await _wait(client, (await r.json())["id"])
+    assert j["error"] is None
+    assert demo.WORLD[vm["vmid"]]["mem"] == 20 and demo.WORLD[vm["vmid"]]["cores"] == 10
+
+
+async def test_memory_and_cores_need_the_rights_and_a_stopped_vm(client):
+    await login(client)
+    vm = await _system(client, "ubuntu-desktop")
+    gpu = next(o["pci"] for o in vm["options"] if o["mode"] == "passthrough")
+    r = await client.post("/api/launch", json={"vmid": vm["vmid"], "gpu": gpu, "memory": 100}, headers={"X-Seat": "igpu"})
+    assert r.status == 400
+    demo.WORLD[vm["vmid"]]["status"] = "running"
+    client.server.app["resources"].invalidate()
+    r = await client.post("/api/launch", json={"vmid": vm["vmid"], "gpu": gpu, "memory": 8192}, headers={"X-Seat": "igpu"})
+    assert r.status == 409

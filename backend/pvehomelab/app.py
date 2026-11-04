@@ -1318,7 +1318,15 @@ async def launch(req):
         raise web.HTTPBadRequest(text="JSON expected")
     if not isinstance(body, dict) or not isinstance(body.get("gpu"), str):
         raise web.HTTPBadRequest(text="vmid and gpu expected")
-    job = await req.app["launcher"].launch(s["ticket"], seat_of(req), vmid_of(body.get("vmid")), body["gpu"])
+    resources = {}
+    for k, lo, hi in (("memory", 512, 4 * 1024 * 1024), ("cores", 1, 512)):
+        v = body.get(k)
+        if v is None:
+            continue
+        if isinstance(v, bool) or not isinstance(v, int) or not lo <= v <= hi:
+            raise web.HTTPBadRequest(text=f"{k}: {lo}…{hi}")
+        resources[k] = v
+    job = await req.app["launcher"].launch(s["ticket"], seat_of(req), vmid_of(body.get("vmid")), body["gpu"], resources)
     req.app["resources"].invalidate()
     return web.json_response(job.as_dict())
 

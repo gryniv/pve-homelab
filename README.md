@@ -74,6 +74,8 @@ signed in, so each person sees and controls exactly what PVE allows them to.
   (`x-vga`, `romfile`, a mapping) and its display are kept, and the next start on a discrete GPU
   puts them back.
 - Each step (assign GPU, start, switch monitor) shows as a clear checklist while it happens.
+- **Memory and cores for a start:** the dialog of a stopped VM offers both; a change is written into
+  its config with your own rights before the start, and stays.
 - GPUs given to VMs as Proxmox **resource mappings** (`hostpci0: mapping=…`, PVE 8+) are understood
   like plain PCI addresses. A VM that names a mapping keeps naming one when it gets another GPU, and
   writing a mapping needs `Mapping.Use` on it, as in Proxmox.
