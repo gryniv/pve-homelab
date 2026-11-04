@@ -187,6 +187,7 @@ FEATURE_ROUTES = [
     ("*", "/api/weather", "weather"),
     ("*", "/api/console", "consoles"),
     ("POST", re.compile(r"^/api/guests/[a-z]+/\d+/[a-z]+$"), "guest_actions"),
+    ("PUT", re.compile(r"^/api/guests/[a-z]+/\d+/config$"), "guest_settings"),
     ("*", "/api/host/power", "host_power"),
     ("*", "/api/wol", "wol"),
     ("POST", "/api/designs", "my_designs"),
@@ -835,6 +836,149 @@ async def guest_info(req):
         backup = {"last": g["last"], "count": g["count"], "size": g["size"]}
     return web.json_response({"snapshots": None if isinstance(snaps, Exception) else summarize_snapshots(snaps),
                               "backup": backup})
+
+
+# ---------------- a guest's resources and options, changed with the user's own rights ----------------
+TAG = re.compile(r"^[a-z0-9_][a-z0-9_.+-]{0,31}$")
+GUEST_PRIVS = (("memory", "VM.Config.Memory"), ("cpu", "VM.Config.CPU"), ("options", "VM.Config.Options"))
+
+
+def parse_startup(value):
+    """Proxmox "order=2,up=30,down=60" -> {"order": 2, "up": 30, "down": 60}."""
+    out = {}
+    for part in str(value or "").split(","):
+        k, _, v = part.partition("=")
+        if k.strip() in ("order", "up", "down") and v.strip().isdigit():
+            out[k.strip()] = int(v)
+    return out
+
+
+def guest_settings(typ, conf, pending=()):
+    """The part of a guest's config the menu edits, in plain values."""
+    return {
+        "type": typ,
+        "memory": int(conf.get("memory") or 512),
+        "balloon": (int(conf["balloon"]) if str(conf.get("balloon", "")).isdigit() else None) if typ == "qemu" else None,
+        "swap": int(conf.get("swap") or 0) if typ == "lxc" else None,
+        "cores": int(conf.get("cores") or 1),
+        "sockets": int(conf.get("sockets") or 1) if typ == "qemu" else 1,
+        "onboot": str(conf.get("onboot", "0")) == "1",
+        "startup": parse_startup(conf.get("startup")),
+        "tags": [x for x in re.split(r"[;, ]+", str(conf.get("tags") or "")) if x],
+        "description": str(conf.get("description") or ""),
+        "passthrough": any(k.startswith("hostpci") for k in conf),
+        "pending": sorted(pending),
+    }
+
+
+def guest_changes(typ, body):
+    """A body from the guest dialog -> (PVE config fields, fields to delete); 400 on anything odd."""
+    if not isinstance(body, dict):
+        raise web.HTTPBadRequest(text="JSON object expected")
+    data, delete = {}, []
+
+    def num(key, lo, hi):
+        v = body[key]
+        if isinstance(v, bool) or not isinstance(v, int) or not lo <= v <= hi:
+            raise web.HTTPBadRequest(text=f"{key}: {lo}…{hi}")
+        return v
+    if "memory" in body:
+        data["memory"] = num("memory", 16, 4 * 1024 * 1024)
+    if "cores" in body:
+        data["cores"] = num("cores", 1, 512)
+    if typ == "qemu" and "balloon" in body:
+        if body["balloon"] is None:
+            delete.append("balloon")
+        else:
+            data["balloon"] = num("balloon", 0, 4 * 1024 * 1024)
+    if typ == "lxc" and "swap" in body:
+        data["swap"] = num("swap", 0, 4 * 1024 * 1024)
+    if "onboot" in body:
+        if not isinstance(body["onboot"], bool):
+            raise web.HTTPBadRequest(text="onboot: true or false")
+        data["onboot"] = 1 if body["onboot"] else 0
+    if "startup" in body:
+        st = body["startup"] or {}
+        if not isinstance(st, dict):
+            raise web.HTTPBadRequest(text="startup: {order, up, down}")
+        parts = []
+        for k, hi in (("order", 9999), ("up", 86400), ("down", 86400)):
+            v = st.get(k)
+            if v in (None, ""):
+                continue
+            if isinstance(v, bool) or not isinstance(v, int) or not 0 <= v <= hi:
+                raise web.HTTPBadRequest(text=f"startup.{k}: 0…{hi}")
+            parts.append(f"{k}={v}")
+        if parts:
+            data["startup"] = ",".join(parts)
+        else:
+            delete.append("startup")
+    if "tags" in body:
+        tags = body["tags"]
+        if not isinstance(tags, list) or len(tags) > 32 or not all(isinstance(x, str) and TAG.match(x) for x in tags):
+            raise web.HTTPBadRequest(text="tags: lower-case words")
+        if tags:
+            data["tags"] = ";".join(dict.fromkeys(tags))
+        else:
+            delete.append("tags")
+    if "description" in body:
+        d = body["description"]
+        if not isinstance(d, str) or len(d) > 8192 or "\0" in d:
+            raise web.HTTPBadRequest(text="description: text up to 8 KB")
+        if d.strip():
+            data["description"] = d
+        else:
+            delete.append("description")
+    if not data and not delete:
+        raise web.HTTPBadRequest(text="nothing to change")
+    if "memory" in data and data.get("balloon", 0) > data["memory"]:
+        raise web.HTTPBadRequest(text="balloon: not above memory")
+    return data, delete
+
+
+async def _guest_settings(req, s, typ, vmid):
+    pve, node, t = req.app["pve"], req.app["cfg"]["node"], s["ticket"]
+    conf = await pve.get(t, f"/nodes/{node}/{typ}/{vmid}/config")
+    pending = []
+    if typ == "qemu":
+        try:
+            pending = [p["key"] for p in await pve.get(t, f"/nodes/{node}/qemu/{vmid}/pending") or []
+                       if "pending" in p or p.get("delete")]
+        except PVEError:
+            pass
+    can = {k: await pve.can(t, f"/vms/{vmid}", p) for k, p in GUEST_PRIVS}
+    return {**guest_settings(typ, conf or {}, pending), "can": can}
+
+
+@routes.get("/api/guests/{type}/{vmid}/config")
+async def guest_config(req):
+    s = await session(req)
+    typ, vmid = req.match_info["type"], vmid_of(req.match_info["vmid"])
+    if typ not in ("qemu", "lxc"):
+        raise web.HTTPBadRequest(text="bad type")
+    return web.json_response(await _guest_settings(req, s, typ, vmid))
+
+
+@routes.put("/api/guests/{type}/{vmid}/config")
+async def guest_config_put(req):
+    """Memory, cores, start at boot and its order, tags, notes: written with the user's own ticket,
+    so Proxmox itself decides (VM.Config.Memory, VM.Config.CPU, VM.Config.Options). A container takes
+    them at once; a running VM keeps the new memory and cores pending until its next start."""
+    s = await session(req)
+    typ, vmid = req.match_info["type"], vmid_of(req.match_info["vmid"])
+    if typ not in ("qemu", "lxc"):
+        raise web.HTTPBadRequest(text="bad type")
+    try:
+        body = await req.json()
+    except ValueError:
+        body = None
+    data, delete = guest_changes(typ, body)
+    if delete:
+        data["delete"] = ",".join(delete)
+    await req.app["pve"].req(s["ticket"], "PUT", f"/nodes/{req.app['cfg']['node']}/{typ}/{vmid}/config", data)
+    req.app["resources"].invalidate()
+    log.info("%s changed %s %s: %s", s["user"], typ, vmid, ", ".join(sorted(k for k in data if k != "delete") + delete))
+    return web.json_response(await _guest_settings(req, s, typ, vmid))
 
 
 @routes.post("/api/guests/{type}/{vmid}/{action}")

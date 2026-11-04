@@ -112,7 +112,7 @@ REGISTRY = [
     S("feedback.enabled", "bool", "components"),
     S("feedback.repo", "str", "updates", pattern=r"^([A-Za-z0-9][\w.-]*/[A-Za-z0-9][\w.-]*)?$"),
 ]
-FEATURES = ("alerts", "node_updates", "app_updates", "weather", "consoles", "guest_actions", "host_power", "wol", "my_designs", "my_widgets")
+FEATURES = ("alerts", "node_updates", "app_updates", "weather", "consoles", "guest_actions", "guest_settings", "host_power", "wol", "my_designs", "my_widgets")
 REGISTRY += [S(f"features.{f}", "bool", "components") for f in FEATURES]
 BY_PATH = {s.path: s for s in REGISTRY}
 

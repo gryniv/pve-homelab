@@ -1,3 +1,5 @@
+import pytest
+
 """The HTTP API through the demo: sessions, permissions, guests, services."""
 
 from pvehomelab import demo
@@ -334,3 +336,44 @@ async def test_a_launch_job_is_its_starters(client):
     assert (await client.get(f"/api/jobs/{jid}")).status == 200
     await login(client, "guest@pve")
     assert (await client.get(f"/api/jobs/{jid}")).status == 404
+
+
+# ---------- a guest's resources and options ----------
+async def test_guest_settings_read_and_written_with_your_rights(client):
+    await login(client)
+    c = await (await client.get("/api/guests/lxc/201/config")).json()
+    assert c["memory"] == 4096 and c["cores"] == 4 and c["onboot"] is False and c["can"]["memory"] is True
+    r = await client.put("/api/guests/lxc/201/config", json={"memory": 6144, "cores": 6, "swap": 512, "onboot": True,
+                                                            "startup": {"order": 2, "up": 30}, "tags": ["media", "gpu"],
+                                                            "description": "Jellyfin"})
+    assert r.status == 200, await r.text()
+    c = await r.json()
+    assert (c["memory"], c["cores"], c["swap"], c["onboot"]) == (6144, 6, 512, True)
+    assert c["startup"] == {"order": 2, "up": 30} and c["tags"] == ["media", "gpu"] and c["description"] == "Jellyfin"
+    c = await (await client.put("/api/guests/lxc/201/config", json={"startup": {}, "tags": [], "description": ""})).json()
+    assert c["startup"] == {} and c["tags"] == [] and c["description"] == ""
+
+
+async def test_a_running_vm_keeps_new_memory_for_its_next_start(client):
+    await login(client)
+    demo.WORLD[101]["status"] = "running"
+    c = await (await client.put("/api/guests/qemu/101/config", json={"memory": 12288})).json()
+    assert c["memory"] == 8192 and c["pending"] == ["memory"]
+    assert (await client.post("/api/guests/qemu/101/shutdown")).status == 200
+    c = await (await client.get("/api/guests/qemu/101/config")).json()
+    assert c["memory"] == 12288 and c["pending"] == []
+
+
+@pytest.mark.parametrize("body", [{"memory": 4}, {"cores": 0}, {"onboot": "yes"}, {"tags": ["Bad Tag"]},
+                                  {"startup": {"order": -1}}, {"memory": True}, {}, [1], {"balloon": 9000, "memory": 2048}])
+async def test_guest_settings_refuse_odd_values(client, body):
+    await login(client)
+    assert (await client.put("/api/guests/qemu/101/config", json=body)).status == 400
+
+
+async def test_guest_settings_need_the_privileges(client):
+    await login(client, "guest@pve")
+    c = await (await client.get("/api/guests/lxc/201/config")).json()
+    assert c["can"] == {"memory": False, "cpu": False, "options": False}
+    assert (await client.put("/api/guests/lxc/201/config", json={"memory": 8192})).status == 403
+    assert (await client.get("/api/guests/lxc/203/config")).status == 403      # not theirs to see

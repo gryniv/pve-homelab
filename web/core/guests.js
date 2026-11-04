@@ -99,7 +99,77 @@ function openHistory(g, fromButton) {
   $(`#gRange [data-range="${range}"]`).focus();
   load();
   loadInfo();
+  loadRes();
 }
+
+/* a guest's resources and options: read and written with the user's own rights in Proxmox */
+const GB = 1024;
+const gb = (mb) => (mb == null ? '' : String(Math.round((mb / GB) * 100) / 100));
+const mbOf = (v) => (v === '' ? null : Math.round(parseFloat(String(v).replace(',', '.')) * GB));
+let res = null;
+
+async function loadRes() {
+  const g = shown;
+  const form = $('#gResForm');
+  form.innerHTML = '';
+  res = null;
+  try { res = await api.get(`/api/guests/${g.type}/${g.vmid}/config`); } catch { $('#gRes').hidden = true; return; }
+  if (shown !== g) return;
+  $('#gRes').hidden = false;
+  paintRes();
+}
+
+function paintRes() {
+  const r = res, c = r.can;
+  const dis = (k) => (c[k] ? '' : 'disabled');
+  const num = (id, label, v, k, attrs = '') => `<label>${esc(t(label))}<input id="${id}" inputmode="decimal" value="${esc(v)}" ${dis(k)} ${attrs}></label>`;
+  const st = r.startup || {};
+  $('#gResForm').innerHTML = `
+    ${num('grMem', 'guest.res_memory', gb(r.memory), 'memory')}
+    ${r.type === 'qemu' ? num('grBalloon', 'guest.res_balloon', r.balloon == null ? '' : gb(r.balloon), 'memory', `placeholder="${esc(t('guest.res_balloon_ph'))}"`) : ''}
+    ${r.type === 'lxc' ? num('grSwap', 'guest.res_swap', gb(r.swap), 'memory') : ''}
+    ${num('grCores', 'guest.res_cores', r.cores, 'cpu')}
+    <label class="chk"><input type="checkbox" id="grOnboot" ${r.onboot ? 'checked' : ''} ${dis('options')}>${esc(t('guest.res_onboot'))}</label>
+    ${num('grOrder', 'guest.res_order', st.order ?? '', 'options')}
+    ${num('grUp', 'guest.res_up', st.up ?? '', 'options')}
+    ${num('grDown', 'guest.res_down', st.down ?? '', 'options')}
+    <label class="wide">${esc(t('guest.res_tags'))}<input id="grTags" value="${esc(r.tags.join(', '))}" ${dis('options')} spellcheck="false"></label>
+    <label class="wide">${esc(t('guest.res_notes'))}<textarea id="grNotes" rows="3" ${dis('options')}>${esc(r.description)}</textarea></label>
+    ${r.type === 'qemu' && r.passthrough ? `<p class="note">${esc(t('guest.res_passthrough'))}</p>` : ''}
+    ${r.pending.length ? `<p class="note warn">${esc(t('guest.res_pending', { what: r.pending.join(', ') }))}</p>` : ''}
+    ${c.memory || c.cpu || c.options ? `<div class="gres-btns"><button class="btn" type="submit">${esc(t('guest.res_save'))}</button>
+      <span class="mute" id="grMsg" role="status"></span></div>` : `<p class="note">${esc(t('guest.res_no_rights'))}</p>`}`;
+}
+
+$('#gResForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const g = shown, r = res;
+  if (!g || !r) return;
+  const val = (id) => $('#' + id)?.value.trim() ?? '';
+  const int = (id) => (val(id) === '' ? null : Number(val(id)));
+  const body = {};
+  const mem = mbOf(val('grMem'));
+  if (r.can.memory && mem !== r.memory) body.memory = mem;
+  if (r.can.memory && r.type === 'qemu' && mbOf(val('grBalloon')) !== r.balloon) body.balloon = mbOf(val('grBalloon'));
+  if (r.can.memory && r.type === 'lxc' && mbOf(val('grSwap')) !== r.swap) body.swap = mbOf(val('grSwap')) ?? 0;
+  if (r.can.cpu && int('grCores') !== r.cores) body.cores = int('grCores');
+  if (r.can.options) {
+    if ($('#grOnboot').checked !== r.onboot) body.onboot = $('#grOnboot').checked;
+    const st = Object.fromEntries([['order', int('grOrder')], ['up', int('grUp')], ['down', int('grDown')]].filter(([, v]) => v !== null));
+    if (JSON.stringify(st) !== JSON.stringify(r.startup || {})) body.startup = st;
+    const tags = val('grTags').toLowerCase().split(/[\s,;]+/).filter(Boolean);
+    if (tags.join(';') !== r.tags.join(';')) body.tags = tags;
+    if ($('#grNotes').value !== r.description) body.description = $('#grNotes').value;
+  }
+  if (!Object.keys(body).length) { $('#grMsg').textContent = t('guest.res_nothing'); return; }
+  try {
+    res = await api.put(`/api/guests/${g.type}/${g.vmid}/config`, body);
+    if (shown !== g) return;
+    paintRes();
+    $('#grMsg').textContent = t('guest.res_saved');
+    ctx.refreshDash?.();
+  } catch (err) { $('#grMsg') && ($('#grMsg').textContent = err.message); }
+});
 
 // Latest backup and snapshots: they don't depend on the chart's period, so loaded once.
 async function loadInfo() {

@@ -47,7 +47,7 @@ DEFAULTS = {
     "feedback": {"enabled": True, "repo": ""},
     # Parts of the menu that can be switched off for the whole host (Settings → System → Components):
     # what is off leaves the menu and its API answers 404.
-    "features": {"alerts": True, "node_updates": True, "app_updates": True, "weather": True, "consoles": True, "guest_actions": True, "host_power": True, "wol": True, "my_designs": True, "my_widgets": True},
+    "features": {"alerts": True, "node_updates": True, "app_updates": True, "weather": True, "consoles": True, "guest_actions": True, "guest_settings": True, "host_power": True, "wol": True, "my_designs": True, "my_widgets": True},
 }
 
 

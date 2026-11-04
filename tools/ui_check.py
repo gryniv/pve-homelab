@@ -396,6 +396,29 @@ async def interface(r):
     r.check("and it is saved", saved and saved["scale"] == 140 and saved["motion"] == "calm" and saved["sections"]["systems"] is False, saved)
 
 
+async def guest_resources(r):
+    """A guest's dialog: memory, cores, start at boot, tags; saved through Proxmox with your rights."""
+    p = r.p
+    await r.open()
+    await p.js("document.querySelector('[data-ptab=guests]').click();", 0.6)
+    await p.js("document.querySelector('#guestrows [data-guest*=\"201\"]')?.click() || [...document.querySelectorAll('#guestrows [data-guest]')].find(b => b.textContent.includes('jellyfin')).click();")
+    ok = await p.until("return !document.querySelector('#guestLayer').hidden && !!document.querySelector('#grMem')", 6)
+    r.check("a guest's dialog has its resources", ok)
+    await p.js("document.querySelector('#gRes').open = true; document.querySelector('#grMem').value = '6'; document.querySelector('#grCores').value = '5';"
+               "document.querySelector('#grOnboot').checked = true; document.querySelector('#grTags').value = 'media, home';"
+               "document.querySelector('#gResForm').requestSubmit();")
+    msg = await p.until("return document.querySelector('#grMsg')?.textContent", 5)
+    saved = await p.js(API + "return await q('GET', '/api/guests/lxc/201/config');")
+    r.check("saving writes them", saved and saved["memory"] == 6144 and saved["cores"] == 5 and saved["onboot"] and saved["tags"] == ["media", "home"], (msg, saved))
+    await p.key("Escape", 27)
+    await asyncio.sleep(0.3)
+    await r.open("guest@pve")
+    await p.js("document.querySelector('[data-ptab=guests]').click();", 0.6)
+    await p.js("[...document.querySelectorAll('#guestrows [data-guest]')].find(b => b.textContent.includes('jellyfin')).click();")
+    dis = await p.until("return document.querySelector('#grMem')?.disabled && !document.querySelector('#gResForm [type=submit]')", 6)
+    r.check("without the rights the fields are read-only", dis)
+
+
 async def console(r):
     p = r.p
     await r.open()
@@ -1070,7 +1093,7 @@ async def misc(r):
     r.check("the weather icon exists", icon and code == 200, f"{icon} {code}")
 
 
-CHECKS = {"guests": guests, "logout": logout, "tfa_signin": tfa_signin, "system_settings": system_settings, "components": components, "interface": interface, "widgets": widgets, "toasts": toasts, "offline": offline,
+CHECKS = {"guests": guests, "logout": logout, "tfa_signin": tfa_signin, "system_settings": system_settings, "components": components, "interface": interface, "guest_resources": guest_resources, "widgets": widgets, "toasts": toasts, "offline": offline,
           "aria": dialogs_aria, "alerts": alerts, "update": failed_update, "focus": settings_focus,
           "console": console, "launch": launch, "search": search, "order": reorder, "guests_table": guest_table, "designs": my_designs, "design_pack": design_pack, "widget_strings": widget_strings, "my_widgets": my_widgets, "feedback": write_to_author, "node_updates": node_updates, "narrow": narrow, "layout_hooks": layout_hooks, "layout_theme": layout_theme, "theme_whole": theme_whole, "design_folders": design_folders, "update_check": update_check, "designing": designing, "quiet_faults": quiet_faults, "tabs": service_tabs, "misc": misc}
 

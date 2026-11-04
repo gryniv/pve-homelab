@@ -121,6 +121,7 @@ features:
   weather: true               # weather in the top bar, its widget and the screensaver's sky
   consoles: true              # VM and container screens in the menu (noVNC)
   guest_actions: true         # start, shut down, reboot of guests from the menu
+  guest_settings: true        # memory, cores, start at boot, tags and notes of guests, changed in the menu
   host_power: true            # reboot and shut down the host from Quick actions
   wol: true                   # the Wake up widget
   my_designs: true            # installing and removing designs in the menu

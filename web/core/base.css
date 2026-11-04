@@ -338,6 +338,18 @@ html,body{margin:0;height:100%;background:#05080e}
 .A .glegend i{display:inline-block;width:.8em;height:.25em;border-radius:1em;margin-right:.35em;vertical-align:middle}
 .A .gextra{display:grid;grid-template-columns:1fr 1.4fr;gap:1em;font-size:.88em}
 .A .gextra:empty{display:none}
+/* a guest's resources and options, in its dialog */
+.A .gres{margin-top:1em;border-top:1px solid var(--edge);padding-top:.7em;font-size:.88em}
+.A .gres summary{cursor:pointer;font-weight:600}
+.A .gres form{display:grid;grid-template-columns:repeat(auto-fill,minmax(10em,1fr));gap:.6em 1em;margin-top:.8em}
+.A .gres label{display:flex;flex-direction:column;gap:.25em;color:var(--mute)}
+.A .gres label.wide{grid-column:1/-1}
+.A .gres label.chk{flex-direction:row;align-items:center;gap:.5em;color:inherit}
+.A .gres input:not([type=checkbox]),.A .gres textarea{background:rgba(0,0,0,.25);border:1px solid var(--edge);border-radius:.45em;padding:.45em .6em;color:#e8edf3;font:inherit;user-select:text}
+.A .gres input:disabled,.A .gres textarea:disabled{opacity:.5}
+.A .gres .note{grid-column:1/-1;color:var(--mute);font-size:.92em}
+.A .gres .note.warn{color:#f5c451}
+.A .gres .gres-btns{grid-column:1/-1;display:flex;gap:.6em;align-items:center}
 .A .gextra section{display:flex;flex-direction:column;gap:.3em;min-width:0}
 .A .gextra .snaps{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.35em}
 .A .gextra .snaps li{display:flex;flex-direction:column;min-width:0}

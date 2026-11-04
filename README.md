@@ -97,6 +97,10 @@ or sort by name or status.
 A compact list of every guest you're allowed to see, with state, CPU and memory, and start,
 shut down, reboot and console where your rights allow it. A guest's row opens its history:
 CPU, memory and network graphs for an hour, a day or a week, its snapshots and its last backup.
+Under *Resources and options* there: memory, balloon minimum or swap, cores, start with the host
+and its order, tags and notes, written with your own ticket, so Proxmox decides
+(`VM.Config.Memory`, `VM.Config.CPU`, `VM.Config.Options`). A container takes them at once; a
+running VM shows what waits for its next start.
 
 ### Looks: themes, backgrounds, fonts, clocks
 - **4 themes** (Dusk, Forest, Graphite, North) that recolour everything, including the landscapes.

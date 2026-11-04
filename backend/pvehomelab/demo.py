@@ -143,8 +143,11 @@ def rrddata(user, vmid, timeframe):
 
 def qemu_config(vmid):
     g = WORLD[vmid]
-    conf = {"name": g["name"], "ostype": g["ostype"], "cores": g["cores"], "sockets": 1,
-            "memory": str(int(g["mem"] * 1024)), "vga": g["vga"], "tags": g.get("tags", "")}
+    conf = {"name": g["name"], "ostype": g.get("ostype", "l26"), "cores": g["cores"], "sockets": 1,
+            "memory": str(int(g["mem"] * 1024)), "vga": g.get("vga", "std"), "tags": g.get("tags", "")}
+    for k in ("onboot", "startup", "description", "balloon", "swap"):
+        if g.get(k) not in (None, ""):
+            conf[k] = g[k]
     conf.update({f"hostpci{n}": v for n, v in g["hostpci"].items()})
     return conf
 
@@ -153,7 +156,43 @@ def qemu_config(vmid):
 TFA_USERS = {"olena@pve": {"totp": "123456", "recovery": "demo-1111-2222"}}
 
 
+CONFIG_PRIVS = {"memory": "VM.Config.Memory", "cores": "VM.Config.CPU", "balloon": "VM.Config.Memory",
+                "swap": "VM.Config.Memory", "onboot": "VM.Config.Options", "startup": "VM.Config.Options",
+                "tags": "VM.Config.Options", "description": "VM.Config.Options"}
+
+
 class DemoPVE(PVE):
+    async def req(self, t, method, path, data=None):
+        """PUT /nodes/<node>/<type>/<id>/config, as Proxmox would: each field needs its privilege;
+        a running VM keeps memory and cores pending, a container takes them at once."""
+        parts = path.strip("/").split("/")
+        if method != "PUT" or len(parts) != 5 or parts[4] != "config":
+            return await super().req(t, method, path, data)
+        vmid = int(parts[3])
+        g = WORLD.get(vmid)
+        if not g or vmid not in _visible(t.user):
+            raise PVEError(403, i18n._("forbidden"))
+        data = dict(data or {})
+        fields = [k for k in data if k != "delete"] + [k for k in (data.get("delete") or "").split(",") if k]
+        if any(CONFIG_PRIVS.get(k, "VM.Config.Options") not in self._privs(t.user, f"/vms/{vmid}") for k in fields):
+            raise PVEError(403, i18n._("forbidden"))
+        for k in (data.get("delete") or "").split(","):
+            if k:
+                g.pop(k, None)
+        for k, v in data.items():
+            if k == "delete":
+                continue
+            if g["type"] == "qemu" and g["status"] == "running" and k in ("memory", "cores"):
+                g.setdefault("pending", {})[k] = v
+            elif k == "memory":
+                g["mem"] = int(v) / 1024
+            elif k == "cores":
+                g["cores"] = int(v)
+            else:
+                g[k] = v
+        A_app["resources"].invalidate()
+        return None
+
     async def login(self, username, password):
         if not username:
             raise PVEError(401, i18n._("bad_login"))
@@ -183,8 +222,13 @@ class DemoPVE(PVE):
                     for n, age, d, ram in SNAPSHOTS.get(vmid, [])] + [{"name": "current", "running": 1}]
         if endpoint.endswith("/rrddata"):
             return rrddata(t.user, int(endpoint.split("/")[4]), params.get("timeframe", "hour"))
-        if endpoint.startswith(f"/nodes/{NODE}/qemu/") and endpoint.endswith("/config"):
-            return qemu_config(int(endpoint.split("/")[4]))
+        if endpoint.startswith((f"/nodes/{NODE}/qemu/", f"/nodes/{NODE}/lxc/")) and endpoint.endswith("/config"):
+            vmid = int(endpoint.split("/")[4])
+            if vmid not in _visible(t.user):
+                raise PVEError(403, i18n._("forbidden"))
+            return qemu_config(vmid)
+        if endpoint.endswith("/pending"):
+            return [{"key": k, "value": v, "pending": v} for k, v in WORLD[int(endpoint.split("/")[4])].get("pending", {}).items()]
         if endpoint == f"/nodes/{NODE}/storage" and params.get("content") == "backup":
             return [{"storage": "pbs", "type": "pbs", "active": 1, "content": "backup"}]
         if endpoint == f"/nodes/{NODE}/storage/pbs/content":
@@ -216,7 +260,8 @@ class DemoPVE(PVE):
     @staticmethod
     def _privs(user, path):
         if user != "guest@pve":
-            return ["VM.PowerMgmt", "VM.Config.HWType", "Sys.Audit", "Sys.Modify", "Sys.PowerMgmt", "Mapping.Use"]
+            return ["VM.PowerMgmt", "VM.Config.HWType", "Sys.Audit", "Sys.Modify", "Sys.PowerMgmt", "Mapping.Use",
+                    "VM.Config.Memory", "VM.Config.CPU", "VM.Config.Options"]
         if path.startswith("/vms/") and int(path.split("/")[2]) in GUEST_SEES:
             return ["VM.PowerMgmt"]
         return []
@@ -234,6 +279,8 @@ class DemoPVE(PVE):
                 g["status"], g["started"] = "running", time.time()
             elif action in ("stop", "shutdown"):
                 g["status"], g["started"] = "stopped", None
+                for k, v in g.pop("pending", {}).items():   # what waited for the next start is the config now
+                    g["mem" if k == "memory" else k] = int(v) / 1024 if k == "memory" else int(v)
             elif action == "reboot":
                 g["started"] = time.time()
             A_app["resources"].invalidate()
