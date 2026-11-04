@@ -27,6 +27,7 @@ def main():
     ap.add_argument("--lang", help="uk or en (default: from your system)")
     ap.add_argument("--no-browser", action="store_true")
     ap.add_argument("--state", help="where settings are kept (default .demo/; a fresh folder starts clean)")
+    ap.add_argument("--designs", help="your designs folder (default: .demo/state/designs); themes/, backgrounds/, clocks/, fonts/, widgets/ inside")
     a = ap.parse_args()
 
     # Paths must be set before pvehomelab is imported.
@@ -36,6 +37,8 @@ def main():
     base = os.path.abspath(a.state) if a.state else os.path.join(ROOT, ".demo")
     os.environ["PVEHOMELAB_STATE"] = os.path.join(base, "state")
     os.environ["PVEHOMELAB_CACHE"] = os.path.join(base, "cache")
+    if a.designs:
+        os.environ["PVEHOMELAB_USER_DESIGNS"] = os.path.abspath(a.designs)
     os.environ["PVEHOMELAB_INSTALL"] = ROOT
     sys.path.insert(0, os.path.join(ROOT, "backend"))
 

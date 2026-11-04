@@ -97,6 +97,7 @@ class Run:
     def __init__(self, page, base):
         self.p, self.base, self.failed, self.passed = page, base, [], 0
         self.prefs = None  # the demo user's settings at the start; every check starts from them
+        self.designs_dir = None  # the demo's own designs folder, when this run started the demo
 
     def check(self, name, ok, detail=""):
         # an empty list or None as detail is worth seeing too: show anything but the default ""
@@ -397,6 +398,54 @@ async def my_designs(r):
     shutil.rmtree(os.path.dirname(theme), ignore_errors=True)
 
 
+async def designing(r):
+    """Live reload and the showcase, with real files in the demo's designs folder."""
+    p = r.p
+    if not r.designs_dir:
+        r.check("designing (needs --start-demo: it writes into the demo's designs folder)", True)
+        return
+    theme = os.path.join(r.designs_dir, "themes", "uicheck-live.css")
+    clock = os.path.join(r.designs_dir, "clocks", "uicheck-clock.js")
+    os.makedirs(os.path.dirname(theme), exist_ok=True)
+    os.makedirs(os.path.dirname(clock), exist_ok=True)
+
+    def put(path, text):
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(text)
+    head = "/*\n * @kind theme\n * @name.en Live check\n */\n"
+    put(theme, head + '.A[data-skin="uicheck-live"],.A [data-skin="uicheck-live"]{--acc:#00ff00}\n')
+    put(clock, "/*\n * @kind clock\n * @name.en Live clock\n */\nexport const css = '';\nexport function render(el) { el.textContent = 'AAA'; }\n")
+    try:
+        await r.open()
+        await p.send("Page.navigate", url=r.base + "&showcase=themes:uicheck-live")
+        cells = await p.until("return document.querySelectorAll('#showcase .sccell .scrn').length;", 10)
+        r.check("the showcase shows a design in every state", cells == 32, cells)
+        acc = "return getComputedStyle(document.querySelector('#showcase .scrn[data-skin=\"uicheck-live\"]')).getPropertyValue('--acc').trim();"
+        r.check("…in its colours", await p.until(acc + "", 5) == "#00ff00", await p.js(acc))
+        await p.js("window.__stillHere = true;")
+        put(theme, head + '.A[data-skin="uicheck-live"],.A [data-skin="uicheck-live"]{--acc:#ff00ff}\n')
+        got = await p.until(acc.replace("return ", "const v = ").replace(";", "; return v === '#ff00ff' && v;"), 8)
+        r.check("saving the file updates it in place", got == "#ff00ff", await p.js(acc))
+        r.check("…without reloading the page", await p.js("return window.__stillHere === true;"))
+        await p.key("Escape", 27)
+        await asyncio.sleep(0.3)
+        r.check("Esc closes the showcase", await p.js("return !document.querySelector('#showcase') && !location.search.includes('showcase');"))
+
+        await p.send("Page.navigate", url=r.base + "&showcase=clocks:uicheck-clock")
+        face = "return [...document.querySelectorAll('#showcase .ck')].map(c => c.textContent)[0];"
+        r.check("a clock design shows in the showcase", await p.until(face, 10) == "AAA", await p.js(face))
+        put(clock, "/*\n * @kind clock\n * @name.en Live clock\n */\nexport const css = '';\nexport function render(el) { el.textContent = 'BBB'; }\n")
+        got = await p.until(face.replace("return ", "const v = ").replace(";", "; return v === 'BBB' && v;"), 8)
+        r.check("a changed clock is drawn by its new code", got == "BBB", await p.js(face))
+    finally:
+        for f in (theme, clock):
+            try:
+                os.remove(f)
+            except OSError:
+                pass
+        await asyncio.sleep(1.5)  # let live reload see the files go before the next check
+
+
 async def service_tabs(r):
     p = r.p
     await r.open()
@@ -428,7 +477,7 @@ async def misc(r):
 
 CHECKS = {"guests": guests, "logout": logout, "widgets": widgets, "toasts": toasts, "offline": offline,
           "aria": dialogs_aria, "alerts": alerts, "update": failed_update, "focus": settings_focus,
-          "console": console, "launch": launch, "search": search, "order": reorder, "guests_table": guest_table, "designs": my_designs, "tabs": service_tabs, "misc": misc}
+          "console": console, "launch": launch, "search": search, "order": reorder, "guests_table": guest_table, "designs": my_designs, "designing": designing, "tabs": service_tabs, "misc": misc}
 
 
 # ---------------------------------------------------------------- driver
@@ -481,6 +530,8 @@ async def main(a):
                 if a.cpu_throttle > 1:  # behave like a slow CI runner
                     await p.send("Emulation.setCPUThrottlingRate", rate=a.cpu_throttle)
                 r = Run(p, base)
+                if demo_state:
+                    r.designs_dir = os.path.join(demo_state, "state", "designs")
                 await r.open()
                 saved = r.prefs = await p.js(API + "return (await q('GET', '/api/me')).prefs;")
                 try:

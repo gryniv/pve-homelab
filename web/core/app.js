@@ -17,6 +17,8 @@ import * as i18n from './i18n.js';
 import * as help from './help.js';
 import * as alerts from './alerts.js';
 import * as updates from './updates.js';
+import * as designer from './designer.js';
+import * as showcase from './showcase.js';
 import * as launch from './launch.js';
 import * as guests from './guests.js';
 import * as dnd from './dnd.js';
@@ -487,6 +489,10 @@ async function boot() {
   tabs.watch(renderOpenTabs);
   await W.load(st.pub.widgets, st.pub.widget_styles || []);
   await useLang();
+  designer.init(st.pub);
+  // ?showcase=<kind>:<id> shows one design in every state (see showcase.js); the menu runs underneath
+  const sc = new URLSearchParams(location.search).get('showcase');
+  if (sc) showcase.open(sc, st.pub);
   tick(); setInterval(tick, 1000);
   weather().catch(() => {});
   setInterval(() => weather(true).catch(() => {}), 900000);

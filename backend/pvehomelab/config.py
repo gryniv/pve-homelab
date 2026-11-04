@@ -34,6 +34,7 @@ DEFAULTS = {
     "users": {"hide": []},
     "saver": {"after_min": 5},
     "lock_after_min": 15,
+    "designer": False,         # live reload of designs (the demo has it on): for working on designs on a host
     "alerts": {"storage_pct": 90, "temp_c": 85, "backup_days": 7},
 }
 

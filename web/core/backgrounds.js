@@ -85,6 +85,19 @@ export function hydrate(root, locale) {
   });
 }
 
+// For pages of fixed pictures (the design showcase): the scene copied in and the clocks drawn,
+// without the hover presentation; then frame() sets each one's time, weather and screen.
+export function prepare(root, locale) {
+  const svg = document.querySelector('.land svg');
+  root.querySelectorAll('[data-land]').forEach((el) => { if (svg && !el.firstChild) el.appendChild(svg.cloneNode(true)); });
+  const now = new Date();
+  root.querySelectorAll('.scrn').forEach((scrn) => clocks.paint(scrn.querySelector('.ck'), scrn.dataset.clockId, now, locale));
+}
+// f = {tod, wx, mode: 'login' | 'dash'}
+export function frame(scrn, f) { setFrame(scrn, { cap: '', ...f }); }
+// Let it move: the sky's own animation and, in rain or snow, the falling weather.
+export function play(scrn) { scrn.classList.add('live'); particles(scrn); }
+
 // What a hover shows, in turn: the picture in clear weather, bad weather, night, and the windows.
 const FRAMES = [
   { tod: 'day', wx: 'clear', mode: 'login', cap: 'pv.clear' },

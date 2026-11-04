@@ -5,11 +5,13 @@ import { report } from './errlog.js';
 // which is called every second and should only touch what changed.
 
 const loaded = {};
+const version = {}; // id -> a stamp after the file changed (live reload), so import() fetches it again
 
 export function load(id) {
   id = id || 'digital';
-  return (loaded[id] ||= import(`/clocks/${id}.js`).then((m) => {
-    if (m.css && !document.getElementById('clock-css-' + id)) {
+  return (loaded[id] ||= import(`/clocks/${id}.js${version[id] ? `?v=${version[id]}` : ''}`).then((m) => {
+    document.getElementById('clock-css-' + id)?.remove();
+    if (m.css) {
       const s = document.createElement('style');
       s.id = 'clock-css-' + id;
       s.textContent = m.css;
@@ -20,6 +22,14 @@ export function load(id) {
     report('clock', `${id}: ${e.message}`, e.stack);
     return id === 'digital' ? null : load('digital');
   }));
+}
+
+// The design file changed: the next paint loads it afresh, and every clock in that design is
+// drawn again from scratch.
+export function reload(id) {
+  version[id] = Date.now();
+  delete loaded[id];
+  document.querySelectorAll(`[data-clockk="${CSS.escape(id)}"]`).forEach((el) => { el.dataset.clockk = ''; });
 }
 
 const parts = (d, locale) => {

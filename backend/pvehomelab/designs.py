@@ -200,3 +200,31 @@ def mine():
     """Your designs, every kind: [{kind, id, name, replaces?}]."""
     # the folder decides the kind (a header's own "@kind theme" must not override "themes")
     return [{**m, "kind": k} for k in KINDS for m in catalog(k) if m["source"] == "user"]
+
+
+# ---------------- live reload while designing ----------------
+def snapshot():
+    """{(kind, id): (source, mtime)} of the design that is in use for each id: a change in any of
+    them (or a design added or removed) is what live reload reports."""
+    out = {}
+    for root, src in reversed(roots()):  # yours last: it is the one in use
+        for kind, ext in KINDS.items():
+            try:
+                entries = list(os.scandir(os.path.join(root, kind)))
+            except OSError:
+                continue
+            for e in entries:
+                did, x = os.path.splitext(e.name)
+                if x == "." + ext and ID.match(did):
+                    try:
+                        out[(kind, did)] = (src, e.stat().st_mtime_ns)
+                    except OSError:
+                        pass
+    return out
+
+
+def changes(prev, cur):
+    """What live reload tells the page: which designs changed, and whether the lists of designs
+    themselves changed (one added or removed: the page reloads to pick up the new lists)."""
+    changed = sorted(k for k in set(prev) | set(cur) if prev.get(k) != cur.get(k))
+    return {"changed": [{"kind": k, "id": i} for k, i in changed], "catalog": set(prev) != set(cur)}

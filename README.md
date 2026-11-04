@@ -300,6 +300,8 @@ settings, with a live preview.
 `/etc/pve-homelab/designs/<kind>/` on the host: updates never touch that folder, and a file there
 with the same id as a built-in design replaces it.
 
+**Making designs** — scaffolding, live reload in the demo, the showcase page and every contract: [DESIGNS.md](DESIGNS.md).
+
 | Design | File | Contract |
 |---|---|---|
 | Theme | `designs/themes/<id>.css` | only tokens (`--acc`, `--acc2`, `--glass`, `--solid`, `--display`, `--lf` …) |

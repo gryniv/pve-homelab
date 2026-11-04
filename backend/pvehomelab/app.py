@@ -189,6 +189,7 @@ async def public(req):
         "clocks": designs.catalog("clocks"),
         "fonts": designs.catalog("fonts"),
         "widget_styles": [m["id"] for m in designs.catalog("widgets")],
+        "designer": designer_mode(app),
         "login": prefs.load_login(),
         "widgets": list_dir_modules("widgets", "*/widget.js"),
     })
@@ -339,6 +340,36 @@ async def designs_install(req):
         raise web.HTTPBadRequest(text=str(e))
     log.info("designs installed by %s: %s", s["user"], ", ".join(f"{d['kind']}/{d['id']}" for d in done))
     return web.json_response({"installed": done})
+
+
+def designer_mode(app):
+    """Live reload of designs: in the demo, or on a host with `designer: true` in config.yaml."""
+    return bool(app.get("demo") or app["cfg"].get("designer"))
+
+
+@routes.get("/api/designs/events")
+async def designs_events(req):
+    """Server-sent events while designing: one whenever a design file is changed, added or removed,
+    so the page swaps the stylesheet or clock without reloading (designer.js)."""
+    if not designer_mode(req.app):
+        raise web.HTTPNotFound()
+    resp = web.StreamResponse(headers={"Content-Type": "text/event-stream", "Cache-Control": "no-cache"})
+    await resp.prepare(req)
+    loop = asyncio.get_running_loop()
+    prev, quiet = await loop.run_in_executor(None, designs.snapshot), 0
+    try:
+        while True:
+            await asyncio.sleep(1)
+            cur = await loop.run_in_executor(None, designs.snapshot)
+            if cur != prev:
+                await resp.write(f"data: {json.dumps(designs.changes(prev, cur))}\n\n".encode())
+                prev, quiet = cur, 0
+            elif (quiet := quiet + 1) >= 15:
+                await resp.write(b": still here\n\n")
+                quiet = 0
+    except (ConnectionResetError, ConnectionError, asyncio.CancelledError):
+        pass
+    return resp
 
 
 @routes.delete("/api/designs/{kind}/{did}")

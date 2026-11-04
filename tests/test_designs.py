@@ -167,3 +167,82 @@ def test_kind_detection():
     assert designs.kind_of("a.css", "", folder="theme") == "themes"
     with pytest.raises(designs.DesignError):
         designs.kind_of("a.css", "/* @kind sticker */")
+
+
+# ---------------- tools for working on designs ----------------
+import asyncio  # noqa: E402
+import json  # noqa: E402
+import subprocess  # noqa: E402
+import sys  # noqa: E402
+
+
+def new_design(tmp, *args):
+    return subprocess.run([sys.executable, os.path.join(ROOT, "tools", "new_design.py"), *args, "--to", str(tmp)],
+                          capture_output=True, text=True)
+
+
+@pytest.mark.parametrize("kind,did,folder,ext,marker", [
+    ("theme", "neon-night", "themes", "css", 'data-skin="neon-night"'),
+    ("background", "my-hills", "backgrounds", "css", 'data-k="my-hills"'),
+    ("clock", "big", "clocks", "js", "export function render"),
+    ("font", "my-font", "fonts", "css", "@family"),
+    ("widget", "host", "widgets", "css", '.w[data-w="host"]'),
+])
+def test_new_design_is_a_valid_design(tmp_path, monkeypatch, kind, did, folder, ext, marker):
+    r = new_design(tmp_path, kind, did, "--name", "Mine")
+    assert r.returncode == 0, r.stderr
+    text = (tmp_path / folder / f"{did}.{ext}").read_text(encoding="utf-8")
+    assert marker in text and f"@kind {kind}" in text
+    if kind in ("theme", "background"):
+        assert "dusk" not in text.split("*/", 1)[1] and "mountains" not in text.split("*/", 1)[1]
+    # it is found as a design of that kind, with its name, and would install as such
+    monkeypatch.setattr(config, "USER_DESIGNS_DIR", str(tmp_path))
+    m = next(x for x in designs.catalog(folder) if x["id"] == did)
+    assert m["source"] == "user" and m["name"]["en"] == "Mine"
+    assert designs.kind_of(f"{did}.{ext}", text) == folder
+
+
+def test_new_design_refuses(tmp_path):
+    assert new_design(tmp_path, "theme", "Bad").returncode != 0
+    assert new_design(tmp_path, "widget", "nope").returncode != 0
+    assert new_design(tmp_path, "theme", "a").returncode == 0
+    assert new_design(tmp_path, "theme", "a").returncode != 0          # no silent overwrite
+    assert new_design(tmp_path, "theme", "a", "--force").returncode == 0
+
+
+def test_snapshot_changes(mine):
+    before = designs.snapshot()
+    write(mine, "themes", "zz.css", "/* @kind theme */")
+    after = designs.snapshot()
+    assert designs.changes(before, after) == {"changed": [{"kind": "themes", "id": "zz"}], "catalog": True}
+    os.utime(mine / "themes" / "zz.css", ns=(1, 1))
+    assert designs.changes(after, designs.snapshot()) == {"changed": [{"kind": "themes", "id": "zz"}], "catalog": False}
+    write(mine, "themes", "dusk.css", "/* mine */")          # yours over a built-in: same id, new file in use
+    c = designs.changes(designs.snapshot(), designs.snapshot())
+    assert c == {"changed": [], "catalog": False}
+
+
+async def test_live_reload_events(client, mine):
+    write(mine, "themes", "live.css", "/* @kind theme */ a{}")
+    r = await client.get("/api/designs/events")
+    assert r.status == 200 and r.headers["Content-Type"].startswith("text/event-stream")
+    await asyncio.sleep(0.2)
+    os.utime(mine / "themes" / "live.css", ns=(5, 5))
+    line = b""
+    for _ in range(40):
+        line = await asyncio.wait_for(r.content.readline(), 5)
+        if line.startswith(b"data:"):
+            break
+    assert json.loads(line[5:]) == {"changed": [{"kind": "themes", "id": "live"}], "catalog": False}
+    r.close()
+
+
+@pytest.mark.filterwarnings("ignore:Changing state of started")
+async def test_live_reload_off_outside_designer_mode(client):
+    client.server.app["demo"] = False   # a real host without designer: true
+    try:
+        assert (await client.get("/api/designs/events")).status == 404
+        pub = await (await client.get("/api/public", headers=SEAT)).json()
+        assert pub["designer"] is False
+    finally:
+        client.server.app["demo"] = True
