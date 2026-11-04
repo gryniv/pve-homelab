@@ -23,6 +23,7 @@ function swap(kind, id, stamp) {
 export function init(pub) {
   if (!pub?.designer || !window.EventSource) return;
   const es = new EventSource('/api/designs/events');
+  addEventListener('pagehide', () => es.close());   // let go of the connection when the page goes
   es.onmessage = (e) => {
     let d;
     try { d = JSON.parse(e.data); } catch { return; }

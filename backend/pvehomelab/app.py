@@ -16,6 +16,7 @@ from . import backup, caddy, config, designs, discover, errlog, feedback, gpus a
 from .ddc import DDC
 from .host import HostStats
 from .launch import Launcher
+from .seats import Seats
 from .pve import PVE, TFA_KINDS, PVEError, TfaChallenge
 from .util import Cached, log, pvesh, run
 
@@ -1309,6 +1310,72 @@ async def systems(req):
     return web.json_response(out)
 
 
+# ---------------- the screen on the host: the menu, or a system on its monitor ----------------
+def local_kiosk_seat(req):
+    """The seat of a screen plugged into this host with a monitor the menu can switch; 404 otherwise."""
+    if is_remote(req):
+        raise PVEError(403, i18n._("forbidden"))
+    sid = seat_of(req)
+    seat = req.app["cfg"]["seats"].get(sid) or {}
+    if not seat.get("gpu"):
+        raise web.HTTPNotFound(text="not a screen of this host")
+    return sid
+
+
+@routes.get("/api/seat")
+async def seat_state(req):
+    sid = local_kiosk_seat(req)
+    return web.json_response({"seat": sid, **req.app["seats"].get(sid)})
+
+
+@routes.get("/api/seat/events")
+async def seat_events(req):
+    """Server-sent events: what this seat's monitor shows, now and whenever it changes."""
+    sid = local_kiosk_seat(req)
+    seats = req.app["seats"]
+    resp = web.StreamResponse(headers={"Content-Type": "text/event-stream", "Cache-Control": "no-cache"})
+    await resp.prepare(req)
+    q = seats.subscribe(sid)
+    stop = req.app["stopping"]
+    try:
+        await resp.write(f"data: {json.dumps(seats.get(sid))}\n\n".encode())
+        while not stop.is_set():
+            try:
+                st = await asyncio.wait_for(q.get(), 15)
+                await resp.write(f"data: {json.dumps(st)}\n\n".encode())
+            except asyncio.TimeoutError:
+                await resp.write(b": still here\n\n")
+    except (ConnectionResetError, ConnectionError, asyncio.CancelledError):
+        pass
+    finally:
+        seats.unsubscribe(sid, q)
+    return resp
+
+
+@routes.post("/api/seat/focus")
+async def seat_focus(req):
+    """{"to": "menu" | "vm" | <vmid>}: the monitor to the menu (whoever sits there, signed in or not),
+    or to a system already running on a GPU wired to it ("vm": the one the menu knows of), which takes
+    a session with VM.Console on it."""
+    sid = local_kiosk_seat(req)
+    body = await req.json()
+    to = body.get("to") if isinstance(body, dict) else None
+    L = req.app["launcher"]
+    if to == "menu":
+        await L.focus(sid, "menu")
+        return web.json_response(req.app["seats"].get(sid))
+    s = await session(req)
+    if to == "vm":
+        vms = L.on_monitor(sid)
+        if not vms:
+            raise PVEError(404, i18n._("not_on_this_monitor"))
+        to = vms[-1]
+    vmid = vmid_of(to)
+    await require(req, s, "VM.Console", f"/vms/{vmid}")
+    await L.focus(sid, vmid)
+    return web.json_response(req.app["seats"].get(sid))
+
+
 @routes.post("/api/launch")
 async def launch(req):
     s = await session(req)
@@ -1661,6 +1728,7 @@ async def on_startup(app):
         return await update.status(cfg)
     app["update"] = Cached(check_update, max(1, float(update.settings(cfg)["check_hours"])) * 3600, stale=True)
 
+    app["seats"] = Seats(cfg)
     app["launcher"] = Launcher(app)
     app["tasks"] = [asyncio.create_task(app["stats"].loop()),
                     asyncio.create_task(app["launcher"].watch_loop()),
@@ -1674,6 +1742,7 @@ async def _adopt_running(app):
     loop keeps doing it for those started from Proxmox while the menu runs."""
     try:
         await app["launcher"].adopt()
+        await app["launcher"].sync_seats()
     except Exception as e:
         log.warning("adopt running VMs: %s", e)
 

@@ -79,6 +79,9 @@ signed in, so each person sees and controls exactly what PVE allows them to.
 - GPUs given to VMs as Proxmox **resource mappings** (`hostpci0: mapping=…`, PVE 8+) are understood
   like plain PCI addresses. A VM that names a mapping keeps naming one when it gets another GPU, and
   writing a mapping needs `Mapping.Use` on it, as in Proxmox.
+- **The page stands aside** while its monitor shows a system: no widgets, no effects, keys act on
+  nothing. **Both Ctrl keys** bring the monitor back to the menu (the system keeps running), and from
+  the menu take it to the system running on a GPU wired to this monitor.
 - **A VM started without the menu** (with the host, or from the Proxmox UI) on a GPU wired to the
   menu's monitor is watched too: the monitor comes back when it stops. One that starts while the host
   boots also gets the monitor; `launch.follow_start: always` does that for any start, `never` for none.
@@ -370,6 +373,7 @@ By hand: `./update.sh` in the clone, or `PYTHONPATH=/opt/pve-homelab/backend pyt
 | Dashboard | just type to search services · **Alt+← →** moves a tile or a system |
 | An open service | **Alt+Q** shows the dock (← → pick, Enter, Esc back) |
 | A VM screen inside the menu | **Ctrl+Alt+Q** goes back to the menu (the VM keeps running) |
+| A system on this monitor's GPU | **Ctrl + Ctrl** (both Ctrl keys): to the menu and back, the system keeps running |
 | Host | Ctrl+Alt+F1 text console · Ctrl+Alt+F7 the menu |
 
 ## Extending it

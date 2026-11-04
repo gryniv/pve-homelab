@@ -550,5 +550,8 @@
   "copy.confirm": "Put the copy back?",
   "copy.confirm_text": "{parts} will be replaced. What is here now is saved first, in /etc/pve-homelab/backups.",
   "copy.done": "{n} files put back; the state before is in backups/{snap}",
-  "copy.restart": "Restart the menu for config.yaml and System: Settings → System"
+  "copy.restart": "Restart the menu for config.yaml and System: Settings → System",
+  "away.lead": "This monitor shows the system now. The menu waits here.",
+  "away.back": "brings the menu back",
+  "help.k_both_ctrl": "Both Ctrl keys: from the menu to the system on this monitor, and back"
 }

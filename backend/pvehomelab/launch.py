@@ -312,7 +312,8 @@ class Launcher:
             async def switch(job):
                 job.step(0)
                 self.watch[vmid] = (mon, seat_gpu)
-                await self.app["ddc"].switch_to_gpu(mon, gpu)
+                if await self.app["ddc"].switch_to_gpu(mon, gpu):
+                    self.app["seats"].set(seat_id, shows=vmid)
             return self.start_job(switch, [_("step_switch", gpu=opt["name"])])
 
         if opt["disabled"]:
@@ -359,8 +360,8 @@ class Launcher:
                 i += 1
                 job.step(i)
                 await asyncio.sleep(2)
-                if mon:
-                    await self.app["ddc"].switch_to_gpu(mon, gpu)
+                if mon and await self.app["ddc"].switch_to_gpu(mon, gpu):
+                    self.app["seats"].set(seat_id, shows=vmid)
         return self.start_job(go, steps)
 
     async def _launch_virgl(self, t, vm, opt):
@@ -483,9 +484,56 @@ class Launcher:
                 if self._follows(uptime.get(vm)):
                     log.info("VM %s just started: monitor %s goes to it", vm, mon)
                     try:
-                        await ddc.switch_to_gpu(mon, g["pci"])
+                        if await ddc.switch_to_gpu(mon, g["pci"]):
+                            self.app["seats"].set(self.app["seats"].seat_of_monitor(ddc, mon), shows=vm)
                     except Exception as e:
                         log.warning("switch to VM %s failed: %s", vm, e)
+
+    async def sync_seats(self):
+        """At start: what each menu monitor shows now (the menu may restart while someone is in a VM)."""
+        ddc, seats = self.app["ddc"], self.app["seats"]
+        running = await self.app["running"]()
+        holders = {g["pci"]: g["running_vm"] for g in await G.list_gpus(running) if g["running_vm"]}
+        for sid in seats.kiosk_seats():
+            mon = ddc.monitor_for_gpu(self.cfg["seats"][sid]["gpu"])
+            if not mon:
+                continue
+            try:
+                code = await ddc.current_input(mon)
+            except Exception:
+                continue
+            pci = next((p for p, c in self.cfg["monitors"][mon]["inputs"].items() if c == code), None)
+            if pci and holders.get(pci):
+                seats.set(sid, shows=holders[pci])
+
+    async def focus(self, sid, to):
+        """The monitor of seat `sid` to the menu ("menu") or to VM `to`, already running on a GPU wired
+        to it. Returns the VM shown, or None when it is the menu."""
+        ddc, seats = self.app["ddc"], self.app["seats"]
+        seat_gpu = self.cfg["seats"][sid]["gpu"]
+        mon = ddc.monitor_for_gpu(seat_gpu)
+        if not mon:
+            raise PVEError(409, _("no_monitor"))
+        if to == "menu":
+            await ddc.switch_to_gpu(mon, seat_gpu)
+            seats.set(sid, shows="menu")
+            return None
+        running = await self.app["running"](fresh=True)
+        wired = self.cfg["monitors"][mon]["inputs"]
+        gpu = next((g["pci"] for g in await G.list_gpus(running)
+                    if g["running_vm"] == to and g["pci"] in wired and g["pci"] != seat_gpu), None)
+        if not gpu:
+            raise PVEError(409, _("not_on_this_monitor"))
+        self.watch.setdefault(to, (mon, seat_gpu))
+        if not await ddc.switch_to_gpu(mon, gpu):
+            raise PVEError(409, _("not_on_this_monitor"))
+        seats.set(sid, shows=to)
+        return to
+
+    def on_monitor(self, sid):
+        """The VMs running on GPUs wired to seat `sid`'s monitor, the menu knows of (watched)."""
+        mon = self.app["ddc"].monitor_for_gpu(self.cfg["seats"][sid]["gpu"])
+        return [vm for vm, (m, _g) in self.watch.items() if m == mon]
 
     async def give_back(self):
         """The watched VMs that stopped: the monitor goes back to the menu."""
@@ -494,11 +542,16 @@ class Launcher:
             if vmid in running:
                 continue
             del self.watch[vmid]
+            seats = self.app["seats"]
+            sid = seats.seat_of_monitor(self.app["ddc"], mon) if mon else None
             if mon and self.cfg["launch"]["return_to_menu"]:
                 try:
                     await self.app["ddc"].switch_to_gpu(mon, seat_gpu)
+                    seats.set(sid, shows="menu")
                 except Exception as e:
                     log.warning("return to menu failed: %s", e)
+            elif sid and seats.get(sid)["shows"] == vmid:
+                seats.set(sid, shows="menu")   # whatever the monitor shows, that system is gone
 
     async def watch_loop(self):
         """When a VM on a menu monitor's GPU stops, give the monitor back to the menu."""

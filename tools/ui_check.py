@@ -449,6 +449,31 @@ async def settings_copy(r):
     await p.until("return document.readyState === 'complete' && !!document.querySelector('[data-scr]')", 8)
 
 
+async def away(r):
+    """A system on this monitor: the page stands aside, keys do nothing but both Ctrl, which go back
+    and forth between the menu and the system."""
+    p = r.p
+    await r.open()
+    await p.js(API + "const s = await q('GET', '/api/systems'); const vm = s.find(x => x.name === 'ubuntu-desktop');"
+               "const gpu = vm.options.find(o => o.mode === 'passthrough').pci; window.__job = await q('POST', '/api/launch', {vmid: vm.vmid, gpu});")
+    shown = await p.until("return document.querySelector('[data-scr=away]')?.hidden === false && document.querySelector('#awayName').textContent", 10)
+    r.check("a system on this monitor puts the page aside", shown == "ubuntu-desktop", shown)
+    await p.key("j", 74, "j")
+    await asyncio.sleep(0.3)
+    r.check("keys typed meanwhile do nothing", await r.screen() == "away" and not await p.js("return !!document.querySelector('#searchBox:not([hidden])') || !!(document.activeElement && document.activeElement.value);"))
+    async def both():
+        await p.send("Input.dispatchKeyEvent", type="rawKeyDown", key="Control", code="ControlLeft", windowsVirtualKeyCode=17, modifiers=2)
+        await p.send("Input.dispatchKeyEvent", type="rawKeyDown", key="Control", code="ControlRight", windowsVirtualKeyCode=17, modifiers=2, location=2)
+        await p.send("Input.dispatchKeyEvent", type="keyUp", key="Control", code="ControlRight", windowsVirtualKeyCode=17, location=2)
+        await p.send("Input.dispatchKeyEvent", type="keyUp", key="Control", code="ControlLeft", windowsVirtualKeyCode=17)
+    await both()
+    r.check("both Ctrl bring the menu back", await p.until("return document.querySelector('[data-scr=dash]')?.hidden === false", 5))
+    await both()
+    r.check("and from the menu go to the system again", await p.until("return document.querySelector('[data-scr=away]')?.hidden === false", 5))
+    await p.js(API + "const s = await q('GET', '/api/systems'); const vm = s.find(x => x.name === 'ubuntu-desktop'); await q('POST', `/api/guests/qemu/${vm.vmid}/stop`);")
+    r.check("the system stopping brings the menu back", await p.until("return document.querySelector('[data-scr=dash]')?.hidden === false", 15))
+
+
 async def console(r):
     p = r.p
     await r.open()
@@ -469,8 +494,11 @@ async def launch(r):
     await p.js("document.querySelector('#mStart').click();")
     steps = await p.until("return document.querySelectorAll('#mSteps li').length;", 3)
     r.check("launching shows its steps", (steps or 0) >= 2, steps)
-    back = await p.until("return !document.querySelector('[data-scr=dash]').hidden && document.querySelector('[data-layer=launch]').hidden;", 12)
-    r.check("…and comes back to the dashboard", back)
+    # a start on the GPU of this monitor: the monitor shows the system and the page stands aside
+    back = await p.until("return document.querySelector('[data-layer=launch]').hidden && "
+                         "(!document.querySelector('[data-scr=away]').hidden || !document.querySelector('[data-scr=dash]').hidden);", 12)
+    r.check("…and the dialog closes (the page stands aside while the system has the monitor)", back)
+    await p.js(API + "await q('POST', '/api/seat/focus', {to: 'menu'});", 0.8)
     running = await p.js(API + "return (await q('GET', '/api/systems')).filter(s => s.status === 'running').length;")
     r.check("the system is running", running == 1, running)
 
@@ -1123,7 +1151,7 @@ async def misc(r):
     r.check("the weather icon exists", icon and code == 200, f"{icon} {code}")
 
 
-CHECKS = {"guests": guests, "logout": logout, "tfa_signin": tfa_signin, "system_settings": system_settings, "components": components, "interface": interface, "guest_resources": guest_resources, "settings_copy": settings_copy, "widgets": widgets, "toasts": toasts, "offline": offline,
+CHECKS = {"guests": guests, "logout": logout, "tfa_signin": tfa_signin, "system_settings": system_settings, "components": components, "interface": interface, "guest_resources": guest_resources, "settings_copy": settings_copy, "away": away, "widgets": widgets, "toasts": toasts, "offline": offline,
           "aria": dialogs_aria, "alerts": alerts, "update": failed_update, "focus": settings_focus,
           "console": console, "launch": launch, "search": search, "order": reorder, "guests_table": guest_table, "designs": my_designs, "design_pack": design_pack, "widget_strings": widget_strings, "my_widgets": my_widgets, "feedback": write_to_author, "node_updates": node_updates, "narrow": narrow, "layout_hooks": layout_hooks, "layout_theme": layout_theme, "theme_whole": theme_whole, "design_folders": design_folders, "update_check": update_check, "designing": designing, "quiet_faults": quiet_faults, "tabs": service_tabs, "misc": misc}
 

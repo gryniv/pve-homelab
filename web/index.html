@@ -192,6 +192,12 @@
 </section>
 
 <!-- CONSOLE: VM screen shown inside the menu (VirGL on this GPU) -->
+<!-- AWAY: this seat's monitor shows a system; the page stands aside until both Ctrl keys bring it back -->
+<section class="scr scr-away" data-scr="away" hidden>
+  <div class="away-box"><svg class="i"><use href="#i-monitor"/></svg><h2 id="awayName"></h2><p data-i18n="away.lead"></p>
+    <p class="mute"><span class="kbd">Ctrl</span> + <span class="kbd">Ctrl</span> <span data-i18n="away.back"></span></p></div>
+</section>
+
 <section class="scr scr-console" data-scr="console" hidden>
   <div id="vnc"></div>
   <div class="cbar">

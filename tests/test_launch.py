@@ -318,3 +318,57 @@ async def test_memory_and_cores_need_the_rights_and_a_stopped_vm(client):
     client.server.app["resources"].invalidate()
     r = await client.post("/api/launch", json={"vmid": vm["vmid"], "gpu": gpu, "memory": 8192}, headers={"X-Seat": "igpu"})
     assert r.status == 409
+
+
+# ---------- what the monitor shows: the menu or a system ----------
+async def test_a_launch_says_the_monitor_shows_the_system_and_its_stop_gives_it_back(client):
+    await login(client)
+    app = client.server.app
+    vm = await _system(client, "ubuntu-desktop")
+    gpu = next(o["pci"] for o in vm["options"] if o["mode"] == "passthrough")
+    assert (await (await client.get("/api/seat", headers={"X-Seat": "igpu"})).json())["shows"] == "menu"
+    j = await _wait(client, await _launch(client, vm["vmid"], gpu))
+    assert j["error"] is None
+    assert app["seats"].get("igpu")["shows"] == vm["vmid"]
+    demo.WORLD[vm["vmid"]]["status"] = "stopped"
+    await app["launcher"].give_back()
+    assert app["seats"].get("igpu")["shows"] == "menu"
+
+
+async def test_focus_back_and_forth(client):
+    await login(client)
+    app = client.server.app
+    vm = await _system(client, "ubuntu-desktop")
+    gpu = next(o["pci"] for o in vm["options"] if o["mode"] == "passthrough")
+    await _wait(client, await _launch(client, vm["vmid"], gpu))
+    r = await client.post("/api/seat/focus", json={"to": "menu"}, headers={"X-Seat": "igpu"})
+    assert r.status == 200 and (await r.json())["shows"] == "menu"
+    r = await client.post("/api/seat/focus", json={"to": "vm"}, headers={"X-Seat": "igpu"})
+    assert r.status == 200 and (await r.json())["shows"] == vm["vmid"]
+    # the menu side needs no session: whoever sits at the monitor may take it back
+    await client.post("/api/logout")
+    r = await client.post("/api/seat/focus", json={"to": "menu"}, headers={"X-Seat": "igpu"})
+    assert r.status == 200
+    assert (await client.post("/api/seat/focus", json={"to": "vm"}, headers={"X-Seat": "igpu"})).status == 401
+
+
+async def test_focus_needs_the_console_right_and_a_system_on_this_monitor(client):
+    await login(client, "guest@pve")
+    r = await client.post("/api/seat/focus", json={"to": 100}, headers={"X-Seat": "igpu"})
+    assert r.status == 403
+    await login(client)
+    assert (await client.post("/api/seat/focus", json={"to": "vm"}, headers={"X-Seat": "igpu"})).status == 404
+    assert (await client.post("/api/seat/focus", json={"to": 101}, headers={"X-Seat": "igpu"})).status == 409
+
+
+async def test_seat_events_tell_the_page(client):
+    await login(client)
+    app = client.server.app
+    r = await client.get("/api/seat/events", headers={"X-Seat": "igpu"})
+    first = await r.content.readline()
+    assert b'"shows": "menu"' in first
+    await r.content.readline()
+    app["seats"].set("igpu", shows=102)
+    line = await asyncio.wait_for(r.content.readline(), 3)
+    assert b'"shows": 102' in line
+    r.close()

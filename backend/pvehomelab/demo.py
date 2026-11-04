@@ -261,7 +261,7 @@ class DemoPVE(PVE):
     def _privs(user, path):
         if user != "guest@pve":
             return ["VM.PowerMgmt", "VM.Config.HWType", "Sys.Audit", "Sys.Modify", "Sys.PowerMgmt", "Mapping.Use",
-                    "VM.Config.Memory", "VM.Config.CPU", "VM.Config.Options"]
+                    "VM.Config.Memory", "VM.Config.CPU", "VM.Config.Options", "VM.Console"]
         if path.startswith("/vms/") and int(path.split("/")[2]) in GUEST_SEES:
             return ["VM.PowerMgmt"]
         return []
