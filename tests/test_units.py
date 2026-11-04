@@ -247,3 +247,21 @@ def test_wol_send_reaches_the_socket():
         rx.settimeout(2)
         real.send({"mac": "aa:bb:cc:dd:ee:ff", "broadcast": "127.0.0.1", "port": rx.getsockname()[1]})
         assert rx.recv(200) == real.magic_packet("aa:bb:cc:dd:ee:ff")
+
+
+# The real pvesh, taken while the tests are collected: the demo app replaces util.pvesh once it starts.
+REAL_PVESH = util.pvesh
+
+
+async def test_pvesh_takes_a_path_parameter(monkeypatch):
+    """/access/permissions has a parameter called "path"; it must reach pvesh, not clash with the endpoint."""
+    seen = []
+
+    async def fake_run(*args, **kw):
+        seen.append(args)
+        return '{"/nodes/pve": {"Sys.Modify": 1}}'
+    monkeypatch.setattr(util, "run", fake_run)
+    out = await REAL_PVESH("/access/permissions", path="/nodes/pve", userid="ihor@pve")
+    assert out == {"/nodes/pve": {"Sys.Modify": 1}}
+    assert seen[0] == ("pvesh", "get", "/access/permissions", "--output-format", "json",
+                       "--path", "/nodes/pve", "--userid", "ihor@pve")

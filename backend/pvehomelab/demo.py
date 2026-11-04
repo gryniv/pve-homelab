@@ -267,7 +267,7 @@ async def demo_gpus(running):
     return out
 
 
-async def demo_pvesh(path, **params):
+async def demo_pvesh(path, /, **params):
     if path == "/cluster/resources":
         return resources()
     if path == "/version":
