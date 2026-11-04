@@ -16,7 +16,7 @@ from . import caddy, config, designs, discover, errlog, feedback, gpus as G, i18
 from .ddc import DDC
 from .host import HostStats
 from .launch import Launcher
-from .pve import PVE, PVEError
+from .pve import PVE, TFA_KINDS, PVEError, TfaChallenge
 from .util import Cached, log, pvesh, run
 
 COOKIE = "pvehomelab_sid"
@@ -369,6 +369,28 @@ async def icon(req):
 
 # ---------------- session ----------------
 LOGIN_TRIES, LOGIN_WINDOW = 5, 60  # wrong passwords per user name per minute
+LOGIN_TRIES_PER_PLACE = 20         # ... and from one address (or one screen on the host), any names
+TFA_TTL, TFA_TRIES = 110, 5        # s to answer the second factor; codes per challenge
+
+
+def _place(req):
+    """Where a sign-in comes from, for the limit: the screen on the host, or the browser's address."""
+    return f"seat:{seat_of(req)}" if not is_remote(req) else f"ip:{client_ip(req)}"
+
+
+def _check_limits(req, user):
+    """Too many wrong answers lately for this name, or from this place: wait."""
+    fails, now = req.app["login_fails"], time.time()
+    for key, most in ((user.lower(), LOGIN_TRIES), (_place(req), LOGIN_TRIES_PER_PLACE)):
+        recent = [x for x in fails.get(key, []) if now - x < LOGIN_WINDOW]
+        if len(recent) >= most:
+            raise web.HTTPTooManyRequests(text=i18n._("too_many_logins", s=int(LOGIN_WINDOW - (now - recent[0])) + 1))
+
+
+def _failed(req, user):
+    fails, now = req.app["login_fails"], time.time()
+    for key in (user.lower(), _place(req)):
+        fails[key] = [x for x in fails.get(key, []) if now - x < LOGIN_WINDOW] + [now]
 
 
 @routes.post("/api/login")
@@ -376,18 +398,55 @@ async def login(req):
     body = await req.json()
     seat = seat_of(req)
     user = str(body.get("user", ""))
-    fails = req.app["login_fails"]
-    now = time.time()
-    recent = [x for x in fails.get(user.lower(), []) if now - x < LOGIN_WINDOW]
-    if len(recent) >= LOGIN_TRIES:
-        raise web.HTTPTooManyRequests(text=i18n._("too_many_logins", s=int(LOGIN_WINDOW - (now - recent[0])) + 1))
+    _check_limits(req, user)
     try:
         t = await req.app["pve"].login(user, body.get("password", ""))
     except PVEError as e:
         if e.status == 401:
-            fails[user.lower()] = recent + [now]
+            _failed(req, user)
         raise
-    fails.pop(user.lower(), None)
+    if isinstance(t, TfaChallenge):
+        # The password was right; the session waits for the second factor, kept here, not in the browser.
+        cid = secrets.token_urlsafe(24)
+        req.app["tfa"][cid] = {"ch": t, "seat": seat, "place": _place(req), "until": time.time() + TFA_TTL, "tries": 0}
+        usable = [m for m in t.methods if m in TFA_KINDS]
+        return web.json_response({"tfa": {"id": cid, "methods": usable, "ttl": TFA_TTL,
+                                          "webauthn_only": not usable and "webauthn" in t.methods}})
+    return await _start_session(req, t, seat)
+
+
+@routes.post("/api/login/tfa")
+async def login_tfa(req):
+    body = await req.json()
+    if not isinstance(body, dict):
+        raise web.HTTPBadRequest(text="JSON object expected")
+    pending = req.app["tfa"]
+    c = pending.get(str(body.get("id", "")))
+    if not c or c["seat"] != seat_of(req) or c["place"] != _place(req):
+        raise PVEError(404, i18n._("tfa_gone"))
+    if time.time() > c["until"]:
+        pending.pop(str(body["id"]), None)
+        raise PVEError(410, i18n._("tfa_gone"))
+    kind, code = str(body.get("kind", "")), str(body.get("code", "")).strip().replace(" ", "")
+    if kind not in TFA_KINDS or kind not in c["ch"].methods or not code or len(code) > 128:
+        raise web.HTTPBadRequest(text="kind and code expected")
+    _check_limits(req, c["ch"].user)
+    try:
+        t = await req.app["pve"].finish_tfa(c["ch"], kind, code)
+    except PVEError as e:
+        if e.status == 401:
+            _failed(req, c["ch"].user)
+            c["tries"] += 1
+            if c["tries"] >= TFA_TRIES:
+                pending.pop(str(body["id"]), None)
+                raise PVEError(410, i18n._("tfa_too_many"))
+        raise
+    pending.pop(str(body["id"]), None)
+    return await _start_session(req, t, c["seat"])
+
+
+async def _start_session(req, t, seat):
+    req.app["login_fails"].pop(t.user.lower(), None)
     sid = secrets.token_urlsafe(32)
     req.app["sessions"][sid] = {"ticket": t, "seat": seat, "user": t.user, "seen": time.time()}
     admin = await req.app["pve"].can(t, "/", "Sys.Modify")
@@ -1232,6 +1291,7 @@ async def on_startup(app):
     app["host_ip"] = _host_ip()
     app["allowed_hosts_cache"] = allowed_hosts(app)
     app["login_fails"] = {}
+    app["tfa"] = {}   # id -> a sign-in waiting for its second factor
     app["apt_lock"] = asyncio.Lock()
     try:
         app["pveversion"] = (await pvesh("/version"))["version"]
@@ -1313,6 +1373,8 @@ def housekeeping(app, now=None):
     fails = app["login_fails"]
     for user in [k for k, v in fails.items() if not v or now - v[-1] > LOGIN_WINDOW]:
         del fails[user]
+    for cid in [k for k, v in app["tfa"].items() if now > v["until"]]:
+        del app["tfa"][cid]
 
 
 async def housekeeping_loop(app):

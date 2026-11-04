@@ -45,6 +45,10 @@ signed in, so each person sees and controls exactly what PVE allows them to.
 ### Sign-in and people
 - **Proxmox users are the users.** Sign in with `user@pve` or `root@pam`. Every call to the PVE
   API uses that person's own ticket, so Proxmox permissions apply as they are.
+- **Two-factor sign-in.** Accounts with a second factor in Proxmox get asked for it after the
+  password: a code from the authenticator app (on a keypad the remote's arrows can reach, or typed),
+  a recovery key, or a YubiKey. Security keys (WebAuthn) work only in the Proxmox web UI itself.
+  Wrong answers are limited per name and per place (an address, or a screen on the host).
 - **A visual user picker** with avatars. You choose who appears there and how it looks:
   compact avatars, a title line above the clock, "remember who signed in last", and an optional
   "someone else" tile.

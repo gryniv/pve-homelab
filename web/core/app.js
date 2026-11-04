@@ -248,6 +248,7 @@ function renderUsers() {
 }
 
 function selectUser(id, initial = false) {
+  if (tfa && !initial) { tfa = null; paintTfa(false); }
   st.selUser = id;
   $$('[data-user]').forEach((b) => b.classList.toggle('sel', b.dataset.user === id));
   const u = st.pub.users.find((x) => x.id === id);
@@ -260,8 +261,99 @@ function selectUser(id, initial = false) {
   if (!initial) { $('#pw').value = ''; (u ? $('#pw') : $('#otherUser')).focus(); }
 }
 
+/* the second factor: after the password, Proxmox may want a code (TOTP), a recovery key or a YubiKey */
+const TFA_LEAD = { totp: 'login.tfa_totp', recovery: 'login.tfa_recovery', yubico: 'login.tfa_yubico' };
+const TFA_USE = { totp: 'login.tfa_use_totp', recovery: 'login.tfa_use_recovery', yubico: 'login.tfa_use_yubico' };
+let tfa = null;   // {id, methods, kind} while the code is asked
+
+function paintTfa(focus = true) {
+  const on = !!tfa;
+  $('#loginForm').classList.toggle('tfa-on', on);
+  $('#tfaBox').hidden = !on;
+  if (!on) return;
+  const code = $('#tfaCode');
+  const digits = tfa.kind === 'totp';
+  $('#tfaLead').textContent = t(TFA_LEAD[tfa.kind]);
+  code.value = '';
+  code.classList.toggle('key', !digits);
+  code.inputMode = digits ? 'numeric' : 'text';
+  code.maxLength = digits ? 6 : 128;
+  code.placeholder = digits ? '••••••' : '';
+  $('#tfaPad').hidden = !digits;
+  $('#tfaOther').innerHTML = tfa.methods.filter((m) => m !== tfa.kind && TFA_USE[m])
+    .map((m) => `<button type="button" class="chipbtn" data-tfa-kind="${m}">${esc(t(TFA_USE[m]))}</button>`).join('');
+  $$('[data-tfa-kind]').forEach((b) => (b.onclick = () => { tfa.kind = b.dataset.tfaKind; $('#loginErr').hidden = true; paintTfa(); }));
+  if (focus) (digits ? $('#tfaPad [data-k="1"]') : code).focus();
+}
+
+function startTfa(ch) {
+  if (!ch.methods.length) {   // only a security key: that works in the Proxmox web UI alone
+    $('#loginErr').textContent = t('login.tfa_webauthn');
+    $('#loginErr').hidden = false;
+    return;
+  }
+  tfa = { id: ch.id, methods: ch.methods, kind: ch.methods.includes('totp') ? 'totp' : ch.methods[0] };
+  $('#loginErr').hidden = true;
+  paintTfa();
+}
+
+function leaveTfa(message) {
+  tfa = null;
+  paintTfa(false);
+  $('#loginErr').textContent = message || '';
+  $('#loginErr').hidden = !message;
+  (st.selUser ? $('#pw') : $('#otherUser')).focus();
+}
+
+function typeDigit(k) {
+  const code = $('#tfaCode');
+  if (k === 'del') code.value = code.value.slice(0, -1);
+  else if (code.value.length < 6) code.value += k;
+  if (code.value.length === 6) $('#loginForm').requestSubmit();
+}
+
+$$('#tfaPad [data-k]').forEach((b) => (b.onclick = () => typeDigit(b.dataset.k)));
+$('#tfaCode').addEventListener('input', (e) => {
+  if (tfa?.kind !== 'totp') return;
+  e.target.value = e.target.value.replace(/\D/g, '').slice(0, 6);
+  if (e.target.value.length === 6) $('#loginForm').requestSubmit();
+});
+$('#tfaBack').onclick = () => leaveTfa();
+$('#loginForm').addEventListener('keydown', (e) => {
+  if (!tfa) return;
+  if (e.key === 'Escape') { e.preventDefault(); leaveTfa(); return; }
+  // digit keys work while the keypad has the focus, as on a remote with numbers
+  if (tfa.kind === 'totp' && document.activeElement !== $('#tfaCode') && /^[0-9]$/.test(e.key)) { e.preventDefault(); typeDigit(e.key); }
+  if (tfa.kind === 'totp' && document.activeElement !== $('#tfaCode') && e.key === 'Backspace') { e.preventDefault(); typeDigit('del'); }
+});
+
+async function submitTfa() {
+  const code = $('#tfaCode').value.trim();
+  if (!code) { $('#tfaCode').focus(); return; }
+  try {
+    const r = await api.post('/api/login/tfa', { id: tfa.id, kind: tfa.kind, code });
+    try { localStorage.setItem(lastKey(), r.user); } catch {}
+    tfa = null;
+    paintTfa(false);
+    await enter(r.user, r.prefs, r.admin);
+  } catch (err) {
+    // the challenge is gone (too slow, too many wrong codes, too many tries here): back to the password
+    if ([404, 410, 429].includes(err.status)) return leaveTfa(err.message);
+    $('#loginErr').textContent = err.message;
+    $('#loginErr').hidden = false;
+    $('#tfaCode').value = '';
+    (tfa.kind === 'totp' ? $('#tfaPad [data-k="1"]') : $('#tfaCode')).focus();
+  }
+}
+
 $('#loginForm').addEventListener('submit', async (e) => {
   e.preventDefault();
+  if (tfa) {
+    const btn = $('#tfaPad .ok');
+    btn.disabled = true;
+    try { await submitTfa(); } finally { btn.disabled = false; }
+    return;
+  }
   const user = st.selUser || $('#otherUser').value.trim();
   if (!user) { $('#otherUser').focus(); return; }
   const btn = $('#loginBtn');
@@ -269,6 +361,7 @@ $('#loginForm').addEventListener('submit', async (e) => {
   try {
     const r = await api.post('/api/login', { user, password: $('#pw').value });
     $('#pw').value = '';
+    if (r.tfa) { startTfa(r.tfa); return; }
     try { localStorage.setItem(lastKey(), r.user); } catch {}
     await enter(r.user, r.prefs, r.admin);
   } catch (err) {

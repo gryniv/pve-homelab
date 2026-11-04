@@ -16,7 +16,7 @@ from aiohttp import web
 
 from . import app as A, caddy, discover, gpus as G, i18n, launch as L, update, util, weather, wol
 from .ddc import DDC
-from .pve import PVE, PVEError, Ticket
+from .pve import PVE, PVEError, TfaChallenge, Ticket
 
 GB = 1024 ** 3
 T0 = time.time()
@@ -59,6 +59,7 @@ DISCOVERED = [(206, 3000, "AdGuard Home", "adguard-home", "port"), (101, 3000, "
 USERS = [
     {"id": "ihor@pve", "first": "Ihor"},
     {"id": "guest@pve", "first": "Guest"},
+    {"id": "olena@pve", "first": "Olena"},   # signs in with a code too (TFA_USERS)
     {"id": "root@pam", "first": ""},
 ]
 APT_UPDATES = [
@@ -148,11 +149,23 @@ def qemu_config(vmid):
     return conf
 
 
+# Sign-ins with a second factor: the code and the recovery key that let these users in.
+TFA_USERS = {"olena@pve": {"totp": "123456", "recovery": "demo-1111-2222"}}
+
+
 class DemoPVE(PVE):
     async def login(self, username, password):
         if not username:
             raise PVEError(401, i18n._("bad_login"))
+        if username in TFA_USERS:
+            return TfaChallenge(username, f"PVE:{username}:!tfa!%7B%22totp%22%3Atrue%2C%22recovery%22%3A%22available%22%7D:0::demo",
+                                ["totp", "recovery"])
         return Ticket(username, "demo", "demo")
+
+    async def finish_tfa(self, ch, kind, code):
+        if TFA_USERS.get(ch.user, {}).get(kind) != code:
+            raise PVEError(401, i18n._("bad_tfa"))
+        return Ticket(ch.user, "demo", "demo")
 
     async def renew(self, t):
         return t

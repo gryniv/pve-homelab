@@ -109,6 +109,17 @@
     <div class="other" id="otherRow" hidden><input id="otherUser" data-i18n-placeholder="login.user_placeholder" data-i18n-aria="login.user"></div>
     <div class="pwlabel" id="pwLabel"></div>
     <div class="pwrow"><input id="pw" type="password" data-i18n-aria="login.password"><button class="btn" type="submit" id="loginBtn" data-i18n="login.submit"></button></div>
+    <div class="tfa" id="tfaBox" hidden>
+      <div class="tfa-lead" id="tfaLead"></div>
+      <input id="tfaCode" autocomplete="one-time-code" spellcheck="false" data-i18n-aria="login.tfa_code">
+      <div class="tfa-pad" id="tfaPad" role="group" data-i18n-aria="login.tfa_keypad">
+        <button type="button" data-k="1">1</button><button type="button" data-k="2">2</button><button type="button" data-k="3">3</button>
+        <button type="button" data-k="4">4</button><button type="button" data-k="5">5</button><button type="button" data-k="6">6</button>
+        <button type="button" data-k="7">7</button><button type="button" data-k="8">8</button><button type="button" data-k="9">9</button>
+        <button type="button" data-k="del" data-i18n-aria="login.tfa_del">⌫</button><button type="button" data-k="0">0</button><button type="submit" class="ok" data-i18n="login.tfa_ok"></button>
+      </div>
+      <div class="tfa-more"><span id="tfaOther"></span><button type="button" class="chipbtn" id="tfaBack" data-i18n="login.tfa_back"></button></div>
+    </div>
     <div class="loginerr" id="loginErr" hidden></div>
     <div class="seatnote"><svg class="i"><use href="#i-monitor"/></svg><span><span data-i18n="login.seat" class="seat-local"></span> <b data-seat-name></b></span></div>
   </form>

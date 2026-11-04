@@ -12,6 +12,9 @@ MESSAGES = {
     "en": {
         "bad_login": "Wrong user name or password",
         "too_many_logins": "Too many wrong passwords. Try again in {s} s",
+        "bad_tfa": "Wrong code",
+        "tfa_gone": "The sign-in took too long. Enter the password again",
+        "tfa_too_many": "Too many wrong codes. Enter the password again",
         "forbidden": "Not enough permissions",
         "task_failed": "The task failed",
         "task_slow": "The task is taking too long",
@@ -46,6 +49,9 @@ MESSAGES = {
     "uk": {
         "bad_login": "Невірний користувач або пароль",
         "too_many_logins": "Забагато невдалих спроб. Спробуй ще раз через {s} с",
+        "bad_tfa": "Невірний код",
+        "tfa_gone": "Вхід тривав задовго. Введи пароль ще раз",
+        "tfa_too_many": "Забагато невірних кодів. Введи пароль ще раз",
         "forbidden": "Недостатньо прав",
         "task_failed": "Задача завершилась з помилкою",
         "task_slow": "Задача виконується надто довго",

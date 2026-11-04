@@ -177,6 +177,35 @@ async def logout(r):
     r.check("sign-out hides the bell", await p.js("return document.querySelector('#alertBell').hidden;"))
 
 
+async def tfa_signin(r):
+    """A second factor with the keyboard alone: the keypad takes the focus, digits type, the sixth signs in."""
+    p = r.p
+    await r.open(None)
+    await p.js("document.querySelector('[data-user=\"olena@pve\"]').click();", 0.3)
+    await p.js("document.querySelector('#pw').value = 'x'; document.querySelector('#loginForm').requestSubmit();")
+    shown = await p.until("return !document.querySelector('#tfaBox').hidden && document.activeElement?.dataset.k === '1'", 5)
+    r.check("after the password the code is asked, the keypad has the focus", shown)
+    r.check("the password row is out of the way", await p.js("return getComputedStyle(document.querySelector('.pwrow')).display === 'none';"))
+    for d in "000000":
+        await p.key(d, 48, d)
+    err = await p.until("const e = document.querySelector('#loginErr'); return !e.hidden && e.textContent;", 5)
+    r.check("a wrong code says so and the code is asked again", err and await p.js("return !document.querySelector('#tfaBox').hidden && document.querySelector('#tfaCode').value === '';"), err)
+    await p.js("document.querySelector('[data-tfa-kind=recovery]').click();", 0.3)
+    r.check("a recovery key can be typed instead", await p.js("return document.querySelector('#tfaPad').hidden && document.activeElement?.id === 'tfaCode';"))
+    await p.js("document.querySelector('[data-tfa-kind=totp]').click();", 0.3)
+    for d in "123456":
+        await p.key(d, 48 + int(d), d)
+    r.check("the sixth digit signs in", await p.until("return document.querySelector('[data-scr=dash]')?.hidden === false", 8))
+    await p.js("document.querySelector('#logoutBtn').click();")
+    await p.until("return !document.querySelector('[data-scr=login]').hidden", 5)
+    await p.js("document.querySelector('[data-user=\"olena@pve\"]').click();", 0.3)
+    await p.js("document.querySelector('#pw').value = 'x'; document.querySelector('#loginForm').requestSubmit();")
+    await p.until("return !document.querySelector('#tfaBox').hidden", 5)
+    await p.key("Escape", 27)
+    await asyncio.sleep(0.3)
+    r.check("Esc goes back to the password", await p.js("return document.querySelector('#tfaBox').hidden && document.activeElement?.id === 'pw';"))
+
+
 async def widgets(r):
     p = r.p
     await r.open()
@@ -974,7 +1003,7 @@ async def misc(r):
     r.check("the weather icon exists", icon and code == 200, f"{icon} {code}")
 
 
-CHECKS = {"guests": guests, "logout": logout, "widgets": widgets, "toasts": toasts, "offline": offline,
+CHECKS = {"guests": guests, "logout": logout, "tfa_signin": tfa_signin, "widgets": widgets, "toasts": toasts, "offline": offline,
           "aria": dialogs_aria, "alerts": alerts, "update": failed_update, "focus": settings_focus,
           "console": console, "launch": launch, "search": search, "order": reorder, "guests_table": guest_table, "designs": my_designs, "design_pack": design_pack, "widget_strings": widget_strings, "my_widgets": my_widgets, "feedback": write_to_author, "node_updates": node_updates, "narrow": narrow, "layout_hooks": layout_hooks, "layout_theme": layout_theme, "theme_whole": theme_whole, "design_folders": design_folders, "update_check": update_check, "designing": designing, "quiet_faults": quiet_faults, "tabs": service_tabs, "misc": misc}
 
