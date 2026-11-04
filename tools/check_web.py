@@ -4,7 +4,8 @@
   - every ES module under web/ and kiosk/ext parses (node --check);
   - every language in web/i18n has the same keys as en.json (plural forms such as
     "cores.few" may exist only where the language needs them);
-  - every widget's own i18n block has the same keys in each language.
+  - every built-in widget keeps its strings in i18n/<lang>.json next to widget.js (not in the
+    code), en.json has its title, and every language has the same keys as en.json.
 
     python3 tools/check_web.py
 """
@@ -71,19 +72,29 @@ def check_i18n():
 
 
 def check_widget_i18n():
-    """Widgets carry `i18n: { en: {...}, uk: {...} }`; compare the key names per language."""
+    """Widgets keep their strings in <id>/i18n/<lang>.json; compare the keys with en.json."""
     errors = []
     for path in sorted(glob.glob(os.path.join(ROOT, "web", "widgets", "*", "widget.js"))):
-        src = open(path, encoding="utf-8").read()
-        blocks = dict(re.findall(r"\b(en|uk)\s*:\s*\{([^{}]*)\}", src))
-        if len(blocks) < 2:
+        folder = os.path.dirname(path)
+        w = os.path.basename(folder)
+        if re.search(r"^\s*i18n\s*:", open(path, encoding="utf-8").read(), re.M):
+            errors.append(f"widgets/{w}: strings belong in i18n/<lang>.json, not in widget.js")
+        langs = {}
+        for f in sorted(glob.glob(os.path.join(folder, "i18n", "*.json"))):
+            try:
+                data = json.load(open(f, encoding="utf-8"))
+            except ValueError as e:
+                errors.append(f"widgets/{w}/i18n/{os.path.basename(f)}: {e}")
+                continue
+            langs[os.path.basename(f)[:-5]] = {k for k in flat(data) if not PLURAL.search(k)}
+        if "en" not in langs:
+            errors.append(f"widgets/{w}: no i18n/en.json")
             continue
-        # keys only: blank out string literals first, their text may contain "word:" too
-        no_str = {lang: re.sub(r"'(?:[^'\\]|\\.)*'|\"(?:[^\"\\]|\\.)*\"|`[^`]*`", "''", body) for lang, body in blocks.items()}
-        keys = {lang: set(re.findall(r"([A-Za-z_]\w*)\s*:", body)) for lang, body in no_str.items()}
-        if keys["en"] != keys["uk"]:
-            w = os.path.basename(os.path.dirname(path))
-            errors.append(f"widgets/{w}: en/uk keys differ: {sorted(keys['en'] ^ keys['uk'])}")
+        if "title" not in langs["en"]:
+            errors.append(f"widgets/{w}: i18n/en.json has no title")
+        for lang, keys in langs.items():
+            if keys != langs["en"]:
+                errors.append(f"widgets/{w}/i18n/{lang}.json: keys differ from en.json: {sorted(keys ^ langs['en'])}")
     return errors
 
 

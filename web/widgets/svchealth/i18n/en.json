@@ -1,0 +1,10 @@
+{
+  "title": "Services",
+  "opt_list": "List under the summary",
+  "l_down": "only the ones down",
+  "l_all": "all services",
+  "l_none": "don't show",
+  "up": "up",
+  "ok": "All up",
+  "down": "not responding"
+}

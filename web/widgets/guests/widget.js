@@ -8,10 +8,6 @@ export default {
     { key: 'types', type: 'checks', label: 'opt_types', default: ['qemu', 'lxc'], choices: [['qemu', 'vm'], ['lxc', 'ct']] },
     { key: 'limit', type: 'number', label: 'opt_limit', default: 6, min: 1, max: 30 },
   ],
-  i18n: {
-    uk: { title: 'Гості', opt_show: 'Показувати', running: 'лише працюючі', all: 'усі', opt_types: 'Типи', vm: 'віртуальні машини', ct: 'контейнери', opt_limit: 'Скільки рядків', none: 'Нічого не працює', more: 'і ще {n}' },
-    en: { title: 'Guests', opt_show: 'Show', running: 'running only', all: 'all', opt_types: 'Types', vm: 'virtual machines', ct: 'containers', opt_limit: 'Rows', none: 'Nothing is running', more: 'and {n} more' },
-  },
   render(list, { ui, t, opts }) {
     const rows = list.filter((g) => !g.template && opts.types.includes(g.type) && (opts.show === 'all' || g.status === 'running'))
       .sort((a, b) => (b.status === 'running') - (a.status === 'running') || b.cpu - a.cpu);

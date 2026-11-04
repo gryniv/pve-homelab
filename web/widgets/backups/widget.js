@@ -7,18 +7,6 @@ export default {
     { key: 'days', type: 'number', label: 'opt_days', hint: 'opt_days_hint', default: 7, min: 1, max: 365 },
     { key: 'list', type: 'number', label: 'opt_list', default: 5, min: 0, max: 30 },
   ],
-  i18n: {
-    uk: {
-      title: 'Бекапи', opt_days: 'Вважати застарілим через, днів', opt_days_hint: 'гість без свіжішого бекапу потрапляє в список',
-      opt_list: 'Скільки гостей показувати', all_ok: 'Усі гості мають свіжий бекап', stale: 'без бекапу за {d} дн.',
-      of: 'з {n}', never: 'ніколи', ago: '{d} дн. тому', today: 'сьогодні', more: 'і ще {n}', empty: 'Гостей немає',
-    },
-    en: {
-      title: 'Backups', opt_days: 'Stale after, days', opt_days_hint: 'a guest without a newer backup gets listed',
-      opt_list: 'Guests to list', all_ok: 'Every guest has a fresh backup', stale: 'no backup in {d} days',
-      of: 'of {n}', never: 'never', ago: '{d} days ago', today: 'today', more: 'and {n} more', empty: 'No guests',
-    },
-  },
   render(b, { ui, t, opts }) {
     if (!b.guests.length) return `<h4>${t('title')}</h4><div class="mute" style="font-size:.85em">${t('empty')}</div>`;
     const when = (x) => {

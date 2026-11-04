@@ -216,6 +216,13 @@ async def design_widget(req):
     return await design_file("widgets", req.match_info["did"])
 
 
+@routes.get("/widgets/i18n.json")
+async def widget_strings(req):
+    """Every widget's strings from its i18n/<lang>.json files: {id: {lang: {key: text}}}."""
+    data = await asyncio.get_running_loop().run_in_executor(None, userwidgets.translations)
+    return web.json_response(data, headers={"Cache-Control": "no-cache"})
+
+
 @routes.get("/widgets/" + DESIGN_ID + "/widget.js")
 async def widget_code(req):
     """A widget's logic: the built-in one, or yours from /etc/pve-homelab/widgets."""

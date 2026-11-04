@@ -318,12 +318,13 @@ The program's own extension points:
 
 | Module | File | Contract |
 |---|---|---|
-| Widget | `web/widgets/<id>/widget.js`, yours in `/etc/pve-homelab/widgets/<id>/widget.js` | `zones`, `public`, `source`, `every`, `options`, `render(data, ctx)`, `after(el, data, ctx)`, own `i18n` |
+| Widget | `web/widgets/<id>/widget.js`, yours in `/etc/pve-homelab/widgets/<id>/widget.js` | `zones`, `public`, `source`, `every`, `options`, `render(data, ctx)`, `after(el, data, ctx)`; its strings in `<id>/i18n/<lang>.json` |
 | Language | `web/i18n/<code>.json` | the same keys as `en.json`, plus `"_name"` |
 
-A widget with settings looks like this:
+A widget with settings looks like this, its strings apart from the code:
 
 ```js
+// widgets/network/widget.js
 export default {
   zones: ['side', 'login'],          // where it may be placed
   public: true,                      // allowed on the sign-in screen
@@ -331,9 +332,13 @@ export default {
   options: [                         // gets a ⚙ form and a live preview in Settings
     { key: 'graph', type: 'toggle', label: 'opt_graph', default: true },
   ],                                 // toggle · select · checks · number · text · date · list · textarea
-  i18n: { en: { title: 'Network', opt_graph: 'Graph' }, uk: { title: 'Мережа', opt_graph: 'Графік' } },
   render: (h, { t, opts }) => `<h4>${t('title')}</h4>${opts.graph ? '…' : ''}`,
 };
+```
+
+```json
+// widgets/network/i18n/en.json (and uk.json, or any other language)
+{ "title": "Network", "opt_graph": "Graph" }
 ```
 
 ## How it works

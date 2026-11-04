@@ -1,0 +1,10 @@
+{
+  "title": "Disks",
+  "opt_only_bad": "Only show problems",
+  "all_ok": "All disks and pools are healthy",
+  "problems": "need attention",
+  "pool": "pool",
+  "life": "{n}% life left",
+  "unknown": "SMART unknown",
+  "no_rights": "Disk health is for those with Sys.Audit on the node"
+}

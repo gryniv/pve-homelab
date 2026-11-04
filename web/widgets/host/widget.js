@@ -28,12 +28,6 @@ export default {
     { key: 'rings', type: 'checks', label: 'opt_rings', default: ['cpu', 'mem', 'temp'], choices: [['cpu', 'r_cpu'], ['mem', 'r_mem'], ['temp', 'r_temp']] },
     { key: 'graph', type: 'toggle', label: 'opt_graph', default: true },
   ],
-  i18n: {
-    uk: { title: 'Стан хоста', host: 'Хост', now: 'Хост зараз', of: 'з {n} ГБ', temp: 'ТЕМП', guests: 'Гості', running: '{n} працюють', stopped: '{n} стоп', wait: "графік CPU з'явиться за хвилину",
-      opt_rings: 'Кільця', r_cpu: 'процесор', r_mem: "пам'ять", r_temp: 'температура', opt_graph: 'Графік CPU за 30 хв (на панелі)' },
-    en: { title: 'Host', host: 'Host', now: 'Host now', of: 'of {n} GB', temp: 'TEMP', guests: 'Guests', running: '{n} running', stopped: '{n} stopped', wait: 'the CPU graph appears in a minute',
-      opt_rings: 'Rings', r_cpu: 'CPU', r_mem: 'memory', r_temp: 'temperature', opt_graph: 'CPU graph, 30 min (dashboard)' },
-  },
   render(h, { zone, ui, app, t, opts }) {
     waitText = t('wait');
     const memGb = ui.fmt.gb(h.mem_used), totGb = ui.fmt.gb(h.mem_total);

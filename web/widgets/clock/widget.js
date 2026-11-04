@@ -7,10 +7,6 @@ export default {
     { key: 'design', type: 'select', label: 'opt_design', default: '', choices: (app, lang) => [['', 'same'], ...app.pub().clocks.map((c) => [c.id, c.name[lang] || c.name.en])] },
     { key: 'date', type: 'toggle', label: 'opt_date', default: true },
   ],
-  i18n: {
-    uk: { title: 'Годинник', opt_design: 'Дизайн', same: 'як на екрані входу', opt_date: 'Дата' },
-    en: { title: 'Clock', opt_design: 'Design', same: 'as on the sign-in screen', opt_date: 'Date' },
-  },
   render(_d, { opts }) {
     return `<div class="clock wclk"></div>${opts.date ? '<div class="wdate mute"></div>' : ''}`;
   },

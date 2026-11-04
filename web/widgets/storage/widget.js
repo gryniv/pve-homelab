@@ -1,9 +1,5 @@
 // Proxmox storages and how full they are.
 export default {
-  i18n: {
-    uk: { title: 'Сховища', opt_only: 'Лише ці сховища', opt_only_hint: 'по одному в рядку; порожньо = усі', opt_free: 'Показувати вільне місце', free: 'вільно {v}' },
-    en: { title: 'Storage', opt_only: 'Only these storages', opt_only_hint: 'one per line; empty = all', opt_free: 'Show free space', free: '{v} free' },
-  },
   options: [
     { key: 'only', type: 'list', label: 'opt_only', hint: 'opt_only_hint', default: '', placeholder: 'local\nlocal-zfs' },
     { key: 'free', type: 'toggle', label: 'opt_free', default: false },

@@ -4,15 +4,17 @@
     python3 tools/new_widget.py uptime                      # into the demo (.demo/state)
     python3 tools/new_widget.py uptime --to ~/my-widgets    # a folder of your own, say a git repo
 
-Writes two files, laid out as on the host (/etc/pve-homelab):
+Writes, laid out as on the host (/etc/pve-homelab):
 
     <to>/widgets/<id>/widget.js         the widget: what it reads and what it shows
+    <to>/widgets/<id>/i18n/en.json      its strings, one file per language (add any: pl.json …)
+    <to>/widgets/<id>/i18n/uk.json
     <to>/designs/widgets/<id>.css       its look, a design like any other
 
 The new widget reads /api/host every 10 seconds and shows the uptime and the load, with one option
 and strings in English and Ukrainian: a working example of each part of the contract. Run the demo
 (./demo.sh), add it in Settings → Dashboard, and edit: with live reload on, the page reloads when
-the widget is saved and restyles in place when its look is.
+the widget or its strings are saved and restyles in place when its look is.
 
 To put it on a host: copy both into /etc/pve-homelab (same layout), or zip them as they lie
 (cd <to> && zip -r <id>.zip widgets/<id> designs/widgets/<id>.css) and install the zip from
@@ -20,6 +22,7 @@ Settings → Dashboard → My widgets → Install widgets…
 """
 
 import argparse
+import json
 import os
 import re
 import sys
@@ -29,18 +32,15 @@ ID = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
 
 JS = """\
 // {title}: the host's uptime and load. A starting point: change what it reads and what it shows.
+// Its strings are in i18n/<lang>.json next to this file; t('key') reads them.
 // The contract is in DESIGNS.md (Your own widgets) and at the top of web/core/widgets.js.
 export default {{
   zones: ['side'],          // where it may go: 'side' (dashboard), 'login' (with public: true)
   source: '/api/host',      // what it reads (any GET of the menu's API), or (ctx) => Promise
   every: 10,                // seconds between refreshes
-  options: [
+  options: [                // label: a key of its strings
     {{ key: 'load', type: 'toggle', label: 'opt_load', default: true }},
   ],
-  i18n: {{
-    en: {{ title: '{title}', up: 'up {{d}} d {{h}} h', load: 'load {{n}}', opt_load: 'Show the load' }},
-    uk: {{ title: '{title}', up: 'працює {{d}} дн. {{h}} год', load: 'навантаження {{n}}', opt_load: 'Показувати навантаження' }},
-  }},
   render(data, {{ ui, t, opts }}) {{
     const d = Math.floor(data.uptime / 86400);
     const h = Math.floor((data.uptime % 86400) / 3600);
@@ -50,6 +50,11 @@ export default {{
   }},
 }};
 """
+
+STRINGS = {
+    "en": {"up": "up {d} d {h} h", "load": "load {n}", "opt_load": "Show the load"},
+    "uk": {"up": "працює {d} дн. {h} год", "load": "навантаження {n}", "opt_load": "Показувати навантаження"},
+}
 
 CSS = """\
 /*
@@ -77,8 +82,11 @@ def main():
                  f"(for your own look of it: python3 tools/new_design.py widget {a.id})")
     title = a.title or a.id.replace("-", " ").replace("_", " ").capitalize()
     to = os.path.abspath(os.path.expanduser(a.to))
-    files = {os.path.join(to, "widgets", a.id, "widget.js"): JS.format(title=title.replace("'", "\\'")),
+    files = {os.path.join(to, "widgets", a.id, "widget.js"): JS.format(title=title),
              os.path.join(to, "designs", "widgets", f"{a.id}.css"): CSS.format(id=a.id, title=title)}
+    for lang, strings in STRINGS.items():
+        files[os.path.join(to, "widgets", a.id, "i18n", f"{lang}.json")] = \
+            json.dumps({"title": title, **strings}, ensure_ascii=False, indent=2) + "\n"
     for path in files:
         if os.path.exists(path) and not a.force:
             sys.exit(f"{path} already exists (--force to overwrite)")

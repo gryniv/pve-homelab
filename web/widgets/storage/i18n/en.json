@@ -1,0 +1,7 @@
+{
+  "title": "Storage",
+  "opt_only": "Only these storages",
+  "opt_only_hint": "one per line; empty = all",
+  "opt_free": "Show free space",
+  "free": "{v} free"
+}

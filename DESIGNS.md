@@ -158,9 +158,10 @@ built-in ones. The id can't be a built-in widget's. Its look is a design like an
 
 ```bash
 ./demo.sh
-python3 tools/new_widget.py uptime            # .demo/state/widgets/uptime/widget.js + its look
-# add "Uptime" in Settings → Dashboard, then edit: saving the widget reloads the page,
-# saving its look restyles it in place
+python3 tools/new_widget.py uptime            # .demo/state/widgets/uptime/: widget.js, i18n/en.json,
+                                              # i18n/uk.json, and its look in designs/widgets/uptime.css
+# add "Uptime" in Settings → Dashboard, then edit: saving the widget or its strings reloads
+# the page, saving its look restyles it in place
 python3 tools/new_widget.py uptime --to ~/my-widgets   # a folder laid out like /etc/pve-homelab
 ./demo.sh --widgets ~/my-widgets/widgets --designs ~/my-widgets/designs
 ```
@@ -168,29 +169,53 @@ python3 tools/new_widget.py uptime --to ~/my-widgets   # a folder laid out like 
 The new widget is a working example of each part of the contract: it reads `/api/host`, has an
 option and strings in English and Ukrainian.
 
+```
+widgets/uptime/
+  widget.js          the code
+  i18n/en.json       its strings, one file per language
+  i18n/uk.json
+```
+
 ```js
 export default {
   zones: ['side', 'login'],          // where it may be placed
   public: true,                      // allowed on the sign-in screen (it reads only public data)
   source: '/api/host', every: 10,    // what it reads (a GET of the menu's API, or (ctx) => Promise) and how often (s)
-  options: [                         // a ⚙ form with a live preview in Settings
+  options: [                         // a ⚙ form with a live preview in Settings; label: a key of its strings
     { key: 'load', type: 'toggle', label: 'opt_load', default: true },
   ],                                 // toggle · select · checks · number · text · date · list · textarea
-  i18n: { en: { title: 'Uptime', opt_load: 'Show the load' }, uk: { title: 'Аптайм', opt_load: 'Навантаження' } },
   render: (data, { t, ui, opts }) => `<h4>${ui.esc(t('title'))}</h4>…`,   // returns HTML
   after: (el, data, ctx) => {},      // optional: wire up the rendered element
 };
 ```
+
+```json
+{
+  "title": "Uptime",
+  "opt_load": "Show the load",
+  "up": "up {d} d {h} h",
+  "things": { "one": "{n} thing", "other": "{n} things" }
+}
+```
+
+`t('key')` reads the widget's strings in the person's language (English when a key is missing
+there), `t('up', { d: 3, h: 4 })` fills in `{d}` and `{h}`, and a key with `one`/`few`/`many`/
+`other` picks the plural form for `{n}`. `title` names the widget in Settings. A new language is
+a new file, `i18n/pl.json`; one in your folder (`/etc/pve-homelab/widgets/weather/i18n/pl.json`)
+also adds a language to a built-in widget. An `i18n: { en: {…} }` block in the module still works
+for widgets written that way, with the files taking precedence.
 
 `ctx` also has `app` (the menu: `app.prefs()`, `app.api`, …) and `zone`. Escape anything that comes
 from data with `ui.esc`. When `render` throws or `source` fails, the widget shows the error with
 a retry button and the error journal (*Settings → About*) records it.
 
 **Installing on a host:** copy the files into `/etc/pve-homelab` (same layout), or, as an admin,
-*Settings → Dashboard → My widgets → Install widgets…* with `<id>.js` (and `<id>.css`), or a
-`.zip`: of `<id>/widget.js` (+ `<id>/widget.css`) folders, of a folder laid out like
-`/etc/pve-homelab` (`widgets/<id>/widget.js`, `designs/widgets/<id>.css`), or with `widget.js` on
-top, then named like the zip. `new_widget.py` prints the `zip` command.
+*Settings → Dashboard → My widgets → Install widgets…* with `<id>.js`, its look `<id>.css` and its
+strings `<id>.en.json`, `<id>.uk.json` …, or a `.zip`: of widget folders (`<id>/widget.js`,
+`<id>/widget.css`, `<id>/i18n/<lang>.json`), of a folder laid out like `/etc/pve-homelab`
+(`widgets/<id>/…`, `designs/widgets/<id>.css`), or with `widget.js` and `i18n/` on top, then named
+like the zip. `new_widget.py` prints the `zip` command. Installing again replaces the code, and
+the strings of each language sent; the other languages stay.
 
 **A widget is code.** It runs in the menu with the rights of whoever is signed in, and its file is
 served to anyone who can open the menu, like the built-in ones: keep secrets out of it. That is
@@ -199,6 +224,6 @@ why only admins may install one, and why it is worth installing only widgets you
 ## Limits
 
 A design file is at most 512 KB of UTF-8 text; one install takes up to 50 designs and 8 MB. A
-widget's `widget.js` is at most 256 KB.
+widget's `widget.js` is at most 256 KB, a language file 64 KB.
 Installing and removing need `Sys.Modify` on `/` in Proxmox: a design changes the menu for
 everyone on the host, and a clock is code that runs in the menu.

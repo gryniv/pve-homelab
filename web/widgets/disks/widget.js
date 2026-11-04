@@ -6,18 +6,6 @@ export default {
   options: [
     { key: 'only_bad', type: 'toggle', label: 'opt_only_bad', default: false },
   ],
-  i18n: {
-    uk: {
-      title: 'Диски', opt_only_bad: 'Показувати лише проблеми', all_ok: 'Усі диски й пули справні',
-      problems: 'потребує уваги', pool: 'пул', life: 'ресурс {n}%', unknown: 'SMART невідомий',
-      no_rights: 'Стан дисків бачать ті, хто має Sys.Audit на вузлі',
-    },
-    en: {
-      title: 'Disks', opt_only_bad: 'Only show problems', all_ok: 'All disks and pools are healthy',
-      problems: 'need attention', pool: 'pool', life: '{n}% life left', unknown: 'SMART unknown',
-      no_rights: 'Disk health is for those with Sys.Audit on the node',
-    },
-  },
   render(d, { ui, t, opts }) {
     if (!d.allowed) return `<h4>${t('title')}</h4><div class="mute" style="font-size:.85em">${t('no_rights')}</div>`;
     const cls = (x) => (x.ok ? 'ok' : x.health === 'UNKNOWN' ? 'off' : 'bad');

@@ -6,10 +6,6 @@ export default {
   options: [
     { key: 'list', type: 'select', label: 'opt_list', default: 'down', choices: [['down', 'l_down'], ['all', 'l_all'], ['none', 'l_none']] },
   ],
-  i18n: {
-    uk: { title: 'Сервіси', opt_list: 'Список під підсумком', l_down: 'лише ті, що впали', l_all: 'усі сервіси', l_none: 'не показувати', up: 'працюють', ok: 'Усе працює', down: 'не відповідає' },
-    en: { title: 'Services', opt_list: 'List under the summary', l_down: 'only the ones down', l_all: 'all services', l_none: "don't show", up: 'up', ok: 'All up', down: 'not responding' },
-  },
   render(list, { ui, t, opts }) {
     const known = list.filter((s) => s.status);
     const up = known.filter((s) => s.status === 'running');

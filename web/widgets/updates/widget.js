@@ -6,20 +6,6 @@ export default {
   options: [
     { key: 'list', type: 'number', label: 'opt_list', hint: 'opt_list_hint', default: 4, min: 0, max: 20 },
   ],
-  i18n: {
-    uk: {
-      title: 'Оновлення Proxmox', opt_list: 'Скільки пакетів показувати', opt_list_hint: '0 = лише підсумок',
-      none: 'Усе оновлено', waiting: 'чекають оновлення', from_pve: 'з них {n} від Proxmox',
-      kernel: 'нове ядро: після оновлення знадобиться перезавантаження', more: 'і ще {n}',
-      no_rights: 'Список оновлень бачать ті, хто може змінювати вузол (Sys.Modify)', new_pkg: 'новий',
-    },
-    en: {
-      title: 'Proxmox updates', opt_list: 'Packages to list', opt_list_hint: '0 = summary only',
-      none: 'Up to date', waiting: 'waiting to be installed', from_pve: '{n} of them from Proxmox',
-      kernel: 'new kernel: a reboot will be needed after updating', more: 'and {n} more',
-      no_rights: 'The update list is for those who may change the node (Sys.Modify)', new_pkg: 'new',
-    },
-  },
   render(u, { ui, t, opts }) {
     if (!u.allowed) return `<h4>${t('title')}</h4><div class="mute" style="font-size:.85em">${t('no_rights')}</div>`;
     if (!u.count) return `<h4>${t('title')}</h4><div class="up"><span class="dot ok"></span>${t('none')}</div>`;

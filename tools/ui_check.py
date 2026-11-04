@@ -399,14 +399,31 @@ async def my_designs(r):
     shutil.rmtree(os.path.dirname(theme), ignore_errors=True)
 
 
+async def widget_strings(r):
+    """Every widget's strings come from its i18n/<lang>.json files, in each language."""
+    p = r.p
+    await r.open()
+    raw = ("const W = await import('/core/widgets.js');"
+           "return Object.values(W.all()).filter(w => !w.title || w.title === 'title' || w.title.startsWith('w.')).map(w => w.id);")
+    count = await p.js("return Object.keys((await import('/core/widgets.js')).all()).length;")
+    bad = await p.js(raw)
+    r.check("every widget has its title in English", count and count >= 18 and bad == [], f"{count} widgets, untitled: {bad}")
+    titles = await p.js("const I = await import('/core/i18n.js'); await I.setLang('uk');"
+                        "const W = await import('/core/widgets.js'); const all = W.all();"
+                        "const out = [all.note.title, all.weather.title, all.note.t('opt_text')]; await I.setLang('en'); return out;")
+    r.check("…and in Ukrainian, options included", titles == ["Нотатка", "Погода", "Текст"], titles)
+
+
 async def my_widgets(r):
     """A widget of your own: installed from Settings → Dashboard, put on the dashboard, removed."""
     p = r.p
     tmp = tempfile.mkdtemp(prefix="pvehomelab-uicheck-widget-")
-    js, css = os.path.join(tmp, "uicheck-w.js"), os.path.join(tmp, "uicheck-w.css")
-    with open(js, "w", encoding="utf-8") as f:
-        f.write("export default { zones: ['side'], i18n: { en: { title: 'UI check widget' }, uk: { title: 'Віджет перевірки' } },\n"
-                "  render: (_d, { ui, t }) => `<h4>${ui.esc(t('title'))}</h4><div class=\"uiw\">hello</div>` };\n")
+    js, css, en = (os.path.join(tmp, n) for n in ("uicheck-w.js", "uicheck-w.css", "uicheck-w.en.json"))
+    with open(js, "w", encoding="utf-8") as f:   # its strings come in a file of their own
+        f.write("export default { zones: ['side'],\n"
+                "  render: (_d, { ui, t }) => `<h4>${ui.esc(t('title'))}</h4><div class=\"uiw\">${ui.esc(t('hello'))}</div>` };\n")
+    with open(en, "w", encoding="utf-8") as f:
+        f.write('{"title": "UI check widget", "hello": "hello"}\n')
     with open(css, "w", encoding="utf-8") as f:
         f.write('.A .w[data-w="uicheck-w"] .uiw{color:rgb(1, 2, 3)}\n')
     open_dash = ("document.querySelector('.top [data-go=settings]').click();"
@@ -420,7 +437,7 @@ async def my_widgets(r):
                 await p.until("return !!document.querySelector('#widgetPick') && !!document.querySelector('.wwarn');", 5))
         doc = await p.send("DOM.getDocument")
         node = await p.send("DOM.querySelector", nodeId=doc["root"]["nodeId"], selector="#widgetFiles")
-        await p.send("DOM.setFileInputFiles", files=[js, css], nodeId=node["nodeId"])
+        await p.send("DOM.setFileInputFiles", files=[js, css, en], nodeId=node["nodeId"])
         back = await p.until(f"return {in_dash} && (document.querySelector('#myWidgets')?.textContent || '').includes('UI check widget');", 12)
         r.check("installing reloads back to Dashboard, listing the new widget", back)
         offered = await p.js("return [...document.querySelectorAll('#add-side option')].map(o => o.value);")
@@ -530,7 +547,7 @@ async def misc(r):
 
 CHECKS = {"guests": guests, "logout": logout, "widgets": widgets, "toasts": toasts, "offline": offline,
           "aria": dialogs_aria, "alerts": alerts, "update": failed_update, "focus": settings_focus,
-          "console": console, "launch": launch, "search": search, "order": reorder, "guests_table": guest_table, "designs": my_designs, "my_widgets": my_widgets, "designing": designing, "tabs": service_tabs, "misc": misc}
+          "console": console, "launch": launch, "search": search, "order": reorder, "guests_table": guest_table, "designs": my_designs, "widget_strings": widget_strings, "my_widgets": my_widgets, "designing": designing, "tabs": service_tabs, "misc": misc}
 
 
 # ---------------------------------------------------------------- driver

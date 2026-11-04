@@ -1,0 +1,12 @@
+{
+  "title": "Guests",
+  "opt_show": "Show",
+  "running": "running only",
+  "all": "all",
+  "opt_types": "Types",
+  "vm": "virtual machines",
+  "ct": "containers",
+  "opt_limit": "Rows",
+  "none": "Nothing is running",
+  "more": "and {n} more"
+}

@@ -7,10 +7,6 @@ export default {
     { key: 'weekstart', type: 'select', label: 'opt_week', default: '1', choices: [['1', 'mon'], ['0', 'sun']] },
     { key: 'weeknum', type: 'toggle', label: 'opt_weeknum', default: false },
   ],
-  i18n: {
-    uk: { title: 'Календар', opt_week: 'Тиждень починається з', mon: 'понеділка', sun: 'неділі', opt_weeknum: 'Номери тижнів' },
-    en: { title: 'Calendar', opt_week: 'Week starts on', mon: 'Monday', sun: 'Sunday', opt_weeknum: 'Week numbers' },
-  },
   render(_d, { ui, opts }) {
     const now = new Date(), y = now.getFullYear(), m = now.getMonth();
     const start = +opts.weekstart;

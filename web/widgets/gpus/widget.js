@@ -3,10 +3,6 @@ export default {
   zones: ['side'],
   source: '/api/gpus',
   every: 10,
-  i18n: {
-    uk: { title: 'Відеокарти', in_vm: 'у VM {id}', menu: 'меню', free: 'вільна', no_driver: 'без драйвера', here: 'ти тут' },
-    en: { title: 'GPUs', in_vm: 'in VM {id}', menu: 'menu', free: 'free', no_driver: 'no driver', here: 'you are here' },
-  },
   render(list, { ui, app, t }) {
     const seatGpu = app.seat().gpu;
     const rows = list.map((g) => {

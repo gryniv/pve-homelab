@@ -186,7 +186,7 @@ function widgetsMine() {
   const admin = app.isAdmin();
   const install = admin
     ? `<div class="dinstall"><button class="btn" type="button" id="widgetPick">${icon('i-plus')}<span>${esc(t('set.mywidgets.install'))}</span></button>
-        <input id="widgetFiles" type="file" multiple accept=".js,.css,.zip" hidden>
+        <input id="widgetFiles" type="file" multiple accept=".js,.css,.json,.zip" hidden>
         <span class="mute">${esc(t('set.mywidgets.install_hint'))}</span></div>
       <p class="mute wwarn">${icon('i-info')}${esc(t('set.mywidgets.warn'))}</p>`
     : `<p class="mute">${esc(t('set.mywidgets.admin_only'))}</p>`;
@@ -196,8 +196,8 @@ function widgetsMine() {
     const reg = W.all();
     list = myWidgets.mine.length ? `<ul class="mylist" id="myWidgets">${myWidgets.mine.map((w) => {
       const name = reg[w.id]?.title || w.id;
-      const note = reg[w.id] ? (w.look ? t('set.mywidgets.with_look') : '') : t('set.mywidgets.broken');
-      return `<li><span class="nm">${esc(name)}<small class="mute">${esc(w.id)}${note ? ` · ${esc(note)}` : ''}</small></span>
+      const notes = reg[w.id] ? [w.look && t('set.mywidgets.with_look'), w.languages?.length && w.languages.join(', ')] : [t('set.mywidgets.broken')];
+      return `<li><span class="nm">${esc(name)}<small class="mute">${[w.id, ...notes].filter(Boolean).map(esc).join(' · ')}</small></span>
         ${admin ? `<button class="chipbtn" type="button" data-rmwidget="${esc(w.id)}|${esc(name)}">${icon('i-x')}${esc(t('set.designs.remove'))}</button>` : ''}</li>`;
     }).join('')}</ul>`
       : `<p class="mute">${esc(t('set.mywidgets.none'))}</p>`;

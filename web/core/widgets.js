@@ -1,15 +1,18 @@
-// Widget loader. A widget is web/widgets/<id>/widget.js exporting:
+// Widget loader. A widget is web/widgets/<id>/widget.js (yours: /etc/pve-homelab/widgets/<id>/)
+// exporting:
 //   { zones: ['login','side'], public?: true, source?: '/api/..' | (ctx) => Promise,
 //     every?: seconds, render(data, ctx) -> html, after?(el, data, ctx),
-//     options?: [ { key, type, label, default, ... } ],
-//     i18n: { uk: { title: '…', … }, en: { title: '…', … } } }
+//     options?: [ { key, type, label, default, ... } ] }
+// Its strings live next to it, one file per language: <id>/i18n/en.json, <id>/i18n/uk.json …
+// ({"title": "…", …}; the backend serves them all at /widgets/i18n.json). An `i18n: {en: {…}}`
+// block in the module still works; the files win.
 // Inside render, ctx.t('key') reads the widget's own strings first, then the global dictionary,
 // and ctx.opts holds the user's options merged over the defaults.
 // `public` widgets may appear on the login screen (before anyone has logged in).
 // How a widget looks is a design, not part of the widget: designs/widgets/<id>.css (or your own
 // in /etc/pve-homelab/designs/widgets/<id>.css), loaded when it exists.
 //
-// Option types (label/hint/choice labels are keys of the widget's own i18n):
+// Option types (label/hint/choice labels are keys of the widget's own strings):
 //   toggle                         → true/false
 //   select   choices: [[v, key]]   → one of the values
 //   number   min, max, step        → a number
@@ -33,10 +36,15 @@ const timers = {};
 
 // `styles`: the widgets that have a look in the designs folders (designs/widgets/<id>.css).
 export async function load(ids, styles = []) {
+  const strings = await api.get('/widgets/i18n.json').catch((e) => {
+    report('widget', `strings: ${e.message}`, e.stack);
+    return {};
+  });
   await Promise.all(ids.map(async (id) => {
     try {
       const mod = (await import(`/widgets/${id}/widget.js`)).default;
       extend(`w.${id}.`, mod.i18n);
+      extend(`w.${id}.`, strings[id]);
       registry[id] = { id, zones: ['side'], options: [], ...mod, t: wt(id), get title() { return wt(id)('title'); } };
       if (styles.includes(id)) {
         const l = document.createElement('link');

@@ -4,10 +4,6 @@ export default {
   options: [
     { key: 'links', type: 'list', label: 'opt_links', hint: 'opt_links_hint', default: 'Proxmox Docs | https://pve.proxmox.com/pve-docs/', placeholder: 'GitHub | https://github.com' },
   ],
-  i18n: {
-    uk: { title: 'Посилання', opt_links: 'Посилання', opt_links_hint: 'по одному в рядку: Назва | https://адреса', none: 'Додай свої посилання: ⚙ у налаштуваннях віджета.' },
-    en: { title: 'Links', opt_links: 'Links', opt_links_hint: 'one per line: Name | https://address', none: 'Add your links: ⚙ in the widget settings.' },
-  },
   render(_d, { ui, t, opts }) {
     const links = opts.links.map((l) => {
       const [a, b] = l.includes('|') ? l.split('|') : [l, l];

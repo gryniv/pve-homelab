@@ -1,0 +1,9 @@
+{
+  "title": "World clock",
+  "opt_zones": "Time zones",
+  "opt_zones_hint": "one per line: Europe/Warsaw or Name=Europe/Warsaw",
+  "opt_h12": "12-hour format",
+  "bad": "unknown zone",
+  "tomorrow": "tomorrow",
+  "yesterday": "yesterday"
+}

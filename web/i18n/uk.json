@@ -259,7 +259,7 @@
   "set.designs.installed": "Встановлено: {list}", "set.designs.removed": "Видалено {name}",
   "set.mywidgets.title": "Мої віджети",
   "set.mywidgets.lead": "Твої віджети лежать на хості в {folder}, поруч із вбудованими; оновлення їх не чіпають. На панель вище вони додаються, як і будь-які інші.",
-  "set.mywidgets.install": "Встановити віджети…", "set.mywidgets.install_hint": "<id>.js (з виглядом, <id>.css) або .zip із кількома",
+  "set.mywidgets.install": "Встановити віджети…", "set.mywidgets.install_hint": "<id>.js з виглядом <id>.css і перекладами <id>.uk.json, <id>.en.json … або .zip",
   "set.mywidgets.warn": "Віджет — це код: він працює в меню з правами того, хто увійшов. Став лише віджети, які написав сам або яким довіряєш.",
   "set.mywidgets.admin_only": "Встановлювати віджети можуть адміністратори (Sys.Modify): віджет — це код, що працює в меню.",
   "set.mywidgets.none": "Власних віджетів ще немає.", "set.mywidgets.with_look": "з виглядом",
