@@ -39,6 +39,8 @@ launch:
   assign_gpu: true            # write the chosen GPU into the VM config before start
   allow_igpu: false           # true = pass the seat GPU through entirely (otherwise VirGL inside the menu)
   return_to_menu: true        # switch the monitor back to the menu when the VM stops
+  follow_start: boot          # a VM on a monitor's GPU that starts without the menu (onboot, Proxmox UI) gets
+                              # the monitor: boot = only while the host is booting, always, never
 
 caddy:
   ct: null                    # container running Caddy (its admin API must listen on localhost:2019)

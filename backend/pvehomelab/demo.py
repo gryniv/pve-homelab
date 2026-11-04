@@ -22,11 +22,11 @@ GB = 1024 ** 3
 T0 = time.time()
 NODE = "demo"
 
-# vmid -> guest. "hostpci" lists GPUs passed through; "ip" is what Caddy proxies to.
+# vmid -> guest. "hostpci" is {slot: value} as in a VM config (hostpci0: ...); "ip" is what Caddy proxies to.
 WORLD = {
     100: dict(type="qemu", name="ubuntu-desktop", status="stopped", tags="seat", cores=8, mem=16, ostype="l26", vga="virtio"),
     101: dict(type="qemu", name="home-server", status="running", tags="", cores=4, mem=8, ostype="l26", vga="std", ip="10.0.0.101"),
-    102: dict(type="qemu", name="win11-gaming", status="stopped", tags="seat", cores=12, mem=32, ostype="win11", vga="std", hostpci=["0000:01:00"]),
+    102: dict(type="qemu", name="win11-gaming", status="stopped", tags="seat", cores=12, mem=32, ostype="win11", vga="std", hostpci={0: "mapping=rtx,pcie=1,x-vga=1"}),
     103: dict(type="qemu", name="fedora-workstation", status="stopped", tags="seat", cores=8, mem=12, ostype="l26", vga="virtio"),
     200: dict(type="lxc", name="caddy", status="running", cores=1, mem=0.5, ip="10.0.0.200"),
     201: dict(type="lxc", name="jellyfin", status="running", cores=4, mem=4, ip="10.0.0.201"),
@@ -37,8 +37,17 @@ WORLD = {
     206: dict(type="lxc", name="adguard", status="running", cores=1, mem=0.5, ip="10.0.0.206"),
 }
 for g in WORLD.values():
-    g.setdefault("hostpci", [])
+    g.setdefault("hostpci", {})
     g["started"] = T0 - random.randint(3600, 9 * 86400) if g["status"] == "running" else None
+
+# A PVE resource mapping for the RTX (/etc/pve/mapping/pci.cfg), as VM 102 uses it.
+MAPPINGS = {"rtx": [{"node": NODE, "path": "0000:01:00"}]}
+
+
+def devices(g):
+    """The PCI devices a guest passes through, mappings resolved."""
+    return [d for v in g["hostpci"].values() for d in G.hostpci_devices(v, NODE, MAPPINGS)]
+
 
 # What "Caddy" proxies. AdGuard, Forgejo and Grafana are left out on purpose: the demo finds
 # them the other ways (an open port in CT 206 / VM 101, a link in VM 101's notes).
@@ -135,8 +144,7 @@ def qemu_config(vmid):
     g = WORLD[vmid]
     conf = {"name": g["name"], "ostype": g["ostype"], "cores": g["cores"], "sockets": 1,
             "memory": str(int(g["mem"] * 1024)), "vga": g["vga"], "tags": g.get("tags", "")}
-    for i, dev in enumerate(g["hostpci"]):
-        conf[f"hostpci{i}"] = f"{dev},pcie=1"
+    conf.update({f"hostpci{n}": v for n, v in g["hostpci"].items()})
     return conf
 
 
@@ -195,7 +203,7 @@ class DemoPVE(PVE):
     @staticmethod
     def _privs(user, path):
         if user != "guest@pve":
-            return ["VM.PowerMgmt", "VM.Config.HWType", "Sys.Audit", "Sys.Modify", "Sys.PowerMgmt"]
+            return ["VM.PowerMgmt", "VM.Config.HWType", "Sys.Audit", "Sys.Modify", "Sys.PowerMgmt", "Mapping.Use"]
         if path.startswith("/vms/") and int(path.split("/")[2]) in GUEST_SEES:
             return ["VM.PowerMgmt"]
         return []
@@ -261,7 +269,7 @@ class DemoStats:
 async def demo_gpus(running):
     out = []
     for pci, d in GPUS.items():
-        vms = [vmid for vmid, g in WORLD.items() if any(G.gpu_of(x) == pci for x in g["hostpci"])]
+        vms = [vmid for vmid, g in WORLD.items() if any(G.gpu_of(x) == pci for x in devices(g))]
         out.append({"pci": pci, **d, "assigned_vms": vms,
                     "running_vm": next((v for v in vms if v in running), None)})
     return out
@@ -294,23 +302,6 @@ async def demo_discover(cfg, res, ips, host_ip=None):
                     "url": f"http://{g['ip']}:{port}", "host": f"{g['ip']}:{port}", "upstream": f"{g['ip']}:{port}",
                     "guest": {"type": g["type"], "vmid": vmid, "name": g["name"]}, "source": source, "port": port})
     return out
-
-
-async def assign_gpu(self, vmid, gpu):
-    old = list(WORLD[vmid].get("hostpci") or [])
-    WORLD[vmid]["hostpci"] = [gpu.rsplit(".", 1)[0]]
-    log.info("demo: %s now owns %s", WORLD[vmid]["name"], gpu)
-    return old
-
-
-async def undo_assign(self, vmid, old):
-    WORLD[vmid]["hostpci"] = old
-    log.info("demo: %s got its GPU back", WORLD[vmid]["name"])
-
-
-async def to_virgl(self, vmid):
-    WORLD[vmid].update(vga="virtio-gl", hostpci=[])
-    log.info("demo: %s switched to VirGL", WORLD[vmid]["name"])
 
 
 WOKEN = []
@@ -351,7 +342,34 @@ async def demo_update_status(cfg):
             "latest": {"ref": "v9.9.0", "version": "9.9.0", "commit": None, "url": "https://github.com/", "notes": "Demo release"}}
 
 
+def fake_qm(args):
+    """`qm config <id>` and `qm set <id> ...` over the demo world, so the launcher's own planning
+    (hostpci slots, mappings, VirGL and back) runs in the demo and the tests as it does on a host."""
+    vmid = int(args[2])
+    g = WORLD[vmid]
+    if args[1] == "config":
+        lines = [f"name: {g['name']}", f"vga: {g['vga']}"] + [f"hostpci{n}: {v}" for n, v in sorted(g["hostpci"].items())]
+        return "\n".join(lines) + "\n"
+    it = iter(args[3:])
+    for opt in it:
+        val = next(it)
+        if opt == "--delete":
+            for k in val.split(","):
+                if k.startswith("hostpci"):
+                    g["hostpci"].pop(int(k[7:]), None)
+                elif k == "vga":
+                    g["vga"] = "std"   # Proxmox's default
+        elif opt.startswith("--hostpci"):
+            g["hostpci"][int(opt[9:])] = val
+        elif opt == "--vga":
+            g["vga"] = val
+    log.info("demo: %s", " ".join(args))
+    return ""
+
+
 async def demo_run(*args, **kw):
+    if args[:1] == ("qm",) and len(args) > 2 and args[1] in ("config", "set"):
+        return fake_qm(args)
     log.info("demo: would run %s", " ".join(args))
     return ""
 
@@ -427,7 +445,7 @@ async def demo_add_vm(req):
     vmid = _free_id(104, 200)
     WORLD[vmid] = dict(type="qemu", name=_slug(b.get("name") or f"{os_key}-{vmid}"), status="running" if b.get("running") else "stopped",
                        tags="seat", cores=int(b.get("cores") or 4), mem=float(b.get("mem") or 8), ostype=OS_TYPES[os_key][0],
-                       vga="std" if b.get("gpu") else "virtio", hostpci=["0000:01:00"] if b.get("gpu") else [],
+                       vga="std" if b.get("gpu") else "virtio", hostpci={0: "0000:01:00,pcie=1"} if b.get("gpu") else {},
                        started=time.time() if b.get("running") else None, demo_what=OS_TYPES[os_key][1])
     STATE["added"].append(vmid)
     await _refresh()
@@ -443,7 +461,7 @@ async def demo_add_service(req):
     vmid = _free_id(207, 300)
     port = APP_PORTS.get(icon, 8080)
     WORLD[vmid] = dict(type="lxc", name=_slug(name), status="running", cores=2, mem=2, ip=f"10.0.1.{vmid - 200}",
-                       hostpci=[], started=time.time(), demo_what=f"{name} · {via}")
+                       hostpci={}, started=time.time(), demo_what=f"{name} · {via}")
     if via == "caddy":
         key = _slug(name)
         ROUTES.append((key, vmid, port))
@@ -506,9 +524,9 @@ def make_app():
     caddy.routes = demo_routes
     caddy.guest_ips = demo_ips
     discover.discover = demo_discover
-    L.Launcher._assign_gpu = assign_gpu
-    L.Launcher._undo_assign = undo_assign
-    L.Launcher._to_virgl = to_virgl
+    L.run = demo_run
+    G.pci_mappings = lambda: MAPPINGS
+    G.local_node = lambda: NODE
     DDC.switch_to_gpu = switch_input
     weather.get = demo_weather
     wol.send = demo_wake

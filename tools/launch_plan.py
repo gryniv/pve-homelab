@@ -50,7 +50,8 @@ async def main(VMID, seat_id):
     print(f"== VM {VMID} display GPUs now: {[a for a in vm_gpus if G.gpu_of(a or '-') in display]}")
     for pci in wired:
         if pci == seat["gpu"] and not cfg["launch"]["allow_igpu"]:
-            print(f"== option {pci}: VirGL inside the menu (the seat's own GPU); would run qm set --vga virtio-gl,memory=256 + drop display hostpci")
+            print(f"== option {pci}: VirGL inside the menu (the seat's own GPU); would run qm set --vga virtio-gl,memory=256 + drop display hostpci"
+                  f" (kept in {L._remembered_path(VMID)} to put back on the next start on a passed-through GPU)")
             continue
         g = next((x for x in gpus if x["pci"] == pci), None)
         if not g:
@@ -60,8 +61,13 @@ async def main(VMID, seat_id):
         need = pci not in [G.gpu_of(a or '-') for a in vm_gpus]
         print(f"== option {pci} ({g['name']}): busy_by={g['running_vm'] if busy else None} needs_assign={need}")
         if need:
-            slot, value, old = L.plan_hostpci(conf, display, pci, node)
+            back = L.remembered(VMID)
+            slot, value, old = L.plan_hostpci(conf, display, pci, node, remembered=back["hostpci"])
             print(f"   would run: qm set {VMID} --hostpci{slot} {value}   (was: {old or 'nothing'})")
+            if back["hostpci"] or back["vga"] is not None:
+                print(f"   kept from the last switch to VirGL: {back} (its options and display come back)")
+            if value.startswith("mapping="):
+                print(f"   writes a resource mapping: the user needs Mapping.Use on /mapping/pci/{value.split(',')[0][8:]}")
             print(f"   undo if start fails: " + (f"qm set {VMID} --hostpci{slot} {old}" if old else f"qm set {VMID} --delete hostpci{slot}"))
         code = cfg["monitors"][mon]["inputs"].get(pci)
         print(f"   after start: ddcutil setvcp 60 0x{code:02x} (input for {pci}); on VM stop back to 0x{cfg['monitors'][mon]['inputs'][seat['gpu']]:02x}")

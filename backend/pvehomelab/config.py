@@ -32,7 +32,7 @@ DEFAULTS = {
     "update": {"repo": "", "channel": "release", "branch": "main", "auto": False, "check_hours": 6},
     "seats": {},
     "monitors": {},
-    "launch": {"assign_gpu": True, "allow_igpu": False, "return_to_menu": True},
+    "launch": {"assign_gpu": True, "allow_igpu": False, "return_to_menu": True, "follow_start": "boot"},
     "caddy": {"ct": None, "admin": "http://localhost:2019", "prefer_suffix": "", "hide": []},
     "discovery": {"ports": True, "vms": True, "notes": True, "ignore": []},
     "services": {},

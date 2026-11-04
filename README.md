@@ -63,10 +63,16 @@ signed in, so each person sees and controls exactly what PVE allows them to.
 - **On a discrete GPU:** PVE Homelab assigns the GPU to the VM, starts it and switches the
   monitor input over **DDC/CI**. When the VM stops, the monitor comes back to the menu.
 - **On the integrated GPU:** the VM starts with **VirGL** and its screen opens right inside the
-  menu over a built-in noVNC relay. **Ctrl+Alt+Q** brings you back.
+  menu over a built-in noVNC relay. **Ctrl+Alt+Q** brings you back. What the VM's GPU entry said
+  (`x-vga`, `romfile`, a mapping) and its display are kept, and the next start on a discrete GPU
+  puts them back.
 - Each step (assign GPU, start, switch monitor) shows as a clear checklist while it happens.
 - GPUs given to VMs as Proxmox **resource mappings** (`hostpci0: mapping=…`, PVE 8+) are understood
-  like plain PCI addresses.
+  like plain PCI addresses. A VM that names a mapping keeps naming one when it gets another GPU, and
+  writing a mapping needs `Mapping.Use` on it, as in Proxmox.
+- **A VM started without the menu** (with the host, or from the Proxmox UI) on a GPU wired to the
+  menu's monitor is watched too: the monitor comes back when it stops. One that starts while the host
+  boots also gets the monitor; `launch.follow_start: always` does that for any start, `never` for none.
 
 ### Web services, found by themselves
 Your services are collected from three places and merged:
