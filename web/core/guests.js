@@ -57,9 +57,9 @@ export function render() {
       <td>${run ? `<span class="stp"><span class="dot ok"></span>${t('guest.running')}</span>` : `<span class="stp mute"><span class="dot off"></span>${t('guest.stopped')}</span>`}</td>
       <td>${run ? fmt.pct((g.cpu || 0) * 100) : '—'}</td><td>${run ? fmt.bytes(g.mem) : '—'}</td>
       <td>${svc ? `<button class="lnk" type="button" data-url="${esc(svc.url)}">${esc(svc.key)} ${icon('i-ext')}</button>` : ''}</td>
-      <td><div class="acts"><button type="button" data-act="${g.type}|${g.vmid}|${run ? 'shutdown' : 'start'}|${esc(g.name)}" title="${t(run ? 'guest.shutdown' : 'guest.start')}">${icon(run ? 'i-stop' : 'i-start')}</button>
-        ${run ? `<button type="button" data-act="${g.type}|${g.vmid}|reboot|${esc(g.name)}" title="${t('guest.reboot')}">${icon('i-restart')}</button>` : ''}
-        <button type="button" data-console="${g.type}|${g.vmid}|${esc(g.name)}" title="${t('guest.console')}">${icon('i-term')}</button></div></td></tr>`;
+      <td><div class="acts"><button type="button" data-needs="guest_actions" data-act="${g.type}|${g.vmid}|${run ? 'shutdown' : 'start'}|${esc(g.name)}" title="${t(run ? 'guest.shutdown' : 'guest.start')}">${icon(run ? 'i-stop' : 'i-start')}</button>
+        ${run ? `<button type="button" data-needs="guest_actions" data-act="${g.type}|${g.vmid}|reboot|${esc(g.name)}" title="${t('guest.reboot')}">${icon('i-restart')}</button>` : ''}
+        <button type="button" data-needs="consoles" data-console="${g.type}|${g.vmid}|${esc(g.name)}" title="${t('guest.console')}">${icon('i-term')}</button></div></td></tr>`;
   }).join('');
   $$('#guestrows [data-url]').forEach((b) => (b.onclick = () => ctx.openUrl(b.dataset.url)));
   $$('#guestrows [data-guest]').forEach((b) => (b.onclick = () => {

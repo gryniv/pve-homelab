@@ -159,3 +159,33 @@ async def test_some_changes_need_a_restart(client):
     r = await client.post("/api/system/restart")
     assert r.status == 200 and (await r.json())["restarting"] == "all"
     assert (await (await client.get("/api/system/settings")).json())["restart"] is None
+
+
+# ---------- Components: a part switched off is gone from the API ----------
+@pytest.mark.parametrize("feature,method,path", [
+    ("alerts", "GET", "/api/alerts"),
+    ("node_updates", "GET", "/api/node-updates"),
+    ("app_updates", "POST", "/api/update/check"),
+    ("weather", "GET", "/api/weather"),
+    ("wol", "GET", "/api/wol"),
+    ("guest_actions", "POST", "/api/guests/lxc/201/shutdown"),
+    ("host_power", "POST", "/api/host/power"),
+    ("my_widgets", "DELETE", "/api/widgets/x"),
+])
+async def test_a_switched_off_part_answers_404(client, feature, method, path):
+    await login(client)
+    r = await client.put("/api/system/settings", json={"set": {f"features.{feature}": False}})
+    assert r.status == 200
+    pub = await (await client.get("/api/public", headers={"X-Seat": "igpu"})).json()
+    assert pub["features"][feature] is False
+    r = await client.request(method, path, json={})
+    assert r.status == 404 and (await r.json())["error"]
+    await client.put("/api/system/settings", json={"reset": [f"features.{feature}"]})
+    assert (await (await client.get("/api/public", headers={"X-Seat": "igpu"})).json())["features"][feature] is True
+
+
+async def test_guest_details_stay_when_actions_are_off(client):
+    await login(client)
+    await client.put("/api/system/settings", json={"set": {"features.guest_actions": False}})
+    assert (await client.get("/api/guests")).status == 200
+    assert (await client.get("/api/guests/lxc/201/info")).status == 200

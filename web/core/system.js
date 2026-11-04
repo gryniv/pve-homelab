@@ -98,6 +98,7 @@ async function send(app, rerender, body, path) {
   try {
     form = await app.api.put('/api/system/settings', body);
     delete errors[path];
+    if (/^(features|weather|web|lock_after_min|saver)\b/.test(path)) app.refreshPub().catch(() => {});
     $('#savedNote') && ($('#savedNote').textContent = t('set.saved'));
   } catch (e) {
     if (e.status === 400) {

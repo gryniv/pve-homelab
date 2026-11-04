@@ -111,3 +111,17 @@ update:
                               # Settings → About → "Update by itself" (admins) wins over this
   auto_main: false            # with channel main, auto installs any pushed commit only if this is true
   check_hours: 6
+
+# Parts of the menu that can be switched off for the whole host (also in Settings → System → Components).
+# What is off leaves the menu, and its part of the API answers 404.
+features:
+  alerts: true                # the bell in the top bar
+  node_updates: true          # the Proxmox updates button and widget
+  app_updates: true           # asking GitHub for new versions of the menu, and installing them
+  weather: true               # weather in the top bar, its widget and the screensaver's sky
+  consoles: true              # VM and container screens in the menu (noVNC)
+  guest_actions: true         # start, shut down, reboot of guests from the menu
+  host_power: true            # reboot and shut down the host from Quick actions
+  wol: true                   # the Wake up widget
+  my_designs: true            # installing and removing designs in the menu
+  my_widgets: true            # installing and removing widgets in the menu

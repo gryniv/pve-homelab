@@ -41,6 +41,9 @@ const app = {
   systems: () => st.systems,
   updateStatus: () => updates.status(),
   checkUpdate: () => updates.checkNow(),
+  feature: (name) => feature(name),
+  // after Settings → System changed something the page shows (components switched off, say)
+  refreshPub: async () => { st.pub = await api.get('/api/public'); paintPub(); W.renderZone('side', st.prefs.layout.side || [], { app, opts: st.prefs.widget_opts }); },
   nodeUpdatesAllowed: () => nodeUpdates.allowed(),
   showNodeUpdates: (from) => nodeUpdates.show(from),
   showHelp: () => help.show(),
@@ -102,6 +105,7 @@ function renderLoginLang() {
 
 /* ---------------- weather ---------------- */
 async function weather(force = false) {
+  if (!feature('weather')) return null;
   const p = st.prefs?.weather || {};
   const city = p.city || st.pub.weather.city, units = p.units || st.pub.weather.units;
   const key = city + '|' + units;
@@ -211,7 +215,14 @@ function paintPub() {
   $$('[data-hostline]').forEach((x) => (x.textContent = [p.node, p.version && `Proxmox VE ${p.version}`, p.ip].filter(Boolean).join(' · ')));
   $$('[data-node]').forEach((x) => (x.textContent = p.node));
   W.setHostFigures(p.stats);
+  W.setFeatures(p.features);
+  // What is switched off on this host (Settings → System → Components) leaves the page.
+  const off = Object.entries(p.features || {}).filter(([, on]) => on === false).map(([k]) => k);
+  let style = $('#featuresOff');
+  if (!style) { style = document.createElement('style'); style.id = 'featuresOff'; document.head.appendChild(style); }
+  style.textContent = off.map((f) => `[data-needs~="${f}"]{display:none!important}`).join('\n');
 }
+const feature = (name) => st.pub?.features?.[name] !== false;
 
 // Per seat; the seat is known once /api/public has answered (setSeat), hence a function.
 const lastKey = () => 'pvehomelab.last.' + SEAT;
@@ -393,12 +404,9 @@ async function enter(userid, prefs, admin = false) {
   if (st.screen === 'dash' && (!a || a === document.body || a.closest('.top'))) nav.focusFirst(undefined, '.sys .play');
   st.timers.push(setInterval(refreshDash, 10000));
   updates.resetReminder();
-  setTimeout(updates.check, 2500);
-  setTimeout(alerts.check, 1500);
-  setTimeout(nodeUpdates.check, 3500);
-  st.timers.push(setInterval(alerts.check, 60000));
-  st.timers.push(setInterval(updates.check, 30 * 60000));
-  st.timers.push(setInterval(nodeUpdates.check, 30 * 60000));
+  if (feature('app_updates')) { setTimeout(updates.check, 2500); st.timers.push(setInterval(updates.check, 30 * 60000)); }
+  if (feature('alerts')) { setTimeout(alerts.check, 1500); st.timers.push(setInterval(alerts.check, 60000)); }
+  if (feature('node_updates')) { setTimeout(nodeUpdates.check, 3500); st.timers.push(setInterval(nodeUpdates.check, 30 * 60000)); }
 }
 
 // Installing or removing a design reloads the page (new stylesheets, new lists); it asks to come

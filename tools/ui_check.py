@@ -356,6 +356,25 @@ async def system_settings(r):
     r.check("search finds settings across groups", found and want <= set(found) and not any(x.startswith("alerts") for x in found), found)
 
 
+async def components(r):
+    """Settings → System → Components: a part switched off leaves the page at once."""
+    p = r.p
+    await r.open()
+    r.check("the weather is in the top bar", await p.js("return getComputedStyle(document.querySelector('.tw[data-needs=weather]')).display !== 'none';"))
+    await p.js("document.querySelector('.top [data-go=settings]').click();", 0.8)
+    await p.js("document.querySelector('[data-sp=system]').click();")
+    await p.until("return document.querySelectorAll('#sysGroups button').length", 6)
+    await p.js("[...document.querySelectorAll('#sysGroups button')].find(b => b.dataset.v === 'components').click();", 0.5)
+    await p.js("const c = document.querySelector('[data-sys=\"features.weather\"]'); c.checked = false; c.dispatchEvent(new Event('change'));")
+    gone = await p.until("return getComputedStyle(document.querySelector('.tw[data-needs=weather]')).display === 'none'", 5)
+    r.check("switched off, the weather leaves the top bar", gone)
+    offered = await p.js("const W = await import('/core/widgets.js'); return W.allowed('side').map(w => w.id);")
+    r.check("and its widget is no longer offered", offered and "weather" not in offered and "host" in offered, offered)
+    await p.js("const c = document.querySelector('[data-sys=\"features.weather\"]'); c.checked = true; c.dispatchEvent(new Event('change'));")
+    back = await p.until("return getComputedStyle(document.querySelector('.tw[data-needs=weather]')).display !== 'none'", 5)
+    r.check("switched on again, it is back", back)
+
+
 async def console(r):
     p = r.p
     await r.open()
@@ -1030,7 +1049,7 @@ async def misc(r):
     r.check("the weather icon exists", icon and code == 200, f"{icon} {code}")
 
 
-CHECKS = {"guests": guests, "logout": logout, "tfa_signin": tfa_signin, "system_settings": system_settings, "widgets": widgets, "toasts": toasts, "offline": offline,
+CHECKS = {"guests": guests, "logout": logout, "tfa_signin": tfa_signin, "system_settings": system_settings, "components": components, "widgets": widgets, "toasts": toasts, "offline": offline,
           "aria": dialogs_aria, "alerts": alerts, "update": failed_update, "focus": settings_focus,
           "console": console, "launch": launch, "search": search, "order": reorder, "guests_table": guest_table, "designs": my_designs, "design_pack": design_pack, "widget_strings": widget_strings, "my_widgets": my_widgets, "feedback": write_to_author, "node_updates": node_updates, "narrow": narrow, "layout_hooks": layout_hooks, "layout_theme": layout_theme, "theme_whole": theme_whole, "design_folders": design_folders, "update_check": update_check, "designing": designing, "quiet_faults": quiet_faults, "tabs": service_tabs, "misc": misc}
 

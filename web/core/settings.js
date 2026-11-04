@@ -205,7 +205,7 @@ const lookViews = {
       <button type="button" class="skin lkfold${(p.skin || 'dusk') === th.id ? ' sel' : ''}" data-skinpick="${th.id}">${monitor(lookFor(p, th.id))}
         <span>${esc(pick(th.name, lang))}<small>${esc(pick(th.desc, lang))}</small></span>
         <i class="lkopen" aria-hidden="true">${icon('i-chev')}</i></button>`).join('');
-    const mine = `<button type="button" class="skin lkmine" data-lookmine><span class="mon"><span class="lkplus">${icon(admin ? 'i-plus' : 'i-box')}</span></span>
+    const mine = `<button type="button" class="skin lkmine" data-lookmine data-needs="my_designs"><span class="mon"><span class="lkplus">${icon(admin ? 'i-plus' : 'i-box')}</span></span>
         <span>${esc(t('set.designs.title'))}<small>${esc(t(admin ? 'set.look.mine_sub' : 'set.look.mine_sub_view'))}</small></span></button>`;
     return `${hoverHint()}${grp('set.look.designs', `<div class="skins looks">${tiles}${mine}</div>`)}`;
   },
@@ -351,7 +351,7 @@ const views = {
     return `<h3>${t('set.s.dash')}</h3>${lead('set.dash.lead')}
       <div class="zones one">${zone(p, 'side')}</div>
       ${app.nodeUpdatesAllowed() ? grp('set.dash.top', tgl('pPveUpd', p.top?.pve_updates !== false, 'set.dash.pve_updates', 'set.dash.pve_updates_sub')) : ''}
-      ${widgetsMine()}
+      <div data-needs="my_widgets">${widgetsMine()}</div>
       <h4 class="subh">${t('set.dash.services')}</h4>${lead('set.services.lead')}
       ${orderEditor('services', app.services(), p, p.hidden_services,
         (x) => `<img src="/icons/${esc(x.icon || x.key)}.svg" alt="" onerror="this.style.visibility='hidden'"><span class="nm">${esc(x.name)}<small>${esc(x.host)}</small></span>`)}`;
@@ -386,7 +386,7 @@ const views = {
     return `<h3>${esc(a.name || 'PVE Homelab')}</h3>${lead('about.lead')}
       <div class="grp about-box">
         ${row('about.version', `v${esc(pub.app.version)}${u?.available ? ` · <span class="acc-text">${esc(t('about.update_new', { v: updLabel(u) }))}</span>` : u?.enabled ? ` · ${esc(t('about.update_ok'))}` : ''}${app.isAdmin() && (u ? u.enabled : !!pub.app.repo)
-          ? ` · <button class="lnk" type="button" id="updCheck">${icon('i-refresh')}<span>${esc(t('about.update_check'))}</span></button>` : ''}`)}
+          ? ` · <button class="lnk" type="button" id="updCheck" data-needs="app_updates">${icon('i-refresh')}<span>${esc(t('about.update_check'))}</span></button>` : ''}`)}
         ${a.author ? row('about.author', a.author_url ? `<a href="${esc(a.author_url)}" target="_blank" rel="noopener">${esc(a.author)}</a>` : esc(a.author)) : ''}
         ${row('about.repo', repo ? `<a href="${esc(repo)}" target="_blank" rel="noopener">${esc(repo.replace(/^https?:\/\//, ''))}</a>` : esc(t('about.none')))}
         ${row('about.license', esc(a.license || t('about.none')))}

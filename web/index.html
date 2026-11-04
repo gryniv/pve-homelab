@@ -133,10 +133,10 @@
     <div class="brand" data-part="brand"><img src="/icons/proxmox.svg" alt=""><span data-node></span><span class="health" id="health" ></span></div>
     <div class="opentabs" id="openTabs" data-part="open-tabs"></div>
     <div class="tr" data-part="topbar-tools">
-      <button class="bell" type="button" id="alertBell" hidden data-i18n-title="alerts.title"><svg class="i"><use href="#i-bell"/></svg><span class="n"></span></button>
-      <button class="bell pkg" type="button" id="nodeUpd" hidden><svg class="i"><use href="#i-dl"/></svg><span class="n"></span></button>
-      <button class="updpill" type="button" id="updPill" hidden><svg class="i"><use href="#i-refresh"/></svg><span></span></button>
-      <span class="tw"><img data-wx-icon alt=""><span data-temp></span><span class="city" data-city></span></span>
+      <button class="bell" type="button" id="alertBell" data-needs="alerts" hidden data-i18n-title="alerts.title"><svg class="i"><use href="#i-bell"/></svg><span class="n"></span></button>
+      <button class="bell pkg" type="button" id="nodeUpd" data-needs="node_updates" hidden><svg class="i"><use href="#i-dl"/></svg><span class="n"></span></button>
+      <button class="updpill" type="button" id="updPill" data-needs="app_updates" hidden><svg class="i"><use href="#i-refresh"/></svg><span></span></button>
+      <span class="tw" data-needs="weather"><img data-wx-icon alt=""><span data-temp></span><span class="city" data-city></span></span>
       <span class="tw clock-s" data-clock></span>
       <span class="vsep"></span>
       <button class="me" type="button" data-go="settings" data-i18n-title="top.my_settings"><span class="av" data-me-av></span><span data-whoami></span></button>

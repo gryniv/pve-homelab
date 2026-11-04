@@ -1,6 +1,6 @@
 // Widget loader. A widget is web/widgets/<id>/widget.js (yours: /etc/pve-homelab/widgets/<id>/)
 // exporting:
-//   { zones: ['login','side'], public?: true | 'local', source?: '/api/..' | (ctx) => Promise,
+//   { zones: ['login','side'], public?: true | 'local', needs?: '<feature>', source?: '/api/..' | (ctx) => Promise,
 //     every?: seconds, render(data, ctx) -> html, after?(el, data, ctx),
 //     options?: [ { key, type, label, default, ... } ] }
 // Its strings live next to it, one file per language: <id>/i18n/en.json, <id>/i18n/uk.json …
@@ -66,9 +66,12 @@ export const all = () => registry;
 //                    or web.sign_in: full for a browser elsewhere), which /api/public says as `stats`.
 let hostFigures = true;
 export function setHostFigures(on) { hostFigures = on !== false; }
+// needs: 'weather' | 'wol' | ...: a widget of a part of the menu switched off on this host is not offered.
+let featureOff = new Set();
+export function setFeatures(f) { featureOff = new Set(Object.entries(f || {}).filter(([, on]) => on === false).map(([k]) => k)); }
 
 export function allowed(zone) {
-  return Object.values(registry).filter((w) => w.zones.includes(zone)
+  return Object.values(registry).filter((w) => w.zones.includes(zone) && !featureOff.has(w.needs)
     && (zone !== 'login' || w.public === true || (w.public === 'local' && hostFigures)));
 }
 

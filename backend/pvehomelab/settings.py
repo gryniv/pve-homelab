@@ -109,9 +109,11 @@ REGISTRY = [
     S("update.channel", "choice", "updates", choices=("release", "main")),
     S("update.check_hours", "int", "updates", lo=1, hi=168, restart="backend"),
     S("update.repo", "str", "updates", pattern=r"^([A-Za-z0-9][\w.-]*/[A-Za-z0-9][\w.-]*|https://github\.com/[A-Za-z0-9][\w.-]*/[A-Za-z0-9][\w.-]*)?$"),
-    S("feedback.enabled", "bool", "updates"),
+    S("feedback.enabled", "bool", "components"),
     S("feedback.repo", "str", "updates", pattern=r"^([A-Za-z0-9][\w.-]*/[A-Za-z0-9][\w.-]*)?$"),
 ]
+FEATURES = ("alerts", "node_updates", "app_updates", "weather", "consoles", "guest_actions", "host_power", "wol", "my_designs", "my_widgets")
+REGISTRY += [S(f"features.{f}", "bool", "components") for f in FEATURES]
 BY_PATH = {s.path: s for s in REGISTRY}
 
 # In config.DEFAULTS but not in the form, and why (the test keeps this list honest):

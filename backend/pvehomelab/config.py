@@ -45,6 +45,9 @@ DEFAULTS = {
     "alerts": {"storage_pct": 90, "temp_c": 85, "backup_days": 7},
     # Settings → About → Write to the author: a GitHub issue in `repo` (default: where updates come from)
     "feedback": {"enabled": True, "repo": ""},
+    # Parts of the menu that can be switched off for the whole host (Settings → System → Components):
+    # what is off leaves the menu and its API answers 404.
+    "features": {"alerts": True, "node_updates": True, "app_updates": True, "weather": True, "consoles": True, "guest_actions": True, "host_power": True, "wol": True, "my_designs": True, "my_widgets": True},
 }
 
 

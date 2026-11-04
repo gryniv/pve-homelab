@@ -179,6 +179,48 @@ async def guard(req, handler):
     return await handler(req)
 
 
+# Which feature each part of the API belongs to: (method or "*", path prefix or pattern, feature).
+FEATURE_ROUTES = [
+    ("*", "/api/alerts", "alerts"),
+    ("*", "/api/node-updates", "node_updates"),
+    ("*", "/api/update", "app_updates"),
+    ("*", "/api/weather", "weather"),
+    ("*", "/api/console", "consoles"),
+    ("POST", re.compile(r"^/api/guests/[a-z]+/\d+/[a-z]+$"), "guest_actions"),
+    ("*", "/api/host/power", "host_power"),
+    ("*", "/api/wol", "wol"),
+    ("POST", "/api/designs", "my_designs"),
+    ("DELETE", "/api/designs/", "my_designs"),
+    ("POST", "/api/widgets", "my_widgets"),
+    ("DELETE", "/api/widgets/", "my_widgets"),
+]
+
+
+def feature_on(app, name):
+    return (app["cfg"].get("features") or {}).get(name, True) is not False
+
+
+def feature_of(method, path):
+    for m, where, name in FEATURE_ROUTES:
+        if m not in ("*", method):
+            continue
+        if hasattr(where, "match"):
+            if where.match(path):
+                return name
+        elif path == where or path.startswith(where if where.endswith("/") else where + "/"):
+            return name
+    return None
+
+
+@web.middleware
+async def features(req, handler):
+    """A part of the menu switched off in Settings → System → Components is gone from the API too."""
+    name = feature_of(req.method, req.path)
+    if name and not feature_on(req.app, name):
+        return web.json_response({"error": i18n._("feature_off")}, status=404)
+    return await handler(req)
+
+
 @web.middleware
 async def errors(req, handler):
     i18n.lang.set(i18n.pick(req.headers.get("X-Lang")) or req.app["cfg"]["language"])
@@ -281,6 +323,7 @@ async def public(req):
         "widget_styles": [m["id"] for m in designs.catalog("widgets")],
         "designer": designer_mode(app),
         "feedback": feedback_cfg(cfg)["enabled"],
+        "features": {f: feature_on(app, f) for f in settings.FEATURES},
         "login": prefs.load_login(),
         "widgets": userwidgets.all_ids(),
     })
@@ -1487,7 +1530,7 @@ async def _no_stale_code(req, resp):
 
 def make_app():
     errlog.setup()
-    app = web.Application(middlewares=[gate, errors, guard])
+    app = web.Application(middlewares=[gate, errors, guard, features])
     app.on_response_prepare.append(_no_stale_code)
     app["cfg"] = config.load()
     app["code"] = {k: update.installed()[k] for k in ("version", "commit")}  # what this process runs

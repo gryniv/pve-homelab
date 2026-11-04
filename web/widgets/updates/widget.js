@@ -1,6 +1,7 @@
 // Package updates waiting on the Proxmox node (the list Proxmox refreshes daily).
 // "and N more" / "Details" opens the top bar's dialog: every package, and "Check now".
 export default {
+  needs: 'node_updates',
   zones: ['side'],
   source: '/api/node-updates',
   every: 1800,

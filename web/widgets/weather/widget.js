@@ -2,6 +2,7 @@
 export default {
   zones: ['login', 'side'],
   public: true,
+  needs: 'weather',
   every: 900,
   options: [
     { key: 'days', type: 'select', label: 'opt_days', default: 'auto', choices: [['auto', 'd_auto'], ['0', 'd_0'], ['3', 'd_3'], ['4', 'd_4']] },

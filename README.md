@@ -158,6 +158,13 @@ cards, and settings and dialogs take the whole width.
   packages waiting; an amber dot means a new kernel is among them. Its dialog lists them, says when
   the package lists were last checked, checks again on request, and opens Proxmox, where they are
   installed (*Node → Updates → Upgrade*). It can be turned off in *Settings → Dashboard*.
+- **Settings → System** (admins): every setting of the host, grouped and searchable: access,
+  systems, web services, weather, alerts, Wake-on-LAN, updates. A change is kept in `settings.yaml`
+  next to `config.yaml` and wins over it, takes effect at once (or offers the restart it needs), and
+  goes back to the file in one click; `config.yaml` itself is never written.
+- **Components.** Parts of the menu can be switched off for the whole host: the bell, Proxmox
+  updates, updates of the menu, weather, consoles, guest actions, host power, Wake-on-LAN,
+  installing designs and widgets. What is off leaves the menu and its API answers 404.
 - **Alerts.** A bell in the top bar counts what needs a look, worst first: a failing disk or ZFS
   pool, a storage nearly full, a hot host, guests without a recent backup, a service whose guest is
   down. The limits are under `alerts:` in `config.yaml`.
