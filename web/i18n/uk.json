@@ -492,5 +492,22 @@
   "cfg.features.my_designs": "Встановлення дизайнів",
   "cfg.features.my_designs_hint": "«Налаштування → Вигляд → Мої дизайни»",
   "cfg.features.my_widgets": "Встановлення віджетів",
-  "cfg.features.my_widgets_hint": "«Налаштування → Панель → Мої віджети»"
+  "cfg.features.my_widgets_hint": "«Налаштування → Панель → Мої віджети»",
+  "set.s.ui": "Інтерфейс",
+  "set.ui.lead": "Як меню відчувається тобі: розмір, рух, час і що показує панель.",
+  "set.ui.size": "Розмір",
+  "set.ui.feel": "Поведінка",
+  "set.ui.calm": "Спокійно",
+  "set.ui.calm_sub": "без анімацій, переходів і погодних ефектів",
+  "set.ui.confirm": "Питати перед вимкненням чи перезавантаженням гостя",
+  "set.ui.confirm_sub": "вимкнено — кнопка діє одразу",
+  "set.ui.time": "Час і дата",
+  "set.ui.h24": "24 години",
+  "set.ui.h12": "12 годин",
+  "set.ui.sections": "На панелі",
+  "set.ui.sec_systems": "Системи",
+  "set.ui.sec_web": "Вебсервіси",
+  "set.ui.sec_guests": "Контейнери й VM",
+  "set.ui.toasts": "Повідомлення тримаються",
+  "set.ui.sec_n": "{n} с"
 }

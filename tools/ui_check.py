@@ -375,6 +375,27 @@ async def components(r):
     r.check("switched on again, it is back", back)
 
 
+async def interface(r):
+    """Settings → Interface: size, calm, parts of the dashboard, 12 hours."""
+    p = r.p
+    await r.open()
+    await p.js("document.querySelector('.top [data-go=settings]').click();", 0.8)
+    await p.js("document.querySelector('[data-sp=ui]').click();", 0.5)
+    before = await p.js("return parseFloat(getComputedStyle(document.querySelector('.A')).fontSize);")
+    await p.js("document.querySelector('#uiScale [data-v=\"140\"]').click();", 0.5)
+    after = await p.js("return parseFloat(getComputedStyle(document.querySelector('.A')).fontSize);")
+    r.check("a larger size makes everything larger", after > before * 1.3, (before, after))
+    await p.js("const c = document.querySelector('#uiCalm'); c.checked = true; c.dispatchEvent(new Event('change'));", 0.3)
+    r.check("calm stops the animations", await p.js("return document.body.classList.contains('calm');"))
+    await p.js("const c = document.querySelector('#uiSecSystems'); c.checked = false; c.dispatchEvent(new Event('change'));", 0.3)
+    r.check("systems can leave the dashboard", await p.js("return getComputedStyle(document.querySelector('.sysrail')).display === 'none';"))
+    await p.js("document.querySelector('#uiClock [data-v=\"12\"]').click();", 1.2)
+    clock = await p.js("return document.querySelector('[data-clock]')?.textContent || '';")
+    r.check("12 hours shows no hour above 12", clock and int(clock.split(':')[0].strip() or 0) <= 12, clock)
+    saved = await p.js(API + "return (await q('GET', '/api/me')).prefs.ui;", 0.8)
+    r.check("and it is saved", saved and saved["scale"] == 140 and saved["motion"] == "calm" and saved["sections"]["systems"] is False, saved)
+
+
 async def console(r):
     p = r.p
     await r.open()
@@ -1049,7 +1070,7 @@ async def misc(r):
     r.check("the weather icon exists", icon and code == 200, f"{icon} {code}")
 
 
-CHECKS = {"guests": guests, "logout": logout, "tfa_signin": tfa_signin, "system_settings": system_settings, "components": components, "widgets": widgets, "toasts": toasts, "offline": offline,
+CHECKS = {"guests": guests, "logout": logout, "tfa_signin": tfa_signin, "system_settings": system_settings, "components": components, "interface": interface, "widgets": widgets, "toasts": toasts, "offline": offline,
           "aria": dialogs_aria, "alerts": alerts, "update": failed_update, "focus": settings_focus,
           "console": console, "launch": launch, "search": search, "order": reorder, "guests_table": guest_table, "designs": my_designs, "design_pack": design_pack, "widget_strings": widget_strings, "my_widgets": my_widgets, "feedback": write_to_author, "node_updates": node_updates, "narrow": narrow, "layout_hooks": layout_hooks, "layout_theme": layout_theme, "theme_whole": theme_whole, "design_folders": design_folders, "update_check": update_check, "designing": designing, "quiet_faults": quiet_faults, "tabs": service_tabs, "misc": misc}
 

@@ -75,7 +75,7 @@ export function render() {
   }));
   $$('#guestrows [data-act]').forEach((b) => (b.onclick = async () => {
     const [type, id, act, name] = b.dataset.act.split('|');
-    if (act !== 'start') {
+    if (act !== 'start' && st.prefs?.ui?.confirm !== false) {
       const r = act === 'reboot';
       const ok = await confirmBox(t(r ? 'guest.confirm_reboot' : 'guest.confirm_shutdown', { name }),
         t(r ? 'guest.confirm_reboot_text' : 'guest.confirm_shutdown_text'), t(r ? 'guest.reboot' : 'guest.shutdown'));

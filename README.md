@@ -54,6 +54,9 @@ signed in, so each person sees and controls exactly what PVE allows them to.
   "someone else" tile.
 - **Everything is per user:** language, theme, background, fonts, clock, widgets, order of
   systems and services, and weather city.
+- **Interface, per user too:** size (80–160 %, for a TV across the room), a calm mode without
+  animations, 12 or 24 hours, the date's form, which parts the dashboard shows, whether guest
+  shutdowns ask first, and how long messages stay.
 
 ### Seats: one menu per GPU and monitor
 - Every GPU the host drives with a monitor attached becomes a **seat** with its own menu and its

@@ -38,9 +38,13 @@ export function reload(id) {
   document.querySelectorAll(`[data-clockk="${CSS.escape(id)}"]`).forEach((el) => { el.dataset.clockk = ''; });
 }
 
+// 24 or 12 hours (Settings → Interface)
+let cycle = 'h23';
+export function setHours(h) { cycle = h === '12' ? 'h12' : 'h23'; }
+
 const parts = (d, locale) => {
-  const hm = d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
-  const [h, m] = hm.split(/[:.]/);
+  const hm = d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', hourCycle: cycle });
+  const [h, m] = hm.replace(/\s*[^\d:.\s]+\.?\s*/g, '').split(/[:.]/);
   return { h, m, s: String(d.getSeconds()).padStart(2, '0'), text: hm, date: d };
 };
 

@@ -492,5 +492,22 @@
   "cfg.features.my_designs": "Installing designs",
   "cfg.features.my_designs_hint": "Settings → Appearance → My designs",
   "cfg.features.my_widgets": "Installing widgets",
-  "cfg.features.my_widgets_hint": "Settings → Dashboard → My widgets"
+  "cfg.features.my_widgets_hint": "Settings → Dashboard → My widgets",
+  "set.s.ui": "Interface",
+  "set.ui.lead": "How the menu feels to you: size, motion, time and what the dashboard shows.",
+  "set.ui.size": "Size",
+  "set.ui.feel": "Behaviour",
+  "set.ui.calm": "Calm",
+  "set.ui.calm_sub": "no animations, transitions or weather effects",
+  "set.ui.confirm": "Ask before shutting down or rebooting a guest",
+  "set.ui.confirm_sub": "off: the button acts at once",
+  "set.ui.time": "Time and date",
+  "set.ui.h24": "24 hours",
+  "set.ui.h12": "12 hours",
+  "set.ui.sections": "On the dashboard",
+  "set.ui.sec_systems": "Systems",
+  "set.ui.sec_web": "Web services",
+  "set.ui.sec_guests": "Containers & VMs",
+  "set.ui.toasts": "Messages stay for",
+  "set.ui.sec_n": "{n} s"
 }

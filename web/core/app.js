@@ -26,7 +26,7 @@ import * as guests from './guests.js';
 import * as dnd from './dnd.js';
 import * as search from './search.js';
 import { st } from './state.js';
-import { $, $$, icon, esc, avatar, fmt, toast, keepFocus, t, wxIcon, kindLabel } from './ui.js';
+import { $, $$, icon, esc, avatar, fmt, toast, keepFocus, t, wxIcon, kindLabel, setToastTime } from './ui.js';
 
 /* ---------------- app facade given to widgets & settings ---------------- */
 const app = {
@@ -156,10 +156,23 @@ function applyLook(look = {}) {
   if ((look.clock || 'digital') !== clockId) { clockId = look.clock || 'digital'; tick(); }
 }
 
+// Settings → Interface: size, calm, hours, date, which parts of the dashboard show, toasts.
+function applyUi(ui) {
+  document.documentElement.style.setProperty('--ui-scale', String((ui.scale || 100) / 100));
+  document.body.classList.toggle('calm', ui.motion === 'calm');
+  for (const k of ['systems', 'web', 'guests']) document.body.classList.toggle('no-' + k, ui.sections?.[k] === false);
+  if (ui.sections?.web === false && ui.sections?.guests !== false) $('[data-ptab=guests]')?.click();
+  clocks.setHours(ui.clock);
+  setToastTime(ui.toast_sec);
+  st.dateStyle = ui.date;
+  tick();
+}
+
 function applyPrefs({ relayout = false } = {}) {
   const p = st.prefs;
   applyLook(p);
-  scene.configure({ react: p.weather_react, byTime: p.sky_by_time, fx: p.saver.fx });
+  applyUi(p.ui || {});
+  scene.configure({ react: p.weather_react, byTime: p.sky_by_time, fx: p.saver.fx && p.ui?.motion !== 'calm' });
   $('.scr-saver').classList.toggle('sv-clockless', !p.saver.clock);
   paintMe();
   nodeUpdates.paint();
@@ -586,7 +599,9 @@ setInterval(() => {
 function tick() {
   const d = new Date();
   $$('[data-clock]').forEach((e) => clocks.paint(e, clockId, d, i18n.locale()));
-  $$('[data-date]').forEach((e) => (e.textContent = d.toLocaleDateString(i18n.locale(), { weekday: 'long', day: 'numeric', month: 'long' })));
+  const date = st.dateStyle === 'iso' ? d.toLocaleDateString('sv-SE')
+    : d.toLocaleDateString(i18n.locale(), st.dateStyle === 'short' ? { day: 'numeric', month: 'short', year: 'numeric' } : { weekday: 'long', day: 'numeric', month: 'long' });
+  $$('[data-date]').forEach((e) => (e.textContent = date));
 }
 
 /* ---------------- keyboard help, alerts, updates: their own modules ---------------- */

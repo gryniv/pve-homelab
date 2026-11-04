@@ -2,7 +2,7 @@
    so a theme (themes/*.css) changes the look without touching the components. */
 
 html,body{margin:0;height:100%;background:#05080e}
-.A{position:fixed;inset:0;font-size:min(1.25vw,2.15vh);line-height:1.4;overflow:hidden;color:#e8edf3;
+.A{position:fixed;inset:0;font-size:calc(min(1.25vw,2.15vh) * var(--ui-scale,1));line-height:1.4;overflow:hidden;color:#e8edf3;
   font-family:var(--font-ui,"Onest",system-ui,sans-serif);background:var(--solid);-webkit-font-smoothing:antialiased;user-select:none;
   --glass:rgba(16,22,31,.62);--glass2:rgba(255,255,255,.06);--edge:rgba(255,255,255,.09);--mute:rgba(226,233,242,.62);
   --ok:#4cd694;--warn:#f5c451;--bad:#ff6b6b;--off:#6b7684;
@@ -641,7 +641,7 @@ html,body{margin:0;height:100%;background:#05080e}
    The kiosk layout is one fixed screen sized by the viewport; here the type gets a readable size,
    the screens scroll, and columns stack. Dialogs and settings take the whole width. */
 @media (max-width:900px){
-  .A{font-size:clamp(13.5px,1.6vw + 8px,16px)}
+  .A{font-size:calc(clamp(13.5px,1.6vw + 8px,16px) * var(--ui-scale,1))}
   .A .scr{overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain}
   .A .overlay,.A .settings{position:fixed}
   .A .toast{max-width:92%;bottom:1em}
@@ -724,3 +724,9 @@ html,body{margin:0;height:100%;background:#05080e}
 }
 
 @media (prefers-reduced-motion:reduce){.A *{animation:none!important;transition:none!important}}
+/* Settings → Interface: calm (no animations or transitions), and parts of the dashboard left out */
+.A.calm *,.A.calm *::before,.A.calm *::after{animation-duration:0s!important;animation-iteration-count:1!important;transition:none!important}
+.A.no-systems .sysrail{display:none}
+.A.no-web [data-ptab=web],.A.no-guests [data-ptab=guests]{display:none}
+.A.no-web.no-guests [data-part=services]{display:none}
+

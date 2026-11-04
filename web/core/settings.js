@@ -16,7 +16,7 @@ const ZONES = {
 };
 
 const SECTIONS = [
-  ['look', 'i-palette', 'set.s.look'], ['login', 'i-lock', 'set.s.login'], ['dash', 'i-layout', 'set.s.dash'],
+  ['look', 'i-palette', 'set.s.look'], ['ui', 'i-chip', 'set.s.ui'], ['login', 'i-lock', 'set.s.login'], ['dash', 'i-layout', 'set.s.dash'],
   ['systems', 'i-monitor', 'set.s.systems'], ['weather', 'i-cloud', 'set.s.weather'], ['system', 'i-gear', 'set.s.system', 'admin'],
   ['about', 'i-info', 'set.s.about'],
 ];
@@ -322,8 +322,26 @@ function journal() {
     <div class="llist">${rows || `<p class="ok" style="margin:.4em 0">${t('log.empty')}</p>`}</div>`);
 }
 
+const UI_SCALES = [80, 90, 100, 110, 125, 140, 160];
+const UI_TOASTS = [2, 3, 5, 8];
+
 const views = {
   system: () => SYS.view(),
+  ui(p) {
+    const u = p.ui;
+    const now = new Date();
+    const sample = { long: now.toLocaleDateString(currentLang(), { weekday: 'long', day: 'numeric', month: 'long' }),
+      short: now.toLocaleDateString(currentLang(), { day: 'numeric', month: 'short', year: 'numeric' }), iso: now.toLocaleDateString('sv-SE') };
+    return `<h3>${t('set.s.ui')}</h3>${lead('set.ui.lead')}
+      ${grp('set.ui.size', seg('uiScale', String(u.scale), UI_SCALES.map((n) => [String(n), `${n}%`])))}
+      ${grp('set.ui.feel', tgl('uiCalm', u.motion === 'calm', 'set.ui.calm', 'set.ui.calm_sub')
+        + tgl('uiConfirm', u.confirm, 'set.ui.confirm', 'set.ui.confirm_sub'))}
+      ${grp('set.ui.time', `<div class="grp2">${seg('uiClock', u.clock, [['24', t('set.ui.h24')], ['12', t('set.ui.h12')]])}</div>
+        <div class="grp2" style="margin-top:.6em">${seg('uiDate', u.date, ['long', 'short', 'iso'].map((k) => [k, sample[k]]))}</div>`)}
+      ${grp('set.ui.sections', tgl('uiSecSystems', u.sections.systems, 'set.ui.sec_systems')
+        + tgl('uiSecWeb', u.sections.web, 'set.ui.sec_web') + tgl('uiSecGuests', u.sections.guests, 'set.ui.sec_guests'))}
+      ${grp('set.ui.toasts', seg('uiToast', String(u.toast_sec), UI_TOASTS.map((n) => [String(n), t('set.ui.sec_n', { n })])))}`;
+  },
   look(p) {
     const lang = currentLang();
     if (lookAt === 'design') F.all().forEach((m) => F.load(m.id));
@@ -404,8 +422,19 @@ const views = {
 function bind(p) {
   const box = $('#settingsBox');
   if (current === 'system') SYS.bind(app, render);
+  const setUi = (ch) => save({ ui: { ...p.ui, ...ch } });
   const segBind = (id, fn) => $$(`#${id} button`).forEach((b) => (b.onclick = () => { fn(b.dataset.v); render(); }));
   const chk = (id, fn) => { const el = $('#' + id); if (el) el.onchange = () => fn(el.checked); };
+  // interface
+  segBind('uiScale', (v) => setUi({ scale: Number(v) }));
+  segBind('uiClock', (v) => setUi({ clock: v }));
+  segBind('uiDate', (v) => setUi({ date: v }));
+  segBind('uiToast', (v) => setUi({ toast_sec: Number(v) }));
+  chk('uiCalm', (on) => setUi({ motion: on ? 'calm' : 'full' }));
+  chk('uiConfirm', (on) => setUi({ confirm: on }));
+  chk('uiSecSystems', (on) => setUi({ sections: { ...p.ui.sections, systems: on } }));
+  chk('uiSecWeb', (on) => setUi({ sections: { ...p.ui.sections, web: on } }));
+  chk('uiSecGuests', (on) => setUi({ sections: { ...p.ui.sections, guests: on } }));
   // look
   segBind('langSeg', (v) => { save({ lang: v }); app.useLang(v); });
   $$('[data-skinpick]', box).forEach((b) => (b.onclick = () => { putOn(p, b.dataset.skinpick); lookGo('design'); }));
