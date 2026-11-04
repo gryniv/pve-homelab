@@ -62,3 +62,8 @@ class Cached:
 
     def invalidate(self):
         self.at = 0.0
+
+    async def fresh(self):
+        """The value worked out now, whatever the age of the one held (stale or not)."""
+        self.at = 0.0
+        return await self._refresh()

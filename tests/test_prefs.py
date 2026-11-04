@@ -61,6 +61,19 @@ async def test_bad_prefs_do_not_break_sign_in_screen(client):
     assert any(u["id"] == "ihor@pve" for u in users)
 
 
+def test_theme_opts_keep_only_plain_names():
+    got = prefs._merge(prefs.DEFAULT, {"theme_opts": {
+        "phosphor": {"color": "green", "layout": "classic", "Bad": "x", "n": 3, "evil": "<script>"},
+        "../x": {"a": "b"}, "dusk": "not a dict"}})["theme_opts"]
+    assert got == {"phosphor": {"color": "green", "layout": "classic"}}
+    assert prefs._merge(prefs.DEFAULT, {"theme_opts": "junk"})["theme_opts"] == {}
+
+
+def test_the_sign_in_screen_sees_the_chosen_themes_settings():
+    pr = prefs._merge(prefs.DEFAULT, {"skin": "phosphor", "theme_opts": {"phosphor": {"color": "green"}, "dusk": {"x": "y"}}})
+    assert prefs.public(pr)["theme_opts"] == {"phosphor": {"color": "green"}}   # only the theme in use
+
+
 async def test_prefs_body_must_be_an_object(client):
     await login(client)
     assert (await client.put("/api/prefs", data="nope", headers={"Content-Type": "application/json"})).status == 400

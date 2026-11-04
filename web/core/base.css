@@ -413,6 +413,9 @@ html,body{margin:0;height:100%;background:#05080e}
 .A .seg button[aria-pressed="true"]{background:var(--acc-soft);color:#fff}
 .A .tgl{display:flex;justify-content:space-between;align-items:center;gap:1em;padding:.65em 0;border-top:1px solid var(--edge);font-size:.95em;max-width:44em}
 .A .tgl small{display:block;color:var(--mute);font-size:.82em}
+/* a theme's own settings (Settings → Look → Theme) */
+.A .topt{display:flex;justify-content:space-between;align-items:center;gap:.6em 1em;flex-wrap:wrap;padding:.55em 0;border-top:1px solid var(--edge);font-size:.95em;max-width:44em}
+.A .tbundle{margin:.6em 0 0}
 .A .sw{position:relative;width:2.6em;height:1.45em;flex:none}
 .A .sw input{position:absolute;inset:0;opacity:0;margin:0;cursor:pointer}
 .A .sw i{position:absolute;inset:0;border-radius:1em;background:rgba(255,255,255,.14);transition:background .2s;pointer-events:none}

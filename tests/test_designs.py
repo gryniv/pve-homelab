@@ -296,3 +296,50 @@ async def test_a_theme_that_reaches_other_themes_is_refused(client, mine):
     assert not (mine / "themes").exists()
     ok = leaky.replace(b".top{", b".A[data-skin=\"tmux\"] [data-part=\"topbar\"]{")
     assert (await client.post("/api/designs", data=form(("tmux.css", ok)))).status == 200
+
+
+# A theme as a whole (DESIGNS.md): the background and clock it brings, and its own settings.
+WHOLE = """/*
+ * @kind theme
+ * @name.en Phosphor
+ * @background vector
+ * @clock tty
+ * @option color = amber | green
+ * @option.uk color Люмінофор: бурштин | зелений
+ * @option.en color Phosphor: amber | green
+ * @option layout = terminal | classic
+ * @option.en layout Layout: only one name
+ * @option Bad = a | b
+ * @option one = only
+ * @option twice = a | a
+ * @option spaced = a b | c
+ */
+.A[data-skin="whole"]{--acc:#ffb000}
+"""
+
+
+def test_theme_options_and_what_comes_with_it(tmp_path):
+    f = tmp_path / "whole.css"
+    f.write_text(WHOLE, encoding="utf-8")
+    m = designs.meta_of(str(f), "whole")
+    assert (m["background"], m["clock"]) == ("vector", "tty")
+    assert m["options"] == [
+        {"key": "color", "values": ["amber", "green"], "default": "amber",
+         "label": {"uk": "Люмінофор", "en": "Phosphor"}, "names": {"uk": ["бурштин", "зелений"], "en": ["amber", "green"]}},
+        # names that don't match the values in number are left out; the label stays
+        {"key": "layout", "values": ["terminal", "classic"], "default": "terminal", "label": {"en": "Layout"}, "names": {}},
+    ]   # Bad (capital), one (a single value), twice (repeated) and spaced (a space in a value) are skipped
+
+
+def test_a_theme_without_options_has_none(tmp_path):
+    f = tmp_path / "plain.css"
+    f.write_text('/* @kind theme */ .A[data-skin="plain"]{--acc:red}', encoding="utf-8")
+    assert "options" not in designs.meta_of(str(f), "plain")
+
+
+async def test_public_lists_a_themes_options(client, mine):
+    (mine / "themes").mkdir(parents=True)
+    (mine / "themes" / "whole.css").write_text(WHOLE.replace('"whole"', '"whole"'), encoding="utf-8")
+    pub = await (await client.get("/api/public", headers={"X-Seat": "igpu"})).json()
+    th = next(x for x in pub["themes"] if x["id"] == "whole")
+    assert [o["key"] for o in th["options"]] == ["color", "layout"] and th["background"] == "vector"

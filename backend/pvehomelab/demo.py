@@ -474,6 +474,8 @@ async def demo_world(req):
         STATE["weather"] = b["weather"] if b["weather"] in ("clear", "partly", "overcast", "rain", "thunder", "snow", "fog") else ""
     if "update" in b:
         STATE["update"] = bool(b["update"])
+        if "update" in A_app:
+            A_app["update"].value = None   # the next check asks afresh, as after a real release
     await _refresh()
     return web.json_response({"ok": True})
 
