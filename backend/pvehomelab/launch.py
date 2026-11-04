@@ -106,6 +106,8 @@ class Launcher:
     async def options(self, seat_id, vm):
         """GPUs the user could start `vm` on from this seat."""
         seat = self.cfg["seats"][seat_id]
+        if not seat.get("gpu"):
+            return await self._remote_options(vm)
         ddc = self.app["ddc"]
         mon = ddc.monitor_for_gpu(seat["gpu"])
         wired = list(self.cfg["monitors"][mon]["inputs"]) if mon else []
@@ -138,6 +140,55 @@ class Launcher:
             opts.append(opt)
         return opts
 
+    async def _remote_options(self, vm):
+        """From a browser elsewhere (the "web" seat): its screen right here (noVNC), or a start on
+        the GPU it already has, with its own monitor. Nothing is reassigned, no input switched."""
+        running = await self.app["running"]()
+        all_gpus = {g["pci"]: g for g in await G.list_gpus(running)}
+        opts = [{"pci": "console", "name": _("browser_console"), "vendor": "", "integrated": True,
+                 "this_monitor": False, "busy_vm": None, "is_seat_gpu": True, "mode": "console",
+                 "disabled": _("no_display") if vm["vga"] == "none" else None}]
+        for pci in vm["gpus"]:
+            g = all_gpus.get(pci)
+            if not g:   # passed through, but not a GPU (its audio or USB function, say)
+                continue
+            busy = g.get("running_vm") if g.get("running_vm") not in (None, vm["vmid"]) else None
+            opts.append({"pci": pci, "name": g["name"], "vendor": g["vendor"], "integrated": g["integrated"],
+                         "this_monitor": False, "busy_vm": busy, "is_seat_gpu": False, "mode": "remote",
+                         "disabled": _("busy", vm=busy) if busy else None})
+        return opts
+
+    async def _launch_remote(self, t, vm, opt):
+        pve, node, vmid = self.app["pve"], self.cfg["node"], vm["vmid"]
+        console = opt["mode"] == "console"
+        if opt["disabled"]:
+            raise PVEError(409, _("gpu_disabled", name=opt["name"], why=opt["disabled"]))
+        if vm["status"] == "running":
+            async def show(job):
+                job.step(0)
+                if console:
+                    job.result = {"console": vmid}
+            return self.start_job(show, [_("step_show", vm=vm["name"]) if console
+                                         else _("step_running", vm=vm["name"], gpu=opt["name"])])
+        if not await pve.can(t, f"/vms/{vmid}", "VM.PowerMgmt"):
+            raise PVEError(403, _("no_power"))
+        steps = [_("step_wake" if vm["suspended"] else "step_start", vm=vm["name"], id=vmid)]
+        if console:
+            steps.append(_("step_show_short"))
+
+        async def go(job):
+            async with self._lock(f"vm:{vmid}"):
+                if vmid in await self.app["running"](fresh=True):
+                    raise PVEError(409, _("already_running", vm=vm["name"]))
+                job.step(0)
+                upid = await pve.post(t, f"/nodes/{node}/qemu/{vmid}/status/start")
+                await pve.wait_task(t, node, upid, timeout=180)
+            if console:
+                job.step(1)
+                await asyncio.sleep(1.5)
+                job.result = {"console": vmid}
+        return self.start_job(go, steps)
+
     # ---------- actions ----------
     def start_job(self, coro_fn, steps):
         job = Job(steps)
@@ -163,6 +214,8 @@ class Launcher:
         opt = opts.get(gpu)
         if not opt:
             raise PVEError(400, _("not_wired"))
+        if opt["mode"] in ("console", "remote"):
+            return await self._launch_remote(t, vm, opt)
         seat_gpu = self.cfg["seats"][seat_id]["gpu"]
         mon = self.app["ddc"].monitor_for_gpu(seat_gpu)
 

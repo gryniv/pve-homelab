@@ -77,6 +77,11 @@
   "launch.info_running_gpu": "Already running. The monitor switches to it and the menu keeps running on its own input.",
   "launch.info_running_menu": "Already running. Its screen opens here.",
   "launch.info": "Discrete GPU: the monitor switches to it and back to the menu when you shut the system down. Integrated (VirGL): the system runs inside this menu.",
+  "seat.web": "Opened in a browser",
+  "launch.pill_browser": "here", "launch.pill_own": "its monitor",
+  "launch.note_console": "the system starts as configured and its screen opens here (noVNC)",
+  "launch.note_remote": "starts on its own GPU and monitor; nothing is switched from here",
+  "launch.info_web": "Nothing is switched from a browser: open the system here, or start it on its own GPU and monitor.",
   "launch.no_gpus": "No GPU that could be given to a system is wired to this monitor.",
 
   "tabs.close": "Close {name}",

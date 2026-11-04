@@ -139,6 +139,8 @@ html,body{margin:0;height:100%;background:#05080e}
 .A .loginerr{color:#ffb3b3;font-size:.9em;margin-top:-.5em}
 .A .seatnote{font-size:.82em;color:var(--mute);border-top:1px solid var(--edge);padding-top:1em;display:flex;gap:.6em;align-items:center}
 .A .seatnote b{color:#e8edf3;font-weight:500}
+/* a browser elsewhere (the "web" seat): no "this monitor is connected to" */
+.A.remote .seat-local{display:none}
 .A .power{position:absolute;right:5em;bottom:2em;display:flex;gap:.6em}
 .A .power .chipbtn{background:rgba(10,14,20,.45);backdrop-filter:blur(.8em)}
 

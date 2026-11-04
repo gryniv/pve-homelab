@@ -2,6 +2,9 @@
 
 Run ON the Proxmox host (never expose it):
     python3 tools/dryrun.py [--port 8901]
+Trying the web seat (a browser behind the reverse proxy) needs an address beyond loopback; then
+--allow must name exactly who may get in, since anyone signs in here with "test":
+    python3 tools/dryrun.py --host 192.168.8.146 --allow 192.168.8.146
 Log in with any listed user and the password "test": what that user may do comes from
 Proxmox itself (root@pam: everything). Starting VMs, switching monitor inputs, changing
 VM configs, the self-update and Wake-on-LAN are only logged.
@@ -50,6 +53,8 @@ class DryPVE(P.PVE):
 
     async def post(self, t, endpoint, **data):
         logging.warning("DRY-RUN POST %s %s", endpoint, data)
+        if endpoint.endswith(("/vncproxy", "/termproxy")):   # nothing runs, so there is no screen to show
+            raise P.PVEError(501, "dry run: a system's screen isn't available here")
         return "UPID:dry"
 
     async def wait_task(self, *a, **k):
@@ -78,7 +83,11 @@ def _wake(target):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--port", type=int, default=8901)
+    ap.add_argument("--host", default="127.0.0.1", help="where to listen; beyond loopback only with --allow")
+    ap.add_argument("--allow", action="append", default=[], help="web.allow_from for this run (repeatable)")
     a = ap.parse_args()
+    if a.host not in ("127.0.0.1", "localhost", "::1") and not a.allow:
+        ap.error("--host beyond loopback needs --allow: in a dry run anyone signs in with \"test\"")
     L.Launcher._assign_gpu = _noop
     L.Launcher._to_virgl = _noop
     D.DDC.switch_to_gpu = _noop
@@ -86,7 +95,10 @@ def main():
     A.run = _run
     A.wol.send = _wake
     logging.basicConfig(level=logging.INFO)
-    web.run_app(A.make_app(), host="127.0.0.1", port=a.port, print=None, access_log=None)
+    app = A.make_app()
+    if a.allow:
+        app["cfg"]["web"] = {"enabled": True, "allow_from": a.allow}
+    web.run_app(app, host=a.host, port=a.port, print=None, access_log=None)
 
 
 if __name__ == "__main__":

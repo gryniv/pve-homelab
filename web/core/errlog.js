@@ -19,7 +19,7 @@ export function report(kind, msg, stack = '', where = '') {
   if (++sent > 20) return;
   const body = JSON.stringify({ kind, msg, stack: String(stack || '').slice(0, 4000), where: where || location.pathname + location.search });
   // keepalive: the report survives the page reloading right after an error
-  fetch('/api/client-log?seat=' + encodeURIComponent(SEAT), {
+  fetch('/api/client-log' + (SEAT ? '?seat=' + encodeURIComponent(SEAT) : ''), {
     method: 'POST', keepalive: true, credentials: 'same-origin',
     headers: { 'Content-Type': 'application/json', 'X-Seat': SEAT }, body,
   }).catch(() => {});

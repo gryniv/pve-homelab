@@ -266,7 +266,18 @@ After installing:
 3. **Web services.** Most are found automatically. To add one by hand, write it into the guest's
    notes (`[Name](http://address:port)`) or under `links:`. To hide one, add it to `discovery.ignore`
    or switch it off in the menu settings.
-4. Apply the changes with `systemctl restart pve-homelab 'pve-homelab-kiosk@*'`.
+4. **The menu in a browser elsewhere** (a phone, a laptop) goes through your reverse proxy with TLS,
+   never straight to port 8900. Let the backend listen beyond loopback and name the proxy:
+   ```yaml
+   listen: 0.0.0.0:8900
+   web:
+     allow_from: [192.168.8.150]   # the Caddy container; an address or a network
+   ```
+   and proxy a site to it in Caddy (`reverse_proxy 192.168.8.146:8900`). Everyone else beyond
+   loopback gets 403. A browser that comes through the proxy is the **web seat**: it never switches
+   a monitor or hands over a GPU; a system opens right in the browser (noVNC) or starts on the GPU
+   it already has. `web: {enabled: false}` turns this off.
+5. Apply the changes with `systemctl restart pve-homelab 'pve-homelab-kiosk@*'`.
 
 Every option is explained in [`etc/config.example.yaml`](etc/config.example.yaml).
 

@@ -2,7 +2,10 @@
 import { current as lang, t } from './i18n.js';
 import { report } from './errlog.js';
 
-export const SEAT = new URLSearchParams(location.search).get('seat') || 'igpu';
+// The kiosk names its seat in the URL; a browser elsewhere is the "web" seat. The backend decides
+// either way and /api/public says which (setSeat), so a page elsewhere can't pass for a monitor.
+export let SEAT = new URLSearchParams(location.search).get('seat') || '';
+export function setSeat(id) { SEAT = id || SEAT; }
 
 // The kiosk has no reload button: if the backend goes away (update, restart), wait for it and reload.
 let waiting = false;
@@ -43,7 +46,7 @@ async function call(method, path, body) {
   return data;
 }
 
-const withSeat = (p) => p + (p.includes('?') ? '&' : '?') + 'seat=' + encodeURIComponent(SEAT);
+const withSeat = (p) => (SEAT ? p + (p.includes('?') ? '&' : '?') + 'seat=' + encodeURIComponent(SEAT) : p);
 
 export const api = {
   get: (p) => call('GET', withSeat(p)),

@@ -38,29 +38,36 @@ export function open(vm, fromButton = null) {
   $('#mStart').disabled = false; $('#mCancel').textContent = t('launch.cancel');
 
   // A running VM can only be joined where it already is: its passthrough GPU, or the menu (VirGL / no GPU).
+  // From a browser elsewhere: its screen here (console), or a note that it runs on its own GPU.
   const opts = !run ? vm.options
-    : vm.gpus.length ? vm.options.filter((o) => vm.gpus.includes(o.pci))
-    : vm.options.filter((o) => o.mode === 'virgl');
+    : vm.gpus.length ? vm.options.filter((o) => vm.gpus.includes(o.pci) || o.mode === 'console')
+    : vm.options.filter((o) => o.mode === 'virgl' || o.mode === 'console');
   const usable = (o) => !o.disabled || (run && vm.gpus.includes(o.pci));
   const enabled = opts.filter(usable);
   const wantIgpu = st.prefs.launch.gpu === 'igpu';
-  const pick = (wantIgpu && enabled.find((o) => o.is_seat_gpu)) || enabled.find((o) => !o.is_seat_gpu) || enabled[0];
+  const pick = st.pub.seat.remote ? enabled[0]
+    : (wantIgpu && enabled.find((o) => o.is_seat_gpu)) || enabled.find((o) => !o.is_seat_gpu) || enabled[0];
   launchGpu = pick?.pci || null;
 
   const noteOf = (o) => {
     if (!usable(o)) return o.disabled;
     if (o.mode === 'virgl') return t(vm.suspended ? 'launch.note_virgl_suspended' : 'launch.note_virgl');
+    if (o.mode === 'console') return t('launch.note_console');
+    if (o.mode === 'remote') return t('launch.note_remote');
     return t(o.is_seat_gpu ? 'launch.note_seat' : 'launch.note_discrete');
   };
-  const info = run
-    ? t(vm.gpus.length ? 'launch.info_running_gpu' : 'launch.info_running_menu')
+  const info = st.pub.seat.remote ? t('launch.info_web')
+    : run ? t(vm.gpus.length ? 'launch.info_running_gpu' : 'launch.info_running_menu')
     : t('launch.info');
   $('#mOpts').innerHTML = (opts.length ? opts.map((o) => {
     const color = o.vendor === 'nvidia' ? 'rgba(118,185,0,.16);color:#8fd400' : 'rgba(255,90,90,.14);color:#ff8f8f';
-    const pill = o.mode === 'virgl' ? '<span class="pill dim">VirGL</span>' : o.is_seat_gpu ? '<span class="pill dim">iGPU</span>' : `<span class="pill here">${t('launch.pill_monitor')}</span>`;
+    const pill = o.mode === 'virgl' ? '<span class="pill dim">VirGL</span>'
+      : o.mode === 'console' ? `<span class="pill here">${t('launch.pill_browser')}</span>`
+      : o.mode === 'remote' ? `<span class="pill dim">${t('launch.pill_own')}</span>`
+      : o.is_seat_gpu ? '<span class="pill dim">iGPU</span>' : `<span class="pill here">${t('launch.pill_monitor')}</span>`;
     return `<button class="opt${o.pci === launchGpu ? ' sel' : ''}" type="button" data-gpu="${o.pci}" ${usable(o) ? '' : 'disabled'}>
-      <span class="radio"></span><span class="chip" style="background:${color}">${icon(o.integrated ? 'i-chip' : 'i-gpu')}</span>
-      <b>${esc(o.name)}</b>${pill}<small>${o.pci.slice(5)} · ${esc(noteOf(o))}</small></button>`;
+      <span class="radio"></span><span class="chip" style="background:${color}">${icon(o.mode === 'console' ? 'i-monitor' : o.integrated ? 'i-chip' : 'i-gpu')}</span>
+      <b>${esc(o.name)}</b>${pill}<small>${o.mode === 'console' ? '' : `${o.pci.slice(5)} · `}${esc(noteOf(o))}</small></button>`;
   }).join('') : `<div class="errbox">${esc(t('launch.no_gpus'))}</div>`)
     + `<div class="warnbox">${icon('i-info')}<span>${info}</span></div>`;
   $$('#mOpts [data-gpu]').forEach((b) => (b.onclick = () => {

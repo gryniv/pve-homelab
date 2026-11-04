@@ -1,5 +1,6 @@
 import asyncio
 import glob
+import ipaddress
 import json
 import os
 import re
@@ -38,9 +39,35 @@ def vmid_of(value):
     return v
 
 
+def peer(req):
+    return (req.remote or "").removeprefix("::ffff:")
+
+
+def is_remote(req):
+    """Anything but the host itself: a browser coming through the reverse proxy (see gate)."""
+    p = peer(req)
+    return not (p.startswith("127.") or p == "::1")
+
+
+def client_ip(req):
+    """Who is at the other end: behind the proxy it says so in X-Forwarded-For (only the proxy gets this far)."""
+    if not is_remote(req):
+        return peer(req)
+    return req.headers.get("X-Forwarded-For", "").split(",")[0].strip() or peer(req)
+
+
 def seat_of(req):
+    seats = req.app["cfg"]["seats"]
+    # A browser elsewhere is always the "web" seat, whatever it asks for: only the screens
+    # plugged into this host may switch monitors or hand their GPU to a VM.
+    if is_remote(req):
+        if "web" not in seats:
+            raise web.HTTPForbidden(text="web access is off")
+        return "web"
     seat = req.query.get("seat") or req.headers.get("X-Seat") or ""
-    if seat not in req.app["cfg"]["seats"]:
+    if not seat:   # a browser on the host itself, without ?seat=: the first kiosk seat
+        seat = next((k for k, s in seats.items() if s.get("kiosk")), next(iter(seats), ""))
+    if seat not in seats:
         raise web.HTTPBadRequest(text="unknown seat")
     return seat
 
@@ -76,16 +103,38 @@ def allowed_hosts(app):
 
 
 @web.middleware
+async def gate(req, handler):
+    """The backend listens beyond loopback only for the reverse proxy (web.allow_from): any other
+    caller is refused before anything else looks at the request."""
+    if is_remote(req):
+        w = req.app["cfg"]["web"]
+        try:
+            ip = ipaddress.ip_address(peer(req))
+            ok = bool(w.get("enabled")) and any(ip in ipaddress.ip_network(str(n), strict=False)
+                                                for n in w.get("allow_from") or [])
+        except ValueError:
+            ok = False
+        if not ok:
+            return web.Response(status=403, text="forbidden")
+    return await handler(req)
+
+
+@web.middleware
 async def guard(req, handler):
     """The menu is meant for this machine. A web page elsewhere must not reach it through a
-    rebound DNS name (wrong Host), nor post to it from its own origin (wrong Origin)."""
+    rebound DNS name (wrong Host), nor post to it from its own origin (wrong Origin).
+    Through the reverse proxy (the only remote caller gate lets in) the Host is the proxy's own
+    site name, which the proxy chose to send here: it is trusted, and an Origin must match it."""
     hosts = req.app.get("allowed_hosts_cache") or allowed_hosts(req.app)
     if "*" not in hosts:
-        if _hostname(req.headers.get("Host", "")) not in hosts:
+        host = _hostname(req.headers.get("Host", ""))
+        proxied = is_remote(req)
+        if not proxied and host not in hosts:
             return err(421, "unknown host")
         origin = req.headers.get("Origin")
+        ok_origins = (hosts | {host}) if proxied else hosts
         if req.method not in ("GET", "HEAD", "OPTIONS") and origin and origin != "null" \
-                and _hostname(origin) not in hosts:
+                and _hostname(origin) not in ok_origins:
             return err(403, "cross-origin request refused")
     return await handler(req)
 
@@ -166,7 +215,8 @@ async def public(req):
         "app": {"version": update.installed()["version"], "repo": update.settings(cfg)["repo"]},
         "version": app["pveversion"],
         "ip": app["host_ip"],
-        "seat": {"id": seat, **cfg["seats"][seat], "gpu_name": await G.pretty_name(cfg["seats"][seat]["gpu"])},
+        "seat": {"id": seat, **cfg["seats"][seat],
+                 "gpu_name": await G.pretty_name(cfg["seats"][seat]["gpu"]) if cfg["seats"][seat].get("gpu") else ""},
         "host": app["stats"].snapshot(),
         "guests": {"running": sum(g.get("status") == "running" for g in guests),
                    "stopped": sum(g.get("status") != "running" for g in guests)},
@@ -293,7 +343,7 @@ async def login(req):
     admin = await req.app["pve"].can(t, "/", "Sys.Modify")
     resp = web.json_response({"user": t.user, "prefs": prefs.load(t.user), "admin": admin})
     resp.set_cookie(COOKIE, sid, httponly=True, samesite="Strict", path="/")
-    log.info("login %s on seat %s", t.user, seat)
+    log.info("login %s on seat %s from %s", t.user, seat, client_ip(req))
     return resp
 
 
@@ -1066,6 +1116,9 @@ async def on_startup(app):
         for i, g in enumerate(await detect_seats()):
             cfg["seats"]["igpu" if g["integrated"] else f"gpu{i}"] = {"title": g["name"], "gpu": g["pci"], "tty": 7 + i, "kiosk": True}
         log.info("auto-detected seats: %s", list(cfg["seats"]))
+    if cfg["web"].get("enabled"):
+        # a browser elsewhere, through the reverse proxy: no monitor, no GPU (see seat_of)
+        cfg["seats"].setdefault("web", {"title": "Browser", "gpu": None, "kiosk": False, "remote": True})
     app["pve"] = PVE()
     app["stats"] = HostStats()
     app["ddc"] = DDC(cfg["monitors"])
@@ -1196,7 +1249,7 @@ async def _no_stale_code(req, resp):
 
 def make_app():
     errlog.setup()
-    app = web.Application(middlewares=[errors, guard])
+    app = web.Application(middlewares=[gate, errors, guard])
     app.on_response_prepare.append(_no_stale_code)
     app["cfg"] = config.load()
     app["code"] = {k: update.installed()[k] for k in ("version", "commit")}  # what this process runs

@@ -1,6 +1,6 @@
 // PVE Homelab front end: screens, login, dashboard, launching systems.
 
-import { api, SEAT } from './api.js';
+import { api, SEAT, setSeat } from './api.js';
 import * as scene from './scene.js';
 import * as W from './widgets.js';
 import * as S from './settings.js';
@@ -72,8 +72,11 @@ async function useLang(code = wantedLang()) {
 }
 
 // Everything that holds translated text is rebuilt from state.
+// A browser elsewhere isn't a monitor of this host: it says so instead of naming a GPU.
+const paintSeat = () => st.pub && $$('[data-seat-name]').forEach((x) => (x.textContent = st.pub.seat.remote ? t('seat.web') : st.pub.seat.gpu_name));
+
 function rerender() {
-  tick(); paintWeather(); renderLoginLang(); paintAbout();
+  tick(); paintWeather(); renderLoginLang(); paintAbout(); paintSeat();
   updates.paint(); nodeUpdates.paint();
   if (st.me) {
     W.renderZone('side', st.prefs.layout.side || [], { app, opts: st.prefs.widget_opts });
@@ -185,8 +188,9 @@ function go(screen) {
 }
 
 /* ---------------- login ---------------- */
-const LAST = 'pvehomelab.last.' + SEAT;
-const lastUser = () => { try { return localStorage.getItem(LAST) || ''; } catch { return ''; } };
+// Per seat; the seat is known once /api/public has answered (setSeat), hence a function.
+const lastKey = () => 'pvehomelab.last.' + SEAT;
+const lastUser = () => { try { return localStorage.getItem(lastKey()) || ''; } catch { return ''; } };
 
 function paintLoginChrome() {
   const L = st.pub.login || {};
@@ -238,7 +242,7 @@ $('#loginForm').addEventListener('submit', async (e) => {
   try {
     const r = await api.post('/api/login', { user, password: $('#pw').value });
     $('#pw').value = '';
-    try { localStorage.setItem(LAST, r.user); } catch {}
+    try { localStorage.setItem(lastKey(), r.user); } catch {}
     await enter(r.user, r.prefs, r.admin);
   } catch (err) {
     $('#loginErr').textContent = err.message;
@@ -487,7 +491,9 @@ async function boot() {
   }
   bg.init(st.pub.backgrounds);
   fonts.init(st.pub.fonts);
-  $$('[data-seat-name]').forEach((x) => (x.textContent = st.pub.seat.gpu_name));
+  setSeat(st.pub.seat.id);
+  document.body.classList.toggle('remote', !!st.pub.seat.remote);
+  paintSeat();
   $$('[data-hostline]').forEach((x) => (x.textContent = `${st.pub.node} · Proxmox VE ${st.pub.version} · ${st.pub.ip}`));
   $$('[data-node]').forEach((x) => (x.textContent = st.pub.node));
   try { about = await (await fetch('/about.json', { cache: 'no-cache' })).json(); } catch {}

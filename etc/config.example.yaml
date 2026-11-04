@@ -3,7 +3,14 @@
 # (python3 -m pvehomelab.setup). This example shows every option.
 # After editing: systemctl restart pve-homelab 'pve-homelab-kiosk@*'
 
-listen: 127.0.0.1:8900
+listen: 127.0.0.1:8900       # 0.0.0.0:8900 only for the reverse proxy below (web.allow_from)
+# The menu in a browser elsewhere, through a reverse proxy with TLS (e.g. Caddy on home.example.com).
+# Only loopback and these addresses or networks may talk to the backend; a browser that comes through
+# the proxy is the "web" seat: it never switches a monitor or hands over a GPU.
+web:
+  enabled: true
+  allow_from: []              # e.g. [192.168.8.150] (the Caddy container) or [10.0.0.0/24]
+allowed_hosts: []             # extra Host names for browsers on this machine; "*" turns the check off
 node: ""                      # empty = this host's name
 language: en                  # default UI language (uk, en); every user can pick their own
 systems_tag: seat             # VMs with this tag appear under Systems
