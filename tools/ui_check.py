@@ -161,15 +161,16 @@ async def logout(r):
 async def widgets(r):
     p = r.p
     await r.open()
-    await p.js("""window.__rf = window.fetch; window.__fail = true;
-        window.fetch = (u, o) => String(u).includes('/api/gpus') && window.__fail
-          ? Promise.resolve(new Response(JSON.stringify({error: 'gpus down'}), {status: 500})) : window.__rf(u, o);""")
-    await p.js("const W = await import('/core/widgets.js'); W.renderZone('side', ['gpus'], {app: {seat: () => ({gpu: ''})}, opts: {}});", 1.0)
-    box = "document.querySelector('[data-zone=side] [data-w=gpus]')"
+    # The services-health widget reads its data through the app, not over HTTP: its failure is
+    # fully under the check's control (an HTTP widget may be served from the shared cache).
+    await p.js("""window.__fail = true;
+        window.__app = {services: () => { if (window.__fail) throw new Error('services down'); return [{name: 'X', status: 'running'}]; }};
+        const W = await import('/core/widgets.js'); W.renderZone('side', ['svchealth'], {app: window.__app, opts: {}});""", 1.0)
+    box = "document.querySelector('[data-zone=side] [data-w=svchealth]')"
     r.check("a failed widget offers Try again", await p.js(f"return !!{box}?.querySelector('.wretry');"))
-    await p.js(f"window.__fail = false; {box}.querySelector('.wretry').click();", 1.0)
-    r.check("Try again loads it", await p.js(f"return !{box}.querySelector('.werr') && {box}.textContent.length > 10;"))
-    await p.js("window.__host = 0; const f = window.fetch; window.fetch = (u, o) => { if (String(u).includes('/api/host')) window.__host++; return f(u, o); };")
+    await p.js(f"window.__fail = false; {box}?.querySelector('.wretry')?.click();", 1.0)
+    r.check("Try again loads it", await p.js(f"return !!{box} && !{box}.querySelector('.werr') && {box}.textContent.includes('1/1');"))
+    await p.js("window.__rf = window.fetch; window.__host = 0; const f = window.fetch; window.fetch = (u, o) => { if (String(u).includes('/api/host')) window.__host++; return f(u, o); };")
     await p.js("const W = await import('/core/widgets.js'); W.renderZone('side', ['host', 'network'], {app: {}, opts: {}});", 1.0)
     n = await p.js("return window.__host;")
     r.check("host and network widgets share one request", n == 1, n)
