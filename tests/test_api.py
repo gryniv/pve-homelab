@@ -242,3 +242,36 @@ async def test_console_asks_proxmox_for_the_right_guest_type(client, monkeypatch
     assert client.server.app["consoles"][tok]["type"] == "lxc"
     await client.post("/api/console/100")
     assert asked[-1].endswith("/qemu/100/vncproxy")
+
+
+async def test_guest_history(client):
+    await login(client)
+    running = next(v for v, g in demo.WORLD.items() if g["status"] == "running")
+    typ = demo.WORLD[running]["type"]
+    d = await (await client.get(f"/api/guests/{typ}/{running}/rrd?timeframe=day")).json()
+    assert d["timeframe"] == "day" and len(d["time"]) == 70 == len(d["cpu"]) == len(d["netin"])
+    assert d["time"] == sorted(d["time"]) and all(0 <= c <= 100 for c in d["cpu"])
+    assert d["maxmem"] > 0
+
+
+async def test_guest_history_gaps_while_off(client):
+    await login(client)
+    stopped = next(v for v, g in demo.WORLD.items() if g["status"] == "stopped")
+    d = await (await client.get(f"/api/guests/{demo.WORLD[stopped]['type']}/{stopped}/rrd")).json()
+    assert d["cpu"][-1] is None and d["cpu"][0] is not None   # off now, on an hour ago
+
+
+async def test_guest_history_checks_input_and_rights(client):
+    await login(client)
+    assert (await client.get("/api/guests/docker/100/rrd")).status == 400
+    assert (await client.get("/api/guests/qemu/100/rrd?timeframe=year")).status == 400
+    await client.post("/api/logout")
+    await login(client, "guest@pve")
+    hidden = next(v for v in demo.WORLD if v not in demo.GUEST_SEES)
+    assert (await client.get(f"/api/guests/{demo.WORLD[hidden]['type']}/{hidden}/rrd")).status == 403
+
+
+def test_summarize_rrd_orders_and_keeps_gaps():
+    from pvehomelab.app import summarize_rrd
+    d = summarize_rrd([{"time": 20, "cpu": 0.5, "maxmem": 8}, {"time": 10}, {"cpu": 1}])
+    assert d["time"] == [10, 20] and d["cpu"] == [None, 50.0] and d["maxmem"] == 8

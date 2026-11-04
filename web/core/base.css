@@ -263,6 +263,28 @@ html,body{margin:0;height:100%;background:#05080e}
 .A td.nm span{display:inline-flex;align-items:center;gap:.55em}
 .A td.nm img,.A td.nm .gen{width:1.5em;height:1.5em;border-radius:.3em;object-fit:contain}
 .A td.nm .gen{display:inline-grid;place-items:center;background:rgba(255,255,255,.08);color:var(--mute)}
+/* guests table: sortable headers, the name opens the guest's history, the filter above */
+.A th button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer;display:inline-flex;align-items:center;gap:.3em}
+.A th button:hover,.A th button:focus-visible{color:var(--txt,#fff)}
+.A th[aria-sort] button{color:var(--acc-text)}
+.A th[aria-sort="ascending"] button::after{content:"▲";font-size:.7em}
+.A th[aria-sort="descending"] button::after{content:"▼";font-size:.7em}
+.A td.nm .gname{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer;display:inline-flex;align-items:center;gap:.55em;text-align:left}
+.A td.nm .gname img,.A td.nm .gname .gen{width:1.5em;height:1.5em;border-radius:.3em;object-fit:contain}
+.A td.nm .gname:hover,.A td.nm .gname:focus-visible{color:var(--acc-text);text-decoration:underline;text-underline-offset:.2em}
+.A .gtools{display:flex;justify-content:flex-end;margin:0 0 .5em}
+.A .gtools input{font:inherit;font-size:.85em;color:inherit;background:rgba(255,255,255,.05);border:1px solid var(--edge);border-radius:.55em;padding:.4em .7em;width:16em;max-width:100%}
+.A .gtools input:focus{outline:none;border-color:var(--acc)}
+/* a guest's history */
+.A .confirm.gdetail{width:min(44em,92vw)}
+.A .gdetail .ghead{display:flex;align-items:center;justify-content:space-between;gap:1em;flex-wrap:wrap}
+.A .gdetail .ghead h3{margin:0}
+.A .gchart{margin:.2em 0 .6em}
+.A .gchart .gch{display:flex;justify-content:space-between;gap:1em;font-size:.88em;margin-bottom:.3em}
+.A .gchart .gch span{color:var(--mute);font-variant-numeric:tabular-nums}
+.A .gchart .chart{width:100%;height:4.4em;display:block;background:rgba(255,255,255,.03);border-radius:.4em}
+.A .glegend{display:flex;gap:1em;font-size:.76em;color:var(--mute);margin-top:.3em}
+.A .glegend i{display:inline-block;width:.8em;height:.25em;border-radius:1em;margin-right:.35em;vertical-align:middle}
 .A .type{font-family:var(--mono);font-size:.74em;color:var(--mute);border:1px solid var(--edge);border-radius:.3em;padding:.05em .35em}
 .A .lnk{color:var(--acc-text);background:none;border:0;padding:0;font-size:.95em;display:inline-flex;gap:.3em;align-items:center}
 .A .acts{display:flex;gap:.35em;justify-content:flex-end}

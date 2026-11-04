@@ -2,7 +2,7 @@
   "_name": "English",
 
   "unit.b": "B", "unit.kb": "KB", "unit.mb": "MB", "unit.gb": "GB", "unit.tb": "TB",
-  "unit.d": "d", "unit.h": "h", "unit.min": "min",
+  "unit.d": "d", "unit.h": "h", "unit.s": "s", "unit.min": "min",
   "cores": { "one": "{n} core", "other": "{n} cores" },
   "gb": "{n} GB",
 
@@ -55,6 +55,12 @@
   "guest.confirm_shutdown": "Shut down {name}?",
   "guest.confirm_shutdown_text": "The system will be asked to shut down cleanly.",
   "guest.sent": "{name}: command sent",
+  "guest.filter": "Filter guests", "guest.none": "No guests",
+  "guest.history": "{name}: load over time", "guest.period": "Period",
+  "guest.range_hour": "Hour", "guest.range_day": "Day", "guest.range_week": "Week",
+  "guest.cpu": "CPU", "guest.mem": "Memory", "guest.net": "Network",
+  "guest.net_in": "in", "guest.net_out": "out", "guest.peak": "peak {v}",
+  "guest.off_now": "off now", "guest.no_history": "No data for this period: the guest was off",
 
   "launch.cancel": "Cancel",
   "launch.close": "Close",

@@ -2,7 +2,7 @@
   "_name": "Українська",
 
   "unit.b": "Б", "unit.kb": "КБ", "unit.mb": "МБ", "unit.gb": "ГБ", "unit.tb": "ТБ",
-  "unit.d": "д", "unit.h": "год", "unit.min": "хв",
+  "unit.d": "д", "unit.h": "год", "unit.s": "с", "unit.min": "хв",
   "cores": { "one": "{n} ядро", "few": "{n} ядра", "many": "{n} ядер", "other": "{n} ядра" },
   "gb": "{n} ГБ",
 
@@ -55,6 +55,12 @@
   "guest.confirm_shutdown": "Вимкнути {name}?",
   "guest.confirm_shutdown_text": "Системі буде надіслано команду коректного вимкнення.",
   "guest.sent": "{name}: команду надіслано",
+  "guest.filter": "Фільтр гостей", "guest.none": "Гостей немає",
+  "guest.history": "{name}: навантаження з часом", "guest.period": "Період",
+  "guest.range_hour": "Година", "guest.range_day": "Доба", "guest.range_week": "Тиждень",
+  "guest.cpu": "Процесор", "guest.mem": "Пам'ять", "guest.net": "Мережа",
+  "guest.net_in": "вхідний", "guest.net_out": "вихідний", "guest.peak": "пік {v}",
+  "guest.off_now": "зараз вимкнений", "guest.no_history": "За цей період даних немає: гість був вимкнений",
 
   "launch.cancel": "Скасувати",
   "launch.close": "Закрити",

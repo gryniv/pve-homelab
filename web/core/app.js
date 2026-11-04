@@ -272,6 +272,7 @@ async function logout() {
   if (st.filter) search.setFilter('');
   renderSystems(); renderServices(); guests.render();
   alerts.reset();
+  guests.reset();
   st.me = null; st.prefs = null;
   try { st.pub = await api.get('/api/public'); } catch {}
   await useLang();

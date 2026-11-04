@@ -160,7 +160,7 @@ async def logout(r):
     await r.open()
     await p.js("document.querySelector('#logoutBtn').click();")
     await p.until("return !document.querySelector('[data-scr=login]').hidden", 5)
-    n = await p.js("return [document.querySelectorAll('#svcgrid .svc').length, document.querySelectorAll('#guestrows tr').length, document.querySelectorAll('.sys .play').length];")
+    n = await p.js("return [document.querySelectorAll('#svcgrid .svc').length, document.querySelectorAll('#guestrows [data-guest]').length, document.querySelectorAll('.sys .play').length];")
     r.check("sign-out clears the previous user's dashboard", n == [0, 0, 0], n)
     r.check("sign-out hides the bell", await p.js("return document.querySelector('#alertBell').hidden;"))
 
@@ -323,6 +323,40 @@ async def reorder(r):
     r.check("the new order is saved", saved and saved[1] == first, saved)
 
 
+async def guest_table(r):
+    p = r.p
+    await r.open()
+    await p.js("document.querySelector('[data-ptab=guests]').click();", 0.6)
+    await p.js("document.querySelector('[data-sort=cpu]').click();", 0.3)
+    state = await p.js("""const rows = [...document.querySelectorAll('#guestrows tr')];
+        const cpu = rows.map(r => r.children[4]?.textContent.trim()).filter(x => x && x !== '—').map(x => parseFloat(x));
+        return [document.querySelector('th[data-col=cpu]').getAttribute('aria-sort'), cpu];""")
+    r.check("CPU header sorts the busiest first", state[0] == "descending" and state[1] == sorted(state[1], reverse=True) and len(state[1]) > 2, state)
+    await p.js("document.querySelector('[data-sort=cpu]').click();", 0.3)
+    r.check("…and the other way on a second click", await p.js("return document.querySelector('th[data-col=cpu]').getAttribute('aria-sort');") == "ascending")
+    await p.js("document.querySelector('[data-sort=vmid]').click(); document.querySelector('#guestrows [data-guest]').focus();", 0.3)
+    for ch in "jelly":
+        await p.key(ch, 0, ch)
+    names = await p.until("const n = [...document.querySelectorAll('#guestrows .gname')].map(b => b.textContent.trim()); return n.length === 1 && n;", 3)
+    r.check("typing on the guests tab filters the guests", names == ["jellyfin"], names)
+    await p.key("Escape", 27)
+    await asyncio.sleep(0.3)
+    n = await p.js("return document.querySelectorAll('#guestrows .gname').length;")
+    r.check("Esc clears the guest filter", n > 5, n)
+
+    # a guest's history
+    await p.js("document.querySelector('#guestrows [data-guest]').click();")
+    charts = await p.until("return !document.querySelector('#guestLayer').hidden && document.querySelectorAll('#gCharts .chart path').length;", 5)
+    r.check("a guest's name opens its history with charts", (charts or 0) >= 3, charts)
+    await p.js("document.querySelector('#gRange [data-range=week]').click();")
+    wk = await p.until("return document.querySelector('#gRange [data-range=week]').getAttribute('aria-pressed') === 'true' && document.querySelectorAll('#gCharts .chart').length === 3;", 5)
+    r.check("the week range loads", wk)
+    await p.key("Escape", 27)
+    await asyncio.sleep(0.3)
+    st = await p.js("return [document.querySelector('#guestLayer').hidden, document.activeElement?.classList.contains('gname'), document.querySelector('[data-pane=guests]').hidden];")
+    r.check("Esc closes the history, focus back on the guest", st == [True, True, False], st)
+
+
 async def service_tabs(r):
     p = r.p
     await r.open()
@@ -354,7 +388,7 @@ async def misc(r):
 
 CHECKS = {"guests": guests, "logout": logout, "widgets": widgets, "toasts": toasts, "offline": offline,
           "aria": dialogs_aria, "alerts": alerts, "update": failed_update, "focus": settings_focus,
-          "console": console, "launch": launch, "search": search, "order": reorder, "tabs": service_tabs, "misc": misc}
+          "console": console, "launch": launch, "search": search, "order": reorder, "guests_table": guest_table, "tabs": service_tabs, "misc": misc}
 
 
 # ---------------------------------------------------------------- driver

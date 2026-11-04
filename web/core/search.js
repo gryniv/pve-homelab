@@ -1,5 +1,6 @@
 // Search on the dashboard: just start typing, the key lands in the search box and the
-// web services narrow down. Esc clears it, Enter opens the first match.
+// web services narrow down (on the Containers & VMs tab: the guests' filter). Esc clears it,
+// Enter opens the first match.
 import { st } from './state.js';
 import * as nav from './nav.js';
 import { $, $$ } from './ui.js';
@@ -25,6 +26,8 @@ export function init(c) {
   addEventListener('keydown', (e) => {
     if (st.screen !== 'dash' || e.ctrlKey || e.altKey || e.metaKey || e.key.length !== 1 || e.key === ' ' || e.key === '?') return;
     if (/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName)) return;
+    // On the Containers & VMs tab the letters filter the guests instead.
+    if (!$('[data-pane=guests]').hidden) { $('#guestFilter').focus(); return; }
     const box = $('#svcSearch');
     box.hidden = false;
     box.focus(); // the key lands in the search box

@@ -105,6 +105,28 @@ def resources(user="root@pam"):
     return out
 
 
+def rrddata(user, vmid, timeframe):
+    """Made-up history: 70 points like Proxmox gives, gaps while the guest was off."""
+    if vmid not in WORLD or vmid not in _visible(user):
+        raise PVEError(403, i18n._("forbidden"))
+    g = WORLD[vmid]
+    step = {"hour": 60, "day": 1200, "week": 8640}[timeframe]
+    now = int(time.time()) // step * step
+    out = []
+    for i in range(70):
+        t = now - (69 - i) * step
+        row = {"time": t}
+        # a stopped guest shows its last hour of activity before it went down, then a gap
+        on = g["status"] == "running" or i < 40
+        if on:
+            w = (math.sin(t / (step * 7) + vmid) + 1) / 2
+            row.update(cpu=0.03 + 0.35 * w * w, maxcpu=g["cores"], mem=g["mem"] * GB * (0.35 + 0.3 * w),
+                       maxmem=g["mem"] * GB, netin=2e5 + 3e6 * w, netout=1e5 + 1.2e6 * (1 - w),
+                       diskread=5e4 * w, diskwrite=2e5 * (1 - w))
+        out.append(row)
+    return out
+
+
 def qemu_config(vmid):
     g = WORLD[vmid]
     conf = {"name": g["name"], "ostype": g["ostype"], "cores": g["cores"], "sockets": 1,
@@ -127,6 +149,8 @@ class DemoPVE(PVE):
         await asyncio.sleep(0.05)
         if endpoint == "/cluster/resources":
             return resources(t.user)
+        if endpoint.endswith("/rrddata"):
+            return rrddata(t.user, int(endpoint.split("/")[4]), params.get("timeframe", "hour"))
         if endpoint.startswith(f"/nodes/{NODE}/qemu/") and endpoint.endswith("/config"):
             return qemu_config(int(endpoint.split("/")[4]))
         if endpoint == f"/nodes/{NODE}/storage" and params.get("content") == "backup":

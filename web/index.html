@@ -148,7 +148,15 @@
         </div>
         <div data-pane="web" class="scroll"><div class="svcgrid" id="svcgrid"></div></div>
         <div data-pane="guests" class="scroll" hidden>
-          <table><thead><tr><th data-i18n="col.name"></th><th data-i18n="col.id"></th><th data-i18n="col.type"></th><th data-i18n="col.state"></th><th data-i18n="col.cpu"></th><th data-i18n="col.ram"></th><th data-i18n="col.site"></th><th></th></tr></thead><tbody id="guestrows"></tbody></table>
+          <div class="gtools"><input id="guestFilter" type="search" autocomplete="off" spellcheck="false" data-i18n-placeholder="guest.filter" data-i18n-aria="guest.filter"></div>
+          <table><thead><tr>
+            <th data-col="name"><button type="button" data-sort="name" data-i18n="col.name"></button></th>
+            <th data-col="vmid"><button type="button" data-sort="vmid" data-i18n="col.id"></button></th>
+            <th data-col="type"><button type="button" data-sort="type" data-i18n="col.type"></button></th>
+            <th data-col="status"><button type="button" data-sort="status" data-i18n="col.state"></button></th>
+            <th data-col="cpu"><button type="button" data-sort="cpu" data-i18n="col.cpu"></button></th>
+            <th data-col="mem"><button type="button" data-sort="mem" data-i18n="col.ram"></button></th>
+            <th data-i18n="col.site"></th><th></th></tr></thead><tbody id="guestrows"></tbody></table>
         </div>
       </div>
     </div>
@@ -181,6 +189,7 @@
 </section>
 
 <div class="overlay" id="confirmLayer" hidden><div class="confirm" role="alertdialog" aria-modal="true" aria-labelledby="cTitle" aria-describedby="cText"><h3 id="cTitle"></h3><div class="mute" id="cText"></div><div class="mbtns"><button class="btn ghost" type="button" id="cNo" data-i18n="confirm.cancel"></button><button class="btn danger" type="button" id="cYes"></button></div></div></div>
+<div class="overlay" id="guestLayer" hidden><div class="confirm gdetail" role="dialog" aria-modal="true" aria-labelledby="gTitle"><div class="ghead"><h3 id="gTitle"></h3><div class="seg" id="gRange" role="group" data-i18n-aria="guest.period"></div></div><div id="gCharts" aria-live="polite"></div><div class="mbtns"><button class="btn" type="button" id="gClose" data-i18n="set.close"></button></div></div></div>
 <div class="overlay" id="alertsLayer" hidden><div class="confirm alerts" role="dialog" aria-modal="true" aria-labelledby="alertsTitle"><h3 id="alertsTitle" data-i18n="alerts.title"></h3><ul class="alist" id="alertsList"></ul><div class="mbtns"><button class="btn" type="button" id="alertsClose" data-i18n="set.close"></button></div></div></div>
 <div class="overlay" id="helpLayer" hidden><div class="confirm help" role="dialog" aria-modal="true" aria-labelledby="helpTitle"><h3 id="helpTitle" data-i18n="help.title"></h3><table id="helpTable"></table><div class="mbtns"><button class="btn" type="button" id="helpClose" data-i18n="set.close"></button></div></div></div>
 <button class="demo-ribbon" type="button" id="demoRibbon" hidden data-i18n-title="demo.open"><span data-i18n="demo.ribbon"></span></button>

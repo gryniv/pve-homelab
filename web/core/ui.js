@@ -44,7 +44,7 @@ export const fmt = {
 // Re-render `root` via fn() without losing keyboard focus (matched by a stable attribute).
 const KEYS = ['id', 'data-sys', 'data-url', 'data-act', 'data-console', 'data-sp', 'data-skinpick', 'data-bgk', 'data-clk', 'data-font', 'data-v', 'data-av',
   'data-add', 'data-mv', 'data-rm', 'data-hide', 'data-gpu', 'data-ptab', 'data-user', 'data-q', 'data-tab', 'data-tabx',
-  'data-omv', 'data-vis', 'data-wcfg', 'data-wo', 'data-wochk'];
+  'data-omv', 'data-vis', 'data-wcfg', 'data-wo', 'data-wochk', 'data-guest', 'data-sort', 'data-range'];
 export function keepFocus(root, fn) {
   const a = document.activeElement;
   let sel = null;

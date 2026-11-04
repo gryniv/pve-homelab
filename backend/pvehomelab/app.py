@@ -363,6 +363,35 @@ async def guests(req):
                                     key=lambda g: (g["type"] != "qemu", g["vmid"])))
 
 
+RRD_TIMEFRAMES = ("hour", "day", "week")
+
+
+def summarize_rrd(rows):
+    """Proxmox rrddata rows -> parallel series for the charts. A guest that was off has no
+    values for those points: they stay None (a gap), not zero."""
+    def col(key, scale=1.0):
+        return [None if r.get(key) is None else round(float(r[key]) * scale, 3) for r in rows]
+    rows = sorted((r for r in rows or [] if r.get("time")), key=lambda r: r["time"])
+    maxmem = next((r["maxmem"] for r in reversed(rows) if r.get("maxmem")), 0)
+    return {"time": [int(r["time"]) for r in rows], "cpu": col("cpu", 100), "mem": col("mem"), "maxmem": maxmem,
+            "netin": col("netin"), "netout": col("netout"), "diskread": col("diskread"), "diskwrite": col("diskwrite")}
+
+
+@routes.get("/api/guests/{type}/{vmid}/rrd")
+async def guest_rrd(req):
+    """A guest's load over the last hour/day/week, with the user's own ticket (Proxmox checks VM.Audit)."""
+    s = await session(req)
+    typ, vmid = req.match_info["type"], vmid_of(req.match_info["vmid"])
+    if typ not in ("qemu", "lxc"):
+        raise web.HTTPBadRequest(text="bad type")
+    tf = req.query.get("timeframe", "hour")
+    if tf not in RRD_TIMEFRAMES:
+        raise web.HTTPBadRequest(text="bad timeframe")
+    node = req.app["cfg"]["node"]
+    rows = await req.app["pve"].get(s["ticket"], f"/nodes/{node}/{typ}/{vmid}/rrddata", timeframe=tf, cf="AVERAGE")
+    return web.json_response({"timeframe": tf, **summarize_rrd(rows)})
+
+
 @routes.post("/api/guests/{type}/{vmid}/{action}")
 async def guest_action(req):
     s = await session(req)
