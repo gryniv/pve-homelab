@@ -572,6 +572,15 @@ async def demo_state(req):
                               "os": list(OS_TYPES), "apps": sorted(APP_PORTS)})
 
 
+@A.routes.post("/api/demo/wol-packet")
+async def demo_wol_packet(req):
+    """A Wake-on-LAN packet for a MAC address, as Moonlight would send it."""
+    b = await _json(req)
+    mac = bytes.fromhex(str(b.get("mac", "")).replace(":", ""))
+    vmid = await A_app["app"]["wolserver"].packet(b"\xff" * 6 + mac * 16, b.get("from") or "192.168.8.20")
+    return web.json_response({"started": vmid})
+
+
 @A.routes.post("/api/demo/screen-off")
 async def demo_screen_off(req):
     """As if the screen had been idle long enough: the monitor goes dark."""

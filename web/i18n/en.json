@@ -594,5 +594,13 @@
   "cfg.screen.off_after_min": "Monitors go dark after, minutes without a key",
   "cfg.screen.off_after_min_hint": "DDC standby and a black page; any key wakes them; 0: never",
   "cfg.screen.night": "Night",
-  "cfg.screen.night_hint": "e.g. 23:00-07:00: dark after a minute without a key; never while a system is shown"
+  "cfg.screen.night_hint": "e.g. 23:00-07:00: dark after a minute without a key; never while a system is shown",
+  "cfg.wol_listen.enabled": "VMs wake on a Wake-on-LAN packet",
+  "cfg.wol_listen.enabled_hint": "e.g. Moonlight's Wake PC; the packet for a VM's network card starts it",
+  "cfg.wol_listen.vms": "Which VMs",
+  "cfg.wol_listen.vms_hint": "their ids; no other VM ever starts this way",
+  "cfg.wol_listen.from": "From which networks",
+  "cfg.wol_listen.from_hint": "empty: any",
+  "cfg.wol_listen.ports": "UDP ports",
+  "cfg.wol_listen.ports_hint": "9 is what most senders use"
 }

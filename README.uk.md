@@ -183,6 +183,7 @@ update:
    wol:
      - {name: NAS, mac: "aa:bb:cc:dd:ee:ff"}
    ```
+   **VM теж можуть прокидатися від пакета:** з `wol_listen: {enabled: true, vms: [102]}` пакет Wake-on-LAN для мережевої карти VM 102 (Wake PC у Moonlight, застосунок на телефоні) запускає її, якщо її відеокарта вільна. Лише VM зі списку, з мереж `wol_listen.from`; UDP 9. Монітор при цьому не перемикається.
 6. Після змін виконай `systemctl restart pve-homelab 'pve-homelab-kiosk@*'`.
 
 Повний перелік параметрів із поясненнями є в [`etc/config.example.yaml`](etc/config.example.yaml).

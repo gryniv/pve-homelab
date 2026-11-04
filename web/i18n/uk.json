@@ -594,5 +594,13 @@
   "cfg.screen.off_after_min": "Монітори гаснуть після, хвилин без клавіш",
   "cfg.screen.off_after_min_hint": "DDC standby і чорна сторінка; будь-яка клавіша будить; 0 — ніколи",
   "cfg.screen.night": "Ніч",
-  "cfg.screen.night_hint": "напр. 23:00-07:00: гаснуть після хвилини без клавіш; ніколи, поки показують систему"
+  "cfg.screen.night_hint": "напр. 23:00-07:00: гаснуть після хвилини без клавіш; ніколи, поки показують систему",
+  "cfg.wol_listen.enabled": "VM прокидаються від пакета Wake-on-LAN",
+  "cfg.wol_listen.enabled_hint": "напр. Wake PC у Moonlight; пакет для мережевої карти VM запускає її",
+  "cfg.wol_listen.vms": "Які VM",
+  "cfg.wol_listen.vms_hint": "їхні id; жодна інша VM так не стартує",
+  "cfg.wol_listen.from": "З яких мереж",
+  "cfg.wol_listen.from_hint": "порожньо — з будь-яких",
+  "cfg.wol_listen.ports": "Порти UDP",
+  "cfg.wol_listen.ports_hint": "9 — що шле більшість"
 }

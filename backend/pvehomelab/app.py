@@ -17,6 +17,7 @@ from .ddc import DDC
 from .host import HostStats
 from .launch import Launcher
 from .seats import Power, Seats
+from .wolserver import WolServer
 from .inputs import Passer
 from .pve import PVE, TFA_KINDS, PVEError, TfaChallenge
 from .util import Cached, log, pvesh, run
@@ -1762,6 +1763,8 @@ async def on_startup(app):
     app["seats"] = Seats(cfg)
     app["input"] = Passer(app)
     app["power"] = Power(app)
+    app["wolserver"] = WolServer(app)
+    await app["wolserver"].start()
     app["launcher"] = Launcher(app)
     app["tasks"] = [asyncio.create_task(app["stats"].loop()),
                     asyncio.create_task(app["launcher"].watch_loop()),
@@ -1820,6 +1823,8 @@ async def on_shutdown(app):
 async def on_cleanup(app):
     for t in app.get("tasks", []):
         t.cancel()
+    if app.get("wolserver"):
+        app["wolserver"].stop()
     await app["pve"].close()
 
 

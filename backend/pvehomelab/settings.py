@@ -110,6 +110,10 @@ REGISTRY = [
     S("alerts.backup_days", "int", "alerts", lo=1, hi=365),
     # wake-on-LAN
     S("wol", "rows", "wol", fields=(("name", "str", True), ("mac", "mac", True), ("broadcast", "ip", False), ("port", "port", False))),
+    S("wol_listen.enabled", "bool", "wol", restart="backend"),
+    S("wol_listen.vms", "list", "wol", item="vmid"),
+    S("wol_listen.from", "list", "wol", item="net"),
+    S("wol_listen.ports", "list", "wol", item="port", restart="backend"),
     # updates of the menu
     S("update.auto", "bool", "updates"),
     S("update.channel", "choice", "updates", choices=("release", "main")),
@@ -165,6 +169,10 @@ class Invalid(ValueError):
 
 
 def _item(kind, v):
+    if kind == "port":
+        if isinstance(v, bool) or not str(v).strip().isdigit() or not 1 <= int(v) <= 65535:
+            raise Invalid("port")
+        return int(v)
     if kind == "vmid":
         if isinstance(v, bool) or not isinstance(v, (int, str)) or not str(v).isdigit() or not 100 <= int(v) <= 999999999:
             raise Invalid("vmid")

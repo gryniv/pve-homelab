@@ -341,6 +341,9 @@ After installing:
    wol:
      - {name: NAS, mac: "aa:bb:cc:dd:ee:ff"}
    ```
+   **VMs can wake on a packet too:** with `wol_listen: {enabled: true, vms: [102]}` a Wake-on-LAN
+   packet for VM 102's network card (Moonlight's *Wake PC*, a phone app) starts it, as long as its
+   GPU is free. Only the listed VMs, from `wol_listen.from` networks; UDP 9. It never switches a monitor.
 6. Apply the changes with `systemctl restart pve-homelab 'pve-homelab-kiosk@*'`.
 
 Every option is explained in [`etc/config.example.yaml`](etc/config.example.yaml).
