@@ -37,6 +37,14 @@ class DDC:
         await run("ddcutil", "-b", str(bus), "setvcp", "60", f"0x{code:02x}", timeout=15)
         return True
 
+    async def power(self, mon_id, on):
+        """VCP D6: 1 is on, 4 is standby (the monitor wakes on its own when the input signal says so
+        on some models; the menu turns it on again when someone touches a key)."""
+        bus = await self.bus(mon_id)
+        log.info("DDC: monitor %s power %s", mon_id, "on" if on else "standby")
+        await run("ddcutil", "-b", str(bus), "setvcp", "d6", "0x01" if on else "0x04", timeout=15)
+        return True
+
     def monitor_for_gpu(self, pci):
         for mid, mon in self.monitors.items():
             if pci in mon["inputs"]:

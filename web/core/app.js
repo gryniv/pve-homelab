@@ -20,6 +20,7 @@ import * as alerts from './alerts.js';
 import * as updates from './updates.js';
 import * as nodeUpdates from './nodeupdates.js';
 import * as designer from './designer.js';
+import * as gamepad from './gamepad.js';
 import * as showcase from './showcase.js';
 import * as launch from './launch.js';
 import * as guests from './guests.js';
@@ -209,7 +210,7 @@ function go(screen) {
   if (screen === 'settings') S.render();
   const prev = st.screen;
   st.screen = screen;
-  scene.fxRun(screen !== 'console');
+  scene.fxRun(screen !== 'console' && screen !== 'away');
   if (screen === 'console') return;
   // Keyboard-only seat: always put focus somewhere sensible on the new screen.
   setTimeout(() => {
@@ -408,7 +409,7 @@ async function enter(userid, prefs, admin = false) {
   applyPrefs();
   W.stopZone('login');
   W.renderZone('side', prefs.layout.side || [], { app, opts: prefs.widget_opts });
-  go('dash');
+  go(st.awayVm ? 'away' : 'dash');
   reopenSettings();
   weather(true).catch(() => {});
   await refreshDash();
@@ -449,7 +450,7 @@ async function logout() {
   try { st.pub = await api.get('/api/public'); clocks.init(st.pub.clocks); paintPub(); } catch {}
   await useLang();
   renderUsers();
-  go('login');
+  go(st.awayVm ? 'away' : 'login');
 }
 $('#logoutBtn').onclick = logout;
 
@@ -592,9 +593,88 @@ $$('[data-go]').forEach((b) => (b.onclick = (e) => { e.stopPropagation(); go(b.d
 
 setInterval(() => {
   const idle = (Date.now() - st.lastInput) / 60000;
-  if (st.screen === 'login' && idle >= st.pub.saver_after_min) go('saver');
+  if (st.screen === 'login' && idle >= st.pub.saver_after_min) go('saver');   // never while away
   if (st.me && st.pub.lock_after_min && idle >= st.pub.lock_after_min && st.screen !== 'launch') logout();
 }, 10000);
+
+/* ---------------- away: this seat's monitor shows a system (seats.py, /api/seat/events) ---------------- */
+// While away the page acts on nothing but both Ctrl keys (back to the menu); from the menu, both
+// Ctrl keys go to the system running on a GPU wired to this monitor.
+let activitySent = 0;
+function touched() {
+  if (st.pub?.seat?.remote || !st.pub?.seat?.gpu) return;
+  const dark = document.body.classList.contains('blank');
+  if (!dark && Date.now() - activitySent < 20000) return;
+  activitySent = Date.now();
+  document.body.classList.remove('blank');
+  api.post('/api/seat/activity').catch(() => {});
+}
+['pointerdown', 'keydown', 'wheel', 'touchstart'].forEach((ev) => addEventListener(ev, touched, { passive: true, capture: true }));
+
+function onSeat(state) {
+  document.body.classList.toggle('blank', state.screen === 'off');
+  if (state.notice?.limit) {
+    // a time limit: the monitor shows this page for a few seconds, the countdown on it
+    const n = state.notice.limit.minutes;
+    $('#awayNote').textContent = t('away.limit', { n });
+    $('#awayNote').hidden = false;
+    clearTimeout(onSeat.t);
+    onSeat.t = setTimeout(() => { $('#awayNote').hidden = true; }, 12000);
+  }
+  if (state.shows !== 'menu') {
+    st.awayVm = state.shows;
+    const vm = st.systems.find((s) => s.vmid === state.shows);
+    $('#awayName').textContent = vm ? vm.name : `VM ${state.shows}`;
+    if (st.screen !== 'away') {
+      launch.stop();
+      W.stopZone('side');
+      W.stopZone('login');
+      go('away');
+    }
+  } else if (st.awayVm) {
+    st.awayVm = null;
+    if (st.me) {
+      go('dash');
+      W.renderZone('side', st.prefs.layout.side || [], { app, opts: st.prefs.widget_opts });
+      refreshDash();
+    } else {
+      go('login');
+      renderUsers();
+    }
+  }
+}
+
+function watchSeat() {
+  if (st.pub.seat.remote || !st.pub.seat.gpu || !window.EventSource) return;
+  const es = new EventSource('/api/seat/events?seat=' + encodeURIComponent(SEAT));
+  es.onmessage = (e) => { try { onSeat(JSON.parse(e.data)); } catch {} };
+  // a page going away lets go of its stream at once (or a few reloads use up the browser's connections)
+  addEventListener('pagehide', () => es.close());
+}
+
+const ctrls = new Set();
+let bothFired = false;
+async function bothCtrl() {
+  try {
+    if (st.screen === 'away') await api.post('/api/seat/focus', { to: 'menu' });
+    else if (st.me && !st.pub.seat.remote) await api.post('/api/seat/focus', { to: 'vm' });
+  } catch (e) { if (st.screen !== 'away') toast(e.message, e.status >= 500); }
+}
+addEventListener('keydown', (e) => {
+  // F13: a macropad's key, the macropad left with the host (Settings → Systems), does what both Ctrl do
+  if (e.key === 'F13') { e.preventDefault(); bothCtrl(); return; }
+  if (e.code === 'ControlLeft' || e.code === 'ControlRight') {
+    ctrls.add(e.code);
+    if (ctrls.size === 2 && !bothFired) { bothFired = true; bothCtrl(); }
+  }
+  if (st.screen === 'away') { e.preventDefault(); e.stopImmediatePropagation(); }
+}, true);
+addEventListener('keyup', (e) => {
+  ctrls.delete(e.code);
+  if (!ctrls.size) bothFired = false;
+  if (st.screen === 'away') { e.preventDefault(); e.stopImmediatePropagation(); }
+}, true);
+addEventListener('blur', () => { ctrls.clear(); bothFired = false; });
 
 function tick() {
   const d = new Date();
@@ -657,6 +737,20 @@ async function boot() {
   const sc = new URLSearchParams(location.search).get('showcase');
   if (sc) showcase.open(sc, st.pub);
   tick(); setInterval(tick, 1000);
+  watchSeat();
+  gamepad.init({
+    screen: () => st.screen,
+    seatSwitch: () => bothCtrl(),
+    openSettings: () => (st.me ? go('settings') : null),
+    wake: () => { st.lastInput = Date.now(); if (st.screen === 'saver') go(st.me ? 'dash' : 'login'); },
+    pane: (dir) => {
+      if (st.screen === 'settings') return S.step?.(dir);
+      const tabs = $$('[data-ptab]').filter((b) => getComputedStyle(b).display !== 'none');
+      const i = tabs.findIndex((b) => b.getAttribute('aria-selected') === 'true');
+      const next = tabs[(i + dir + tabs.length) % tabs.length];
+      next?.click(); next?.focus();
+    },
+  });
   weather().catch(() => {});
   setInterval(() => weather(true).catch(() => {}), 900000);
   setInterval(async () => { try { const p = await api.get('/api/public'); st.pub.guests = p.guests; } catch {} }, 30000);

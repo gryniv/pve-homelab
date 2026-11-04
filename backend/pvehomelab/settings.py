@@ -20,7 +20,7 @@ from . import config
 
 FILE = "settings.yaml"
 
-GROUPS = ("general", "access", "launch", "services", "weather", "alerts", "wol", "updates", "components")
+GROUPS = ("general", "access", "launch", "limits", "services", "weather", "alerts", "wol", "updates", "components")
 
 
 class S:
@@ -58,6 +58,7 @@ ITEM = {
 }
 MAC = re.compile(r"^([0-9a-fA-F]{2}[:-]){5}[0-9a-fA-F]{2}$")
 URL = re.compile(r"^https?://[^\s\"'<>]{1,500}$")
+HOURS = re.compile(r"^\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}(\s*,\s*\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}){0,5}$")
 
 # Services and links: name, icon, description (and the address of a link).
 SVC_FIELDS = (("name", "str", False), ("icon", "str", False), ("desc", "str", False))
@@ -75,6 +76,8 @@ REGISTRY = [
     S("language", "choice", "general", choices=("uk", "en")),
     S("lock_after_min", "int", "general", lo=0, hi=1440),
     S("saver.after_min", "int", "general", lo=0, hi=1440),
+    S("screen.off_after_min", "int", "general", lo=0, hi=1440),
+    S("screen.night", "str", "general", pattern=r"^(\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2})?$"),
     S("designer", "bool", "general"),
     S("kiosk.debug_port", "int", "general", lo=0, hi=65535, restart="kiosk"),
     # systems and how they start
@@ -84,6 +87,11 @@ REGISTRY = [
     S("launch.allow_igpu", "bool", "launch"),
     S("launch.return_to_menu", "bool", "launch"),
     S("launch.follow_start", "choice", "launch", choices=("boot", "always", "never")),
+    S("launch.sunshine", "bool", "launch"),
+    S("input.mode", "choice", "launch", choices=("evdev", "off")),
+    S("input.hotkey", "choice", "launch", choices=("ctrl-ctrl", "alt-alt", "shift-shift", "meta-meta", "scrolllock", "ctrl-scrolllock")),
+    S("input.gamepads", "choice", "launch", choices=("usb", "off")),
+    S("input.devices", "list", "launch", item="word"),
     # web services
     S("caddy.ct", "int", "services", lo=100, hi=999999999, null=True),
     S("caddy.admin", "str", "services", pattern=URL.pattern),
@@ -102,8 +110,15 @@ REGISTRY = [
     S("alerts.storage_pct", "int", "alerts", lo=50, hi=100),
     S("alerts.temp_c", "int", "alerts", lo=40, hi=120),
     S("alerts.backup_days", "int", "alerts", lo=1, hi=365),
+    # time limits of systems, by VM id
+    S("limits", "map", "limits", fields=(("hours", "hours", False), ("daily_min", "int", False),
+                                          ("grace_min", "int", False), ("exempt", "str", False))),
     # wake-on-LAN
     S("wol", "rows", "wol", fields=(("name", "str", True), ("mac", "mac", True), ("broadcast", "ip", False), ("port", "port", False))),
+    S("wol_listen.enabled", "bool", "wol", restart="backend"),
+    S("wol_listen.vms", "list", "wol", item="vmid"),
+    S("wol_listen.from", "list", "wol", item="net"),
+    S("wol_listen.ports", "list", "wol", item="port", restart="backend"),
     # updates of the menu
     S("update.auto", "bool", "updates"),
     S("update.channel", "choice", "updates", choices=("release", "main")),
@@ -159,6 +174,10 @@ class Invalid(ValueError):
 
 
 def _item(kind, v):
+    if kind == "port":
+        if isinstance(v, bool) or not str(v).strip().isdigit() or not 1 <= int(v) <= 65535:
+            raise Invalid("port")
+        return int(v)
     if kind == "vmid":
         if isinstance(v, bool) or not isinstance(v, (int, str)) or not str(v).isdigit() or not 100 <= int(v) <= 999999999:
             raise Invalid("vmid")
@@ -194,6 +213,15 @@ def _field(kind, v, maxlen=200):
         if isinstance(v, bool) or not str(v).isdigit() or not 1 <= int(v) <= 65535:
             raise Invalid("port")
         return int(v)
+    if kind == "int":
+        if isinstance(v, bool) or not str(v).strip().isdigit() or int(v) > 100000:
+            raise Invalid("number")
+        return int(v)
+    if kind == "hours":
+        v = str(v).strip()
+        if not HOURS.match(v):
+            raise Invalid("hours like 16:00-19:00, 10:00-12:00")
+        return v
     v = str(v)
     if len(v) > maxlen or any(c in v for c in "\r\n\0"):
         raise Invalid("text")

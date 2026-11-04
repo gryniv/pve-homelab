@@ -12,10 +12,14 @@ from urllib.parse import quote
 import aiohttp
 from aiohttp import web
 
-from . import backup, caddy, config, designs, discover, errlog, feedback, gpus as G, i18n, icons, prefs, settings, update, userwidgets, weather, wol
+from . import backup, caddy, config, designs, discover, inputs, errlog, feedback, gpus as G, i18n, icons, prefs, settings, update, userwidgets, weather, wol
 from .ddc import DDC
 from .host import HostStats
 from .launch import Launcher
+from .seats import Power, Seats
+from .wolserver import WolServer
+from .budget import Limits
+from .inputs import Passer
 from .pve import PVE, TFA_KINDS, PVEError, TfaChallenge
 from .util import Cached, log, pvesh, run
 
@@ -325,6 +329,7 @@ async def public(req):
         "designer": designer_mode(app),
         "feedback": feedback_cfg(cfg)["enabled"],
         "features": {f: feature_on(app, f) for f in settings.FEATURES},
+        "input": {"mode": (cfg.get("input") or {}).get("mode", "evdev"), "hotkey": (cfg.get("input") or {}).get("hotkey", "ctrl-ctrl")},
         "login": prefs.load_login(),
         "widgets": userwidgets.all_ids(),
     })
@@ -988,6 +993,8 @@ async def guest_action(req):
     if typ not in ("qemu", "lxc") or action not in ("start", "shutdown", "stop", "reboot"):
         raise web.HTTPBadRequest(text="bad action")
     node = req.app["cfg"]["node"]
+    if action == "start" and typ == "qemu" and not req.app["limits"].may_start(vmid, s["user"]):
+        raise PVEError(403, i18n._("limit_now"))
     upid = await req.app["pve"].post(s["ticket"], f"/nodes/{node}/{typ}/{vmid}/status/{action}")
     req.app["resources"].invalidate()
     return web.json_response({"upid": upid})
@@ -1309,6 +1316,96 @@ async def systems(req):
     return web.json_response(out)
 
 
+# ---------------- the screen on the host: the menu, or a system on its monitor ----------------
+def local_kiosk_seat(req):
+    """The seat of a screen plugged into this host with a monitor the menu can switch; 404 otherwise."""
+    if is_remote(req):
+        raise PVEError(403, i18n._("forbidden"))
+    sid = seat_of(req)
+    seat = req.app["cfg"]["seats"].get(sid) or {}
+    if not seat.get("gpu"):
+        raise web.HTTPNotFound(text="not a screen of this host")
+    return sid
+
+
+@routes.get("/api/seat")
+async def seat_state(req):
+    sid = local_kiosk_seat(req)
+    return web.json_response({"seat": sid, **req.app["seats"].get(sid)})
+
+
+@routes.get("/api/seat/events")
+async def seat_events(req):
+    """Server-sent events: what this seat's monitor shows, now and whenever it changes."""
+    sid = local_kiosk_seat(req)
+    seats = req.app["seats"]
+    resp = web.StreamResponse(headers={"Content-Type": "text/event-stream", "Cache-Control": "no-cache"})
+    await resp.prepare(req)
+    q = seats.subscribe(sid)
+    stop = req.app["stopping"]
+    try:
+        await resp.write(f"data: {json.dumps(seats.get(sid))}\n\n".encode())
+        while not stop.is_set():
+            try:
+                st = await asyncio.wait_for(q.get(), 15)
+                await resp.write(f"data: {json.dumps(st)}\n\n".encode())
+            except asyncio.TimeoutError:
+                await resp.write(b": still here\n\n")
+    except (ConnectionResetError, ConnectionError, asyncio.CancelledError):
+        pass
+    finally:
+        seats.unsubscribe(sid, q)
+    return resp
+
+
+@routes.post("/api/seat/activity")
+async def seat_activity(req):
+    """Someone touched this screen: it stays lit, or lights up again."""
+    sid = local_kiosk_seat(req)
+    await req.app["power"].wake(sid)
+    return web.json_response({"screen": req.app["seats"].get(sid).get("screen", "on")})
+
+
+@routes.post("/api/seat/focus")
+async def seat_focus(req):
+    """{"to": "menu" | "vm" | <vmid>}: the monitor to the menu (whoever sits there, signed in or not),
+    or to a system already running on a GPU wired to it ("vm": the one the menu knows of), which takes
+    a session with VM.Console on it."""
+    sid = local_kiosk_seat(req)
+    body = await req.json()
+    to = body.get("to") if isinstance(body, dict) else None
+    L = req.app["launcher"]
+    if to == "menu":
+        await L.focus(sid, "menu")
+        return web.json_response(req.app["seats"].get(sid))
+    s = await session(req)
+    if to == "vm":
+        vms = L.on_monitor(sid)
+        if not vms:
+            raise PVEError(404, i18n._("not_on_this_monitor"))
+        to = vms[-1]
+    vmid = vmid_of(to)
+    await require(req, s, "VM.Console", f"/vms/{vmid}")
+    await L.focus(sid, vmid)
+    if prefs.load(s["user"])["launch"]["pass_input"] and (req.app["cfg"].get("input") or {}).get("mode", "evdev") != "off" \
+            and vmid not in req.app["input"].given:
+        await L.give_input(sid, vmid)
+    return web.json_response(req.app["seats"].get(sid))
+
+
+@routes.get("/api/input")
+async def input_devices(req):
+    """The keyboards, mice and gamepads of this host: which go into systems, which a VM has already."""
+    await session(req)
+    loop = asyncio.get_running_loop()
+    units = await loop.run_in_executor(None, inputs.host_units, req.app["cfg"]["node"])
+    given = {vmid: g["seat"] for vmid, g in req.app["input"].given.items()}
+    cfg = req.app["cfg"].get("input") or {}
+    chosen = cfg.get("devices") or []
+    return web.json_response({"mode": cfg.get("mode", "evdev"), "hotkey": cfg.get("hotkey", "ctrl-ctrl"),
+                              "units": [{**u, "chosen": not chosen or u["id"] in chosen} for u in units], "given": given})
+
+
 @routes.post("/api/launch")
 async def launch(req):
     s = await session(req)
@@ -1326,7 +1423,12 @@ async def launch(req):
         if isinstance(v, bool) or not isinstance(v, int) or not lo <= v <= hi:
             raise web.HTTPBadRequest(text=f"{k}: {lo}…{hi}")
         resources[k] = v
-    job = await req.app["launcher"].launch(s["ticket"], seat_of(req), vmid_of(body.get("vmid")), body["gpu"], resources)
+    seat = seat_of(req)
+    want_input = body.get("input")
+    if want_input is None:
+        want_input = prefs.load(s["user"])["launch"]["pass_input"]
+    want_input = bool(want_input) and not is_remote(req)
+    job = await req.app["launcher"].launch(s["ticket"], seat, vmid_of(body.get("vmid")), body["gpu"], resources, want_input)
     req.app["resources"].invalidate()
     return web.json_response(job.as_dict())
 
@@ -1661,9 +1763,17 @@ async def on_startup(app):
         return await update.status(cfg)
     app["update"] = Cached(check_update, max(1, float(update.settings(cfg)["check_hours"])) * 3600, stale=True)
 
+    app["seats"] = Seats(cfg)
+    app["input"] = Passer(app)
+    app["power"] = Power(app)
+    app["limits"] = Limits(app)
+    app["wolserver"] = WolServer(app)
+    await app["wolserver"].start()
     app["launcher"] = Launcher(app)
     app["tasks"] = [asyncio.create_task(app["stats"].loop()),
                     asyncio.create_task(app["launcher"].watch_loop()),
+                    asyncio.create_task(app["power"].loop()),
+                    asyncio.create_task(app["limits"].loop()),
                     asyncio.create_task(housekeeping_loop(app)),
                     asyncio.create_task(app["services"].get())]
     await _adopt_running(app)
@@ -1674,6 +1784,7 @@ async def _adopt_running(app):
     loop keeps doing it for those started from Proxmox while the menu runs."""
     try:
         await app["launcher"].adopt()
+        await app["launcher"].sync_seats()
     except Exception as e:
         log.warning("adopt running VMs: %s", e)
 
@@ -1717,6 +1828,8 @@ async def on_shutdown(app):
 async def on_cleanup(app):
     for t in app.get("tasks", []):
         t.cancel()
+    if app.get("wolserver"):
+        app["wolserver"].stop()
     await app["pve"].close()
 
 

@@ -29,11 +29,18 @@ DEFAULTS = {
     "systems_extra": [],
     "links": [],
     "wol": [],                 # [{name, mac, broadcast?, port?}]: machines the menu can wake up
+    # A Wake-on-LAN packet for a listed VM's network card starts that VM (Moonlight's "Wake PC").
+    "wol_listen": {"enabled": False, "vms": [], "from": [], "ports": [9]},
+    # Time limits of systems: {vmid: {hours: "16:00-19:00", daily_min: 90, grace_min: 5, exempt: "a@pve, b@pve"}}
+    "limits": {},
     "kiosk": {"debug_port": 0},
     "update": {"repo": "", "channel": "release", "branch": "main", "auto": False, "check_hours": 6},
     "seats": {},
     "monitors": {},
-    "launch": {"assign_gpu": True, "allow_igpu": False, "return_to_menu": True, "follow_start": "boot"},
+    "launch": {"assign_gpu": True, "allow_igpu": False, "return_to_menu": True, "follow_start": "boot", "sunshine": False},
+    # The keyboard, mouse and gamepads of a screen on the host go into a system with its monitor:
+    # mode evdev (keyboard and mouse; both Ctrl give them back) or off; devices: [] = all of them.
+    "input": {"mode": "evdev", "hotkey": "ctrl-ctrl", "devices": [], "gamepads": "usb"},
     "caddy": {"ct": None, "admin": "http://localhost:2019", "prefer_suffix": "", "hide": []},
     "discovery": {"ports": True, "vms": True, "notes": True, "ignore": []},
     "services": {},
@@ -41,6 +48,9 @@ DEFAULTS = {
     "users": {"hide": []},
     "saver": {"after_min": 5},
     "lock_after_min": 15,
+    # The menu's monitors go dark (DDC standby, and a black page) after this many minutes without a key,
+    # and at night after a minute; any key wakes them. 0 / "" = never. Never while a system is shown.
+    "screen": {"off_after_min": 0, "night": ""},
     "designer": False,         # live reload of designs (the demo has it on): for working on designs on a host
     "alerts": {"storage_pct": 90, "temp_c": 85, "backup_days": 7},
     # Settings → About → Write to the author: a GitHub issue in `repo` (default: where updates come from)

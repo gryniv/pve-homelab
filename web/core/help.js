@@ -4,7 +4,7 @@ import { $, t, esc } from './ui.js';
 const KEYS = [
   ['help.k_nav', '← → ↑ ↓'], ['help.k_tab', 'Tab · Shift+Tab'], ['help.k_open', 'Enter'], ['help.k_back', 'Esc'],
   ['help.k_search', 'a…z'], ['help.k_move', 'Alt + ← →'], ['help.k_dock', 'Alt+Q'], ['help.k_console', 'Ctrl+Alt+Q'],
-  ['help.k_help', '?'],
+  ['help.k_both_ctrl', 'Ctrl + Ctrl'], ['help.k_pad', 'A · B · Start · LB/RB · Guide'], ['help.k_help', '?'],
 ];
 
 export function show() {

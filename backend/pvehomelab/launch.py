@@ -7,17 +7,18 @@ import os
 import re
 import time
 
-from . import config
+from . import config, inputs
 from . import gpus as G
 from .i18n import _
 from .pve import PVEError
-from .util import log, run
+from .util import log, pvesh, pvesh_create, run
 
 _job_ids = itertools.count(1)
 
 HOSTPCI = re.compile(r"^hostpci(\d+):\s*(.*)$", re.M)
 VGA = re.compile(r"^vga:\s*(.*)$", re.M)
 FOLLOW_WINDOW = 180      # s: a VM up for less than this was just started
+SUNSHINE_PORT = 47989    # Sunshine's HTTP port: Moonlight can pair and connect once it answers
 BOOT_WINDOW = 600        # s: the host is still booting (its onboot VMs come up now)
 
 
@@ -113,7 +114,8 @@ class Job:
 
     def finish(self):
         for s in self.steps:
-            s["state"] = "done"
+            if s["state"] != "skip":
+                s["state"] = "done"
         self.done = True
 
     def as_dict(self):
@@ -152,6 +154,7 @@ class Launcher:
                 "cores": conf.get("cores", 1) * conf.get("sockets", 1),
                 "memory": int(conf.get("memory", 0)), "gpus": gpu_list,
                 "uptime": g.get("uptime", 0),
+                "agent": str(conf.get("agent", "0")).split(",")[0] in ("1", "enabled=1"),
             })
         return sorted(out, key=lambda s: s["vmid"])
 
@@ -240,6 +243,9 @@ class Launcher:
         steps = [_("step_wake" if vm["suspended"] else "step_start", vm=vm["name"], id=vmid)]
         if console:
             steps.append(_("step_show_short"))
+        boot_at = len(steps)
+        if not console:
+            steps += self.boot_steps(vm)
 
         async def go(job):
             async with self._lock(f"vm:{vmid}"):
@@ -252,6 +258,8 @@ class Launcher:
                 job.step(1)
                 await asyncio.sleep(1.5)
                 job.result = {"console": vmid}
+            else:
+                await self.wait_boot(job, boot_at, vm)
         return self.start_job(go, steps)
 
     # ---------- actions ----------
@@ -270,13 +278,20 @@ class Launcher:
         asyncio.create_task(runner())
         return job
 
-    async def launch(self, t, seat_id, vmid, gpu, resources=None):
+    async def launch(self, t, seat_id, vmid, gpu, resources=None, input=False):
         """Start (or show, or switch to) `vmid` on `gpu`; the job is its starter's alone to follow.
         `resources` ({memory: MB, cores}) are written into a stopped VM's config first, with the
         user's own ticket (Proxmox checks VM.Config.Memory / VM.Config.CPU); they stay there."""
+        limits = self.app.get("limits")
+        if limits and not limits.may_start(vmid, t.user):
+            raise PVEError(403, _("limit_now"))
         if resources:
             await self._set_resources(t, vmid, resources)
-        job = await self._launch(t, seat_id, vmid, gpu)
+        # keyboard and mouse go with the monitor: a screen on the host, input on, and VM.Console
+        # (a keyboard in a VM is its console)
+        want_input = bool(input) and (self.cfg.get("input") or {}).get("mode", "evdev") != "off" \
+            and await self.app["pve"].can(t, f"/vms/{vmid}", "VM.Console")
+        job = await self._launch(t, seat_id, vmid, gpu, want_input)
         job.owner = t.user
         return job
 
@@ -288,7 +303,7 @@ class Launcher:
             await self.app["pve"].req(t, "PUT", f"/nodes/{self.cfg['node']}/qemu/{vmid}/config", data)
             log.info("VM %s before its start: %s", vmid, ", ".join(f"{k} {v}" for k, v in data.items()))
 
-    async def _launch(self, t, seat_id, vmid, gpu):
+    async def _launch(self, t, seat_id, vmid, gpu, want_input=False):
         pve, node = self.app["pve"], self.cfg["node"]
         vm = next((s for s in await self.systems(t) if s["vmid"] == vmid), None)
         if not vm:
@@ -312,8 +327,12 @@ class Launcher:
             async def switch(job):
                 job.step(0)
                 self.watch[vmid] = (mon, seat_gpu)
-                await self.app["ddc"].switch_to_gpu(mon, gpu)
-            return self.start_job(switch, [_("step_switch", gpu=opt["name"])])
+                if await self.app["ddc"].switch_to_gpu(mon, gpu):
+                    self.app["seats"].set(seat_id, shows=vmid)
+                if want_input:
+                    job.step(1)
+                    await self.give_input(seat_id, vmid)
+            return self.start_job(switch, [_("step_switch", gpu=opt["name"])] + ([_("step_input", vm=vm["name"])] if want_input else []))
 
         if opt["disabled"]:
             raise PVEError(409, _("gpu_disabled", name=opt["name"], why=opt["disabled"]))
@@ -327,6 +346,11 @@ class Launcher:
         if need_assign:
             steps.append(_("step_assign", gpu=opt["name"], vm=vm["name"]))
         steps += [_("step_start", vm=vm["name"], id=vmid), _("step_switch", gpu=opt["name"])]
+        want_input = want_input and bool(mon)
+        if want_input:
+            steps.append(_("step_input", vm=vm["name"]))
+        boot_at = len(steps)
+        steps += self.boot_steps(vm)
 
         async def go(job):
             async with self._lock(f"gpu:{gpu}"), self._lock(f"vm:{vmid}"):
@@ -359,8 +383,13 @@ class Launcher:
                 i += 1
                 job.step(i)
                 await asyncio.sleep(2)
-                if mon:
-                    await self.app["ddc"].switch_to_gpu(mon, gpu)
+                if mon and await self.app["ddc"].switch_to_gpu(mon, gpu):
+                    self.app["seats"].set(seat_id, shows=vmid)
+                if want_input:
+                    job.step(i + 1)
+                    await asyncio.sleep(1)   # QEMU's monitor answers once the VM runs
+                    await self.give_input(seat_id, vmid)
+            await self.wait_boot(job, boot_at, vm)
         return self.start_job(go, steps)
 
     async def _launch_virgl(self, t, vm, opt):
@@ -483,9 +512,142 @@ class Launcher:
                 if self._follows(uptime.get(vm)):
                     log.info("VM %s just started: monitor %s goes to it", vm, mon)
                     try:
-                        await ddc.switch_to_gpu(mon, g["pci"])
+                        if await ddc.switch_to_gpu(mon, g["pci"]):
+                            self.app["seats"].set(self.app["seats"].seat_of_monitor(ddc, mon), shows=vm)
                     except Exception as e:
                         log.warning("switch to VM %s failed: %s", vm, e)
+
+    async def sync_seats(self):
+        """At start: what each menu monitor shows now (the menu may restart while someone is in a VM)."""
+        ddc, seats = self.app["ddc"], self.app["seats"]
+        running = await self.app["running"]()
+        holders = {g["pci"]: g["running_vm"] for g in await G.list_gpus(running) if g["running_vm"]}
+        for sid in seats.kiosk_seats():
+            mon = ddc.monitor_for_gpu(self.cfg["seats"][sid]["gpu"])
+            if not mon:
+                continue
+            try:
+                code = await ddc.current_input(mon)
+            except Exception:
+                continue
+            pci = next((p for p, c in self.cfg["monitors"][mon]["inputs"].items() if c == code), None)
+            if pci and holders.get(pci):
+                seats.set(sid, shows=holders[pci])
+
+    async def focus(self, sid, to):
+        """The monitor of seat `sid` to the menu ("menu") or to VM `to`, already running on a GPU wired
+        to it. Returns the VM shown, or None when it is the menu."""
+        ddc, seats = self.app["ddc"], self.app["seats"]
+        seat_gpu = self.cfg["seats"][sid]["gpu"]
+        mon = ddc.monitor_for_gpu(seat_gpu)
+        if not mon:
+            raise PVEError(409, _("no_monitor"))
+        if to == "menu":
+            # the menu on screen takes its keyboard back too, however the monitor was asked back
+            for vmid in [v for v, g in self.app["input"].given.items() if g["seat"] == sid]:
+                await self.app["input"].take_back(vmid, monitor_too=False)
+            await ddc.switch_to_gpu(mon, seat_gpu)
+            seats.set(sid, shows="menu")
+            return None
+        running = await self.app["running"](fresh=True)
+        wired = self.cfg["monitors"][mon]["inputs"]
+        gpu = next((g["pci"] for g in await G.list_gpus(running)
+                    if g["running_vm"] == to and g["pci"] in wired and g["pci"] != seat_gpu), None)
+        if not gpu:
+            raise PVEError(409, _("not_on_this_monitor"))
+        self.watch.setdefault(to, (mon, seat_gpu))
+        if not await ddc.switch_to_gpu(mon, gpu):
+            raise PVEError(409, _("not_on_this_monitor"))
+        seats.set(sid, shows=to)
+        return to
+
+    async def give_input(self, sid, vmid):
+        """This screen's keyboard, mouse and gamepads into the VM; a failure leaves them with the menu."""
+        try:
+            loop = asyncio.get_running_loop()
+            units = await loop.run_in_executor(None, inputs.host_units, self.cfg["node"])
+            return await self.app["input"].give(sid, vmid, units)
+        except Exception as e:
+            log.warning("input to VM %s: %s", vmid, e)
+            return []
+
+    async def peek_menu(self, sid, vmid, seconds):
+        """The monitor shows the menu's page for a moment (a countdown on it), then the VM again.
+        The keyboard stays in the VM."""
+        ddc = self.app["ddc"]
+        seat_gpu = self.cfg["seats"][sid]["gpu"]
+        mon = ddc.monitor_for_gpu(seat_gpu)
+        vm_gpu = next((p for p in self.cfg["monitors"].get(mon, {}).get("inputs", {})
+                       if p != seat_gpu and any(g["pci"] == p and g["running_vm"] == vmid
+                                                for g in await G.list_gpus(await self.app["running"]()))), None)
+        if not mon or not vm_gpu:
+            return
+        await ddc.switch_to_gpu(mon, seat_gpu)
+        await asyncio.sleep(seconds)
+        if self.app["seats"].get(sid)["shows"] == vmid:
+            await ddc.switch_to_gpu(mon, vm_gpu)
+
+    # ---------- after the start: is the system up (its guest agent answers), is Sunshine there ----------
+    def boot_steps(self, vm):
+        """The steps that follow a start: the guest agent answering, then Sunshine (if asked for)."""
+        if not vm.get("agent"):
+            return []
+        steps = [_("step_agent", vm=vm["name"])]
+        if self.cfg["launch"].get("sunshine"):
+            steps.append(_("step_sunshine"))
+        return steps
+
+    async def wait_boot(self, job, first, vm):
+        i = first
+        if not vm.get("agent"):
+            return
+        job.step(i)
+        if not await self._wait_agent(vm["vmid"]):
+            job.step(i, "skip")
+            return
+        if self.cfg["launch"].get("sunshine"):
+            job.step(i + 1)
+            ip = await self._vm_ip(vm["vmid"])
+            if not ip or not await self._wait_port(ip, SUNSHINE_PORT):
+                job.step(i + 1, "skip")
+
+    async def _wait_agent(self, vmid, timeout=180):
+        end = time.monotonic() + timeout
+        while time.monotonic() < end:
+            try:
+                await pvesh_create(f"/nodes/{self.cfg['node']}/qemu/{vmid}/agent/ping")
+                return True
+            except Exception:
+                await asyncio.sleep(3)
+        return False
+
+    async def _vm_ip(self, vmid):
+        try:
+            res = await pvesh(f"/nodes/{self.cfg['node']}/qemu/{vmid}/agent/network-get-interfaces")
+        except Exception:
+            return None
+        for i in (res or {}).get("result", []):
+            for a in i.get("ip-addresses", []):
+                ip = a.get("ip-address", "")
+                if a.get("ip-address-type") == "ipv4" and not ip.startswith(("127.", "169.254.", "172.17.")):
+                    return ip
+        return None
+
+    async def _wait_port(self, ip, port, timeout=90):
+        end = time.monotonic() + timeout
+        while time.monotonic() < end:
+            try:
+                _, w = await asyncio.wait_for(asyncio.open_connection(ip, port), 3)
+                w.close()
+                return True
+            except (OSError, asyncio.TimeoutError):
+                await asyncio.sleep(3)
+        return False
+
+    def on_monitor(self, sid):
+        """The VMs running on GPUs wired to seat `sid`'s monitor, the menu knows of (watched)."""
+        mon = self.app["ddc"].monitor_for_gpu(self.cfg["seats"][sid]["gpu"])
+        return [vm for vm, (m, _g) in self.watch.items() if m == mon]
 
     async def give_back(self):
         """The watched VMs that stopped: the monitor goes back to the menu."""
@@ -494,11 +656,17 @@ class Launcher:
             if vmid in running:
                 continue
             del self.watch[vmid]
+            self.app["input"].forget(vmid)
+            seats = self.app["seats"]
+            sid = seats.seat_of_monitor(self.app["ddc"], mon) if mon else None
             if mon and self.cfg["launch"]["return_to_menu"]:
                 try:
                     await self.app["ddc"].switch_to_gpu(mon, seat_gpu)
+                    seats.set(sid, shows="menu")
                 except Exception as e:
                     log.warning("return to menu failed: %s", e)
+            elif sid and seats.get(sid)["shows"] == vmid:
+                seats.set(sid, shows="menu")   # whatever the monitor shows, that system is gone
 
     async def watch_loop(self):
         """When a VM on a menu monitor's GPU stops, give the monitor back to the menu."""

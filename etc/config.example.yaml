@@ -42,8 +42,17 @@ launch:
   assign_gpu: true            # write the chosen GPU into the VM config before start
   allow_igpu: false           # true = pass the seat GPU through entirely (otherwise VirGL inside the menu)
   return_to_menu: true        # switch the monitor back to the menu when the VM stops
+  sunshine: false             # after a start, wait for Sunshine (port 47989) and say when Moonlight may connect
   follow_start: boot          # a VM on a monitor's GPU that starts without the menu (onboot, Proxmox UI) gets
                               # the monitor: boot = only while the host is booting, always, never
+
+# The keyboard, mouse and gamepads of a screen on the host go into a system together with the monitor
+# (for the session only; the VM's config is not touched, and what the VM already has stays its own).
+input:
+  mode: evdev                 # evdev: keyboard and mouse, given back by the hotkey below; off
+  hotkey: ctrl-ctrl           # QEMU's grab-toggle: ctrl-ctrl, alt-alt, shift-shift, meta-meta, scrolllock, ctrl-scrolllock
+  gamepads: usb               # gamepads plugged into the VM as USB devices for the session; off
+  devices: []                 # ids from Settings → Systems (1-3 for a USB port); empty = all of them
 
 caddy:
   ct: null                    # container running Caddy (its admin API must listen on localhost:2019)
@@ -76,6 +85,20 @@ wol: []
 #  - {name: NAS, mac: "aa:bb:cc:dd:ee:ff"}
 #  - {name: Desktop, mac: "11:22:33:44:55:66", broadcast: 192.168.1.255, port: 9}
 
+# Time limits of systems (a child's VM): the hours it may run and minutes a day; a warning on its monitor
+# 10 and 2 minutes before the end, then a shutdown, and a stop after the grace minutes. The limit is the
+# VM's, however it starts; the exempt people may start it any time.
+limits: {}
+#  102: {hours: "16:00-19:00, 10:00-12:00", daily_min: 90, grace_min: 5, exempt: "ihor@pve"}
+
+# A Wake-on-LAN packet for a listed VM's network card starts that VM (e.g. Moonlight's "Wake PC").
+# Off unless enabled; only these VMs, from these networks (empty: any). It never switches a monitor.
+wol_listen:
+  enabled: false
+  vms: []                     # e.g. [102]
+  from: []                    # e.g. [192.168.8.0/24]
+  ports: [9]                  # UDP; open it in the Proxmox firewall if that is on
+
 weather:
   city: Kyiv
   units: c                    # c or f
@@ -86,6 +109,9 @@ users:
 saver:
   after_min: 5                # screensaver on the login screen
 lock_after_min: 15            # log out of the dashboard after this much inactivity
+screen:                       # the menu's monitors go dark (DDC standby + a black page); any key wakes them
+  off_after_min: 0            # minutes without a key; 0 = never
+  night: ""                   # e.g. "23:00-07:00": dark after a minute without a key
 
 designer: false               # live reload of designs while you work on them on the host (the demo has it on)
 

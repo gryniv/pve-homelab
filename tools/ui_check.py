@@ -449,6 +449,106 @@ async def settings_copy(r):
     await p.until("return document.readyState === 'complete' && !!document.querySelector('[data-scr]')", 8)
 
 
+async def away(r):
+    """A system on this monitor: the page stands aside, keys do nothing but both Ctrl, which go back
+    and forth between the menu and the system."""
+    p = r.p
+    await r.open()
+    await p.js(API + "const s = await q('GET', '/api/systems'); const vm = s.find(x => x.name === 'ubuntu-desktop');"
+               "const gpu = vm.options.find(o => o.mode === 'passthrough').pci; window.__job = await q('POST', '/api/launch', {vmid: vm.vmid, gpu});")
+    shown = await p.until("return document.querySelector('[data-scr=away]')?.hidden === false && document.querySelector('#awayName').textContent", 10)
+    r.check("a system on this monitor puts the page aside", shown == "ubuntu-desktop", shown)
+    await p.key("j", 74, "j")
+    await asyncio.sleep(0.3)
+    r.check("keys typed meanwhile do nothing", await r.screen() == "away" and not await p.js("return !!document.querySelector('#searchBox:not([hidden])') || !!(document.activeElement && document.activeElement.value);"))
+    async def both():
+        await p.send("Input.dispatchKeyEvent", type="rawKeyDown", key="Control", code="ControlLeft", windowsVirtualKeyCode=17, modifiers=2)
+        await p.send("Input.dispatchKeyEvent", type="rawKeyDown", key="Control", code="ControlRight", windowsVirtualKeyCode=17, modifiers=2, location=2)
+        await p.send("Input.dispatchKeyEvent", type="keyUp", key="Control", code="ControlRight", windowsVirtualKeyCode=17, location=2)
+        await p.send("Input.dispatchKeyEvent", type="keyUp", key="Control", code="ControlLeft", windowsVirtualKeyCode=17)
+    await both()
+    r.check("both Ctrl bring the menu back", await p.until("return document.querySelector('[data-scr=dash]')?.hidden === false", 5))
+    await both()
+    r.check("and from the menu go to the system again", await p.until("return document.querySelector('[data-scr=away]')?.hidden === false", 5))
+    await p.js(API + "const s = await q('GET', '/api/systems'); const vm = s.find(x => x.name === 'ubuntu-desktop'); await q('POST', `/api/guests/qemu/${vm.vmid}/stop`);")
+    r.check("the system stopping brings the menu back", await p.until("return document.querySelector('[data-scr=dash]')?.hidden === false", 15))
+
+
+async def launch_input(r):
+    """Keyboard and mouse go with the monitor, and both Ctrl in the system bring both back."""
+    p = r.p
+    await r.open()
+    await p.js("document.querySelector('.play[data-key=\"100\"]').click();", 1.0)   # ubuntu-desktop
+    tick = await p.js("const c = document.querySelector('#mInput'); return c && c.checked;")
+    r.check("the launch dialog offers keyboard and mouse, ticked by default", tick)
+    await p.js("document.querySelector('#mStart').click();")
+    steps = await p.until("return [...document.querySelectorAll('#mSteps li')].map(l => l.textContent).join(' | ');", 3)
+    r.check("their step is among the launch steps", steps and ("Keyboard" in steps or "Клавіатура" in steps), steps)
+    r.check("the page stands aside", await p.until("return document.querySelector('[data-scr=away]')?.hidden === false", 10))
+    # the keyboard follows a second after the monitor (QEMU's monitor answers once the VM runs)
+    log = None
+    for _ in range(20):
+        log = await p.js(API + "return (await q('GET', '/api/seat'));")
+        if log and log["input"] == log["shows"] != "menu":
+            break
+        await asyncio.sleep(0.3)
+    r.check("the seat says the system has the keyboard", log and log["input"] == log["shows"] and log["shows"] != "menu", log)
+    await p.js(API + "await q('POST', '/api/demo/input-release', {});")
+    r.check("both Ctrl in the system bring the menu back", await p.until("return document.querySelector('[data-scr=dash]')?.hidden === false", 8))
+
+
+async def input_settings(r):
+    """Settings → Systems: the host's keyboards and mice, and the VM's own left alone."""
+    p = r.p
+    await r.open()
+    await p.js("document.querySelector('.top [data-go=settings]').click();", 0.8)
+    await p.js("document.querySelector('[data-sp=systems]').click();", 0.3)
+    rows = await p.until("return [...document.querySelectorAll('.inlist li')].map(l => l.textContent.replace(/\\s+/g, ' ').trim());", 5)
+    r.check("the host's input devices are listed", rows and len(rows) >= 4, rows)
+    r.check("the VM's own keyboard is shown as its own", rows and any("102" in x for x in rows), rows)
+    await p.js("const c = document.querySelector('[data-inunit=\"1-4\"]'); c.checked = false; c.dispatchEvent(new Event('change'));", 1.0)
+    picked = await p.js(API + "const f = await q('GET', '/api/system/settings'); return f.settings.find(s => s.path === 'input.devices').value;")
+    r.check("an admin leaves the gamepad out", picked and "1-4" not in picked and "1-3" in picked, picked)
+
+
+async def gamepad(r):
+    """A gamepad drives the menu: the D-pad moves, A opens, B closes, RB switches tabs."""
+    p = r.p
+    await r.open()
+    await p.js("window.__pad = {buttons: Array.from({length: 17}, () => ({pressed: false})), axes: [0, 0]};"
+               "navigator.getGamepads = () => [window.__pad]; window.dispatchEvent(new Event('gamepadconnected'));", 0.3)
+
+    async def tap(i):
+        await p.js(f"window.__pad.buttons[{i}].pressed = true;", 0.35)   # a frame may take a while headless
+        await p.js(f"window.__pad.buttons[{i}].pressed = false;", 0.35)
+    await p.js("document.querySelector('.sys .play').focus();")
+    before = await p.js("return document.activeElement?.dataset.key;")
+    await tap(15)
+    after = await p.js("return document.activeElement?.dataset.key;")
+    r.check("the D-pad moves between systems", before and after and before != after, (before, after))
+    await tap(0)
+    r.check("A opens the launch dialog", await p.until("return document.querySelector('[data-layer=launch]').hidden === false", 3))
+    await tap(1)
+    r.check("B closes it", await p.until("return document.querySelector('[data-layer=launch]').hidden === true", 3))
+    await tap(5)
+    r.check("RB switches to the next tab", await p.js("return document.querySelector('[data-ptab=guests]').getAttribute('aria-selected') === 'true';"))
+    await tap(9)
+    r.check("Start opens the settings", await p.until("return document.querySelector('[data-layer=settings]').hidden === false", 3))
+    await p.js("document.querySelector('#sClose').click();", 0.3)
+
+
+async def screen_power(r):
+    """A monitor gone dark takes the page with it; any key lights both again."""
+    p = r.p
+    await r.open()
+    await p.js(API + "await q('POST', '/api/demo/screen-off', {});")
+    r.check("dark: the page goes black", await p.until("return document.body.classList.contains('blank')", 5))
+    await p.key("ArrowRight", 39)
+    r.check("a key lights it again", await p.until("return !document.body.classList.contains('blank')", 5))
+    seat = await p.js(API + "return await q('GET', '/api/seat');")
+    r.check("and the seat says so", seat and seat.get("screen") == "on", seat)
+
+
 async def console(r):
     p = r.p
     await r.open()
@@ -469,8 +569,11 @@ async def launch(r):
     await p.js("document.querySelector('#mStart').click();")
     steps = await p.until("return document.querySelectorAll('#mSteps li').length;", 3)
     r.check("launching shows its steps", (steps or 0) >= 2, steps)
-    back = await p.until("return !document.querySelector('[data-scr=dash]').hidden && document.querySelector('[data-layer=launch]').hidden;", 12)
-    r.check("…and comes back to the dashboard", back)
+    # a start on the GPU of this monitor: the monitor shows the system and the page stands aside
+    back = await p.until("return document.querySelector('[data-layer=launch]').hidden && "
+                         "(!document.querySelector('[data-scr=away]').hidden || !document.querySelector('[data-scr=dash]').hidden);", 12)
+    r.check("…and the dialog closes (the page stands aside while the system has the monitor)", back)
+    await p.js(API + "await q('POST', '/api/seat/focus', {to: 'menu'});", 0.8)
     running = await p.js(API + "return (await q('GET', '/api/systems')).filter(s => s.status === 'running').length;")
     r.check("the system is running", running == 1, running)
 
@@ -1123,7 +1226,7 @@ async def misc(r):
     r.check("the weather icon exists", icon and code == 200, f"{icon} {code}")
 
 
-CHECKS = {"guests": guests, "logout": logout, "tfa_signin": tfa_signin, "system_settings": system_settings, "components": components, "interface": interface, "guest_resources": guest_resources, "settings_copy": settings_copy, "widgets": widgets, "toasts": toasts, "offline": offline,
+CHECKS = {"guests": guests, "logout": logout, "tfa_signin": tfa_signin, "system_settings": system_settings, "components": components, "interface": interface, "guest_resources": guest_resources, "settings_copy": settings_copy, "away": away, "launch_input": launch_input, "input_settings": input_settings, "gamepad": gamepad, "screen_power": screen_power, "widgets": widgets, "toasts": toasts, "offline": offline,
           "aria": dialogs_aria, "alerts": alerts, "update": failed_update, "focus": settings_focus,
           "console": console, "launch": launch, "search": search, "order": reorder, "guests_table": guest_table, "designs": my_designs, "design_pack": design_pack, "widget_strings": widget_strings, "my_widgets": my_widgets, "feedback": write_to_author, "node_updates": node_updates, "narrow": narrow, "layout_hooks": layout_hooks, "layout_theme": layout_theme, "theme_whole": theme_whole, "design_folders": design_folders, "update_check": update_check, "designing": designing, "quiet_faults": quiet_faults, "tabs": service_tabs, "misc": misc}
 

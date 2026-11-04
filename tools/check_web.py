@@ -104,7 +104,7 @@ def check_widget_i18n():
 # prefixes counts as used. A new prefix fails the check until it is added here, so a key can't hide
 # behind string building without someone looking.
 # "w." is the widgets' own namespace (w.<id>.<key>, from widgets/<id>/i18n), not web/i18n.
-DYNAMIC_OK = ("alerts.", "wx.", "guest.range_", "fb.k_", "demo.via_", "showcase.tod_", "w.", "cfg.", "copy.part_")
+DYNAMIC_OK = ("alerts.", "wx.", "guest.range_", "fb.k_", "demo.via_", "showcase.tod_", "w.", "cfg.", "copy.part_", "launch.hotkey_", "set.input.kind_")
 LITERAL = re.compile(r"""(['"`])([a-z_][A-Za-z0-9_.-]*)\1""")
 BUILT = re.compile(r"""\bt\(\s*(?:(['"])([a-z][a-z0-9_.-]*)\1\s*\+|`([a-z][a-z0-9_.-]*)\$\{)""")
 CALL = re.compile(r"""\bt\(\s*(['"])([a-z_][A-Za-z0-9_.-]*)\1\s*[,)]""")

@@ -318,3 +318,102 @@ async def test_memory_and_cores_need_the_rights_and_a_stopped_vm(client):
     client.server.app["resources"].invalidate()
     r = await client.post("/api/launch", json={"vmid": vm["vmid"], "gpu": gpu, "memory": 8192}, headers={"X-Seat": "igpu"})
     assert r.status == 409
+
+
+# ---------- what the monitor shows: the menu or a system ----------
+async def test_a_launch_says_the_monitor_shows_the_system_and_its_stop_gives_it_back(client):
+    await login(client)
+    app = client.server.app
+    vm = await _system(client, "ubuntu-desktop")
+    gpu = next(o["pci"] for o in vm["options"] if o["mode"] == "passthrough")
+    assert (await (await client.get("/api/seat", headers={"X-Seat": "igpu"})).json())["shows"] == "menu"
+    j = await _wait(client, await _launch(client, vm["vmid"], gpu))
+    assert j["error"] is None
+    assert app["seats"].get("igpu")["shows"] == vm["vmid"]
+    demo.WORLD[vm["vmid"]]["status"] = "stopped"
+    await app["launcher"].give_back()
+    assert app["seats"].get("igpu")["shows"] == "menu"
+
+
+async def test_focus_back_and_forth(client):
+    await login(client)
+    app = client.server.app
+    vm = await _system(client, "ubuntu-desktop")
+    gpu = next(o["pci"] for o in vm["options"] if o["mode"] == "passthrough")
+    await _wait(client, await _launch(client, vm["vmid"], gpu))
+    r = await client.post("/api/seat/focus", json={"to": "menu"}, headers={"X-Seat": "igpu"})
+    assert r.status == 200 and (await r.json())["shows"] == "menu"
+    r = await client.post("/api/seat/focus", json={"to": "vm"}, headers={"X-Seat": "igpu"})
+    assert r.status == 200 and (await r.json())["shows"] == vm["vmid"]
+    # the menu side needs no session: whoever sits at the monitor may take it back
+    await client.post("/api/logout")
+    r = await client.post("/api/seat/focus", json={"to": "menu"}, headers={"X-Seat": "igpu"})
+    assert r.status == 200
+    assert (await client.post("/api/seat/focus", json={"to": "vm"}, headers={"X-Seat": "igpu"})).status == 401
+
+
+async def test_focus_needs_the_console_right_and_a_system_on_this_monitor(client):
+    await login(client, "guest@pve")
+    r = await client.post("/api/seat/focus", json={"to": 100}, headers={"X-Seat": "igpu"})
+    assert r.status == 403
+    await login(client)
+    assert (await client.post("/api/seat/focus", json={"to": "vm"}, headers={"X-Seat": "igpu"})).status == 404
+    assert (await client.post("/api/seat/focus", json={"to": 101}, headers={"X-Seat": "igpu"})).status == 409
+
+
+async def test_seat_events_tell_the_page(client):
+    await login(client)
+    app = client.server.app
+    r = await client.get("/api/seat/events", headers={"X-Seat": "igpu"})
+    first = await r.content.readline()
+    assert b'"shows": "menu"' in first
+    await r.content.readline()
+    app["seats"].set("igpu", shows=102)
+    line = await asyncio.wait_for(r.content.readline(), 3)
+    assert b'"shows": 102' in line
+    r.close()
+
+
+# ---------- the monitor's power ----------
+@pytest.mark.parametrize("window,hour,inside", [("23:00-07:00", 23, True), ("23:00-07:00", 3, True), ("23:00-07:00", 12, False),
+                                                ("09:00-17:00", 10, True), ("", 3, False), ("junk", 3, False)])
+def test_night_window(window, hour, inside):
+    from pvehomelab import seats
+    import time as _t
+    now = _t.mktime((2026, 11, 5, hour, 30, 0, 0, 0, -1))
+    assert seats.in_window(window, now) is inside
+
+
+async def test_monitors_go_dark_when_idle_and_wake_on_a_key(client, monkeypatch):
+    import time as _t
+    app = client.server.app
+    monkeypatch.setitem(app["cfg"], "screen", {"off_after_min": 10, "night": ""})
+    power = app["power"]
+    power.touched["igpu"] = _t.time() - 11 * 60
+    await power.check()
+    assert app["seats"].get("igpu")["screen"] == "off"
+    r = await client.post("/api/seat/activity", headers={"X-Seat": "igpu"})
+    assert (await r.json())["screen"] == "on"
+    # never while a system is on the monitor
+    app["seats"].set("igpu", shows=102)
+    power.touched["igpu"] = _t.time() - 60 * 60
+    await power.check()
+    assert app["seats"].get("igpu")["screen"] == "on"
+
+
+
+# ---------- after the start: the guest agent, then Sunshine ----------
+async def test_the_launch_waits_for_the_guest_agent_and_says_about_sunshine(client, monkeypatch):
+    await login(client)
+    app = client.server.app
+    monkeypatch.setitem(app["cfg"]["launch"], "sunshine", True)
+
+    async def no_ip(vmid):
+        return None
+    monkeypatch.setattr(app["launcher"], "_vm_ip", no_ip)
+    r = await client.post("/api/launch", json={"vmid": 102, "gpu": RTX, "input": False}, headers={"X-Seat": "igpu"})
+    assert r.status == 200, await r.text()
+    j = await _wait(client, (await r.json())["id"], timeout=20)
+    texts = [s["text"] for s in j["steps"]]
+    assert j["error"] is None and any("agent" in t for t in texts) and any("Sunshine" in t for t in texts)
+    assert j["steps"][-2]["state"] == "done" and j["steps"][-1]["state"] == "skip"     # no Sunshine found

@@ -339,6 +339,11 @@ html,body{margin:0;height:100%;background:#05080e}
 .A .gextra{display:grid;grid-template-columns:1fr 1.4fr;gap:1em;font-size:.88em}
 .A .gextra:empty{display:none}
 /* a guest's resources and options, in its dialog */
+.A .minput{max-width:none;margin:.3em 0}
+.A .inlist{list-style:none;margin:.4em 0 0;padding:0;max-width:44em}
+.A .inlist li{display:flex;align-items:center;justify-content:space-between;gap:1em;padding:.5em 0;border-top:1px solid var(--edge)}
+.A .inlist .nm small{display:block;color:var(--mute);font-size:.8em}
+.A .steps li.skip{opacity:.5;text-decoration:line-through}
 .A .mres{display:flex;flex-wrap:wrap;align-items:center;gap:.6em 1em;font-size:.88em;margin:.4em 0}
 .A .mres label{display:flex;align-items:center;gap:.4em;color:var(--mute)}
 .A .mres input{width:5em;background:rgba(0,0,0,.25);border:1px solid var(--edge);border-radius:.45em;padding:.35em .5em;color:#e8edf3;font:inherit;user-select:text}
@@ -365,6 +370,13 @@ html,body{margin:0;height:100%;background:#05080e}
 
 /* ---------- console (VM screen inside the menu) ---------- */
 .A .scr-console{background:#000;z-index:5}
+.A.blank::after{content:"";position:fixed;inset:0;background:#000;z-index:100;cursor:none}
+.A .scr-away{background:#000;z-index:6;display:flex;align-items:center;justify-content:center;cursor:none}
+.A .scr-away[hidden]{display:none}
+.A .away-box{text-align:center;color:#9aa4b2;max-width:36em;padding:2em}
+.A .away-box .i{width:3em;height:3em;opacity:.6}
+.A .away-note{font-size:2.2em;color:#f5c451;font-weight:700;margin:.4em 0}
+.A .away-box h2{color:#e8edf3;margin:.4em 0;font-family:var(--font-display,var(--display))}
 .A #vnc{position:absolute;inset:0}
 .A .cbar{position:absolute;left:1em;bottom:1em;display:flex;gap:.7em;align-items:center;font-size:.85em;opacity:.35;transition:opacity .2s;
   background:rgba(10,14,20,.7);border:1px solid var(--edge);border-radius:.8em;padding:.35em .5em .35em .35em;backdrop-filter:blur(.6em)}

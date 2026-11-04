@@ -8,7 +8,7 @@ Plug a monitor into your Proxmox VE host and get a beautiful sign-in screen, a l
 of your homelab, your web services one click away, and a launcher that boots your desktop VMs
 straight onto the GPU that monitor is wired to.
 
-![version](https://img.shields.io/badge/version-0.8.0-ff8a3d)
+![version](https://img.shields.io/badge/version-0.9.0-ff8a3d)
 ![Proxmox VE](https://img.shields.io/badge/Proxmox%20VE-8%20%7C%209-e57000)
 ![python](https://img.shields.io/badge/python-3.10%2B-3776ab)
 ![no build step](https://img.shields.io/badge/frontend-no%20build%20step-4cc9f0)
@@ -74,11 +74,34 @@ signed in, so each person sees and controls exactly what PVE allows them to.
   (`x-vga`, `romfile`, a mapping) and its display are kept, and the next start on a discrete GPU
   puts them back.
 - Each step (assign GPU, start, switch monitor) shows as a clear checklist while it happens.
+- **When is it up:** for a VM with the QEMU guest agent the steps go on to "it answers", and with
+  `launch.sunshine: true` to "Sunshine answers: Moonlight may connect" (port 47989), handy when it
+  was started from a phone to be streamed.
+- **A macropad** left with the host (untick it in *Settings → Systems*) can switch too: its key sending
+  **F13** does what both Ctrl do.
 - **Memory and cores for a start:** the dialog of a stopped VM offers both; a change is written into
   its config with your own rights before the start, and stays.
 - GPUs given to VMs as Proxmox **resource mappings** (`hostpci0: mapping=…`, PVE 8+) are understood
   like plain PCI addresses. A VM that names a mapping keeps naming one when it gets another GPU, and
   writing a mapping needs `Mapping.Use` on it, as in Proxmox.
+- **Keyboard and mouse go with the monitor.** Starting a system on this screen's monitor lends it
+  the host's keyboards and mice (evdev, QEMU's `input-linux`) and gamepads (USB, for the session);
+  **both Ctrl** pressed in the system give them back, and the monitor with them. Nothing is written
+  into the VM's config, and devices the VM has of its own (`usbN`, by id, port or mapping) are left
+  alone. A tick in the launch dialog, a default in *Settings → Systems*, the devices and the hotkey in
+  *Settings → System*. It takes `VM.Console` on the VM. `tools/input_probe.py` lists the host's
+  devices and tries lending them to a VM for a few seconds.
+- **Time limits of systems** (a child's VM): the hours it may run and minutes a day (`limits:`,
+  *Settings → System → Limits*). Ten and two minutes before the end its monitor shows the menu's
+  countdown for a few seconds; then the VM shuts down, and stops after the grace minutes. The limit
+  is the VM's, however it starts (the menu, Proxmox's actions in the menu, Wake-on-LAN); the people
+  listed as exempt may start it any time.
+- **Monitors go dark** after some minutes without a key, and at night (`screen.off_after_min`,
+  `screen.night: "23:00-07:00"`): DDC standby (VCP D6) and a black page, for monitors that ignore D6.
+  Any key or touch wakes them; never while a system is on the monitor.
+- **The page stands aside** while its monitor shows a system: no widgets, no effects, keys act on
+  nothing. **Both Ctrl keys** bring the monitor back to the menu (the system keeps running), and from
+  the menu take it to the system running on a GPU wired to this monitor.
 - **A VM started without the menu** (with the host, or from the Proxmox UI) on a GPU wired to the
   menu's monitor is watched too: the monitor comes back when it stops. One that starts while the host
   boots also gets the monitor; `launch.follow_start: always` does that for any start, `never` for none.
@@ -328,6 +351,9 @@ After installing:
    wol:
      - {name: NAS, mac: "aa:bb:cc:dd:ee:ff"}
    ```
+   **VMs can wake on a packet too:** with `wol_listen: {enabled: true, vms: [102]}` a Wake-on-LAN
+   packet for VM 102's network card (Moonlight's *Wake PC*, a phone app) starts it, as long as its
+   GPU is free. Only the listed VMs, from `wol_listen.from` networks; UDP 9. It never switches a monitor.
 6. Apply the changes with `systemctl restart pve-homelab 'pve-homelab-kiosk@*'`.
 
 Every option is explained in [`etc/config.example.yaml`](etc/config.example.yaml).
@@ -370,6 +396,8 @@ By hand: `./update.sh` in the clone, or `PYTHONPATH=/opt/pve-homelab/backend pyt
 | Dashboard | just type to search services · **Alt+← →** moves a tile or a system |
 | An open service | **Alt+Q** shows the dock (← → pick, Enter, Esc back) |
 | A VM screen inside the menu | **Ctrl+Alt+Q** goes back to the menu (the VM keeps running) |
+| A system on this monitor's GPU | **Ctrl + Ctrl** (both Ctrl keys): to the menu and back, the system keeps running |
+| A gamepad | D-pad or left stick move · **A** opens · **B** closes · **Start** settings · **LB/RB** tabs · **Guide** both Ctrl |
 | Host | Ctrl+Alt+F1 text console · Ctrl+Alt+F7 the menu |
 
 ## Extending it
