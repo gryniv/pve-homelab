@@ -7,7 +7,7 @@ import * as S from './settings.js';
 import * as nav from './nav.js';
 import * as vnc from './console.js';
 import * as tabs from './tabs.js';
-import { arrange, moved } from './order.js';
+import { arrange } from './order.js';
 import { rail } from './rail.js';
 import * as bg from './backgrounds.js';
 import * as clocks from './clocks.js';
@@ -17,13 +17,12 @@ import * as i18n from './i18n.js';
 import * as help from './help.js';
 import * as alerts from './alerts.js';
 import * as updates from './updates.js';
-import { $, $$, icon, esc, avatar, fmt, toast, confirmBox, keepFocus, t, wxIcon } from './ui.js';
-
-const st = {
-  pub: null, me: null, prefs: null, screen: null,
-  selUser: null, services: [], guests: [], systems: [],
-  wx: null, wxKey: '', wxAt: 0, lastInput: Date.now(), timers: [], loginLang: null, filter: '', sysView: [],
-};
+import * as launch from './launch.js';
+import * as guests from './guests.js';
+import * as dnd from './dnd.js';
+import * as search from './search.js';
+import { st } from './state.js';
+import { $, $$, icon, esc, avatar, fmt, toast, keepFocus, t, wxIcon, kindLabel } from './ui.js';
 
 /* ---------------- app facade given to widgets & settings ---------------- */
 const app = {
@@ -71,7 +70,7 @@ function rerender() {
   if (st.me) {
     W.renderZone('side', st.prefs.layout.side || [], { app, opts: st.prefs.widget_opts });
     const body = $('.scr-dash .body');
-    keepFocus(body, renderSystems); keepFocus(body, renderServices); keepFocus(body, renderGuests);
+    keepFocus(body, renderSystems); keepFocus(body, renderServices); keepFocus(body, guests.render);
     if (st.screen === 'settings') S.render();
   } else if (st.pub) {
     keepFocus($('#loginForm'), renderUsers);
@@ -171,7 +170,7 @@ function go(screen) {
     if (screen === 'login') $('#pw').focus();
     else if (screen === 'launch') nav.focusFirst(undefined, '#mOpts .opt.sel:not([disabled])') ;
     else if (screen === 'settings') nav.focusFirst(undefined, '[data-sp][aria-selected="true"]');
-    else if (screen === 'dash' && prev === 'launch' && lastSysBtn?.isConnected) lastSysBtn.focus();
+    else if (screen === 'dash' && prev === 'launch' && launch.lastButton()?.isConnected) launch.lastButton().focus();
     else if (screen === 'dash') nav.focusFirst(undefined, '.sys .play');
   }, 60);
 }
@@ -265,13 +264,13 @@ async function enter(userid, prefs) {
 
 async function logout() {
   st.timers.splice(0).forEach(clearInterval);
-  clearInterval(polling);
+  launch.stop();
   W.stopZone('side');
   try { await api.post('/api/logout'); } catch {}
   // The next person must not see this one's systems, services or guests while theirs load.
   st.systems = []; st.services = []; st.guests = []; st.sysView = [];
-  if (st.filter) setFilter('');
-  renderSystems(); renderServices(); renderGuests();
+  if (st.filter) search.setFilter('');
+  renderSystems(); renderServices(); guests.render();
   alerts.reset();
   st.me = null; st.prefs = null;
   try { st.pub = await api.get('/api/public'); } catch {}
@@ -288,20 +287,10 @@ async function refreshDash() {
   const body = $('.scr-dash .body');
   if (sys.status === 'fulfilled') { st.systems = sys.value; keepFocus(body, renderSystems); }
   if (svc.status === 'fulfilled') { st.services = svc.value; keepFocus(body, renderServices); }
-  if (gst.status === 'fulfilled') { st.guests = gst.value; keepFocus(body, renderGuests); }
+  if (gst.status === 'fulfilled') { st.guests = gst.value; keepFocus(body, guests.render); }
   const bad = [sys, svc, gst].find((r) => r.status === 'rejected');
   if (bad?.reason?.status === 401) { toast(t('dash.session_over'), true); logout(); }
 }
-
-const OS = [
-  [/win/i, 'windows-11', 'radial-gradient(22em 14em at 75% 125%,#49b3ff 0,transparent 60%),radial-gradient(16em 12em at 110% -10%,#8a6bff99,transparent 60%),linear-gradient(135deg,#0b2f75,#06163a)'],
-  [/ubuntu/i, 'ubuntu-linux', 'radial-gradient(20em 14em at 85% 115%,#ff7b3d 0,transparent 60%),linear-gradient(135deg,#5e2750,#2c001e)'],
-  [/fedora/i, 'fedora', 'radial-gradient(20em 14em at 90% 110%,#51a2da 0,transparent 60%),linear-gradient(135deg,#294172,#0e1d3a)'],
-  [/mac|osx/i, 'apple', 'radial-gradient(18em 12em at 20% 120%,#ffb46b 0,transparent 60%),linear-gradient(135deg,#ff9a6b,#c0508f 45%,#3f2b86)'],
-  [/debian/i, 'debian', 'radial-gradient(20em 14em at 85% 115%,#d70a53 0,transparent 60%),linear-gradient(135deg,#3a0d1d,#12060b)'],
-  [/.*/, 'linux', 'radial-gradient(20em 14em at 85% 115%,#6fb4ff 0,transparent 60%),linear-gradient(135deg,#1c2a3f,#0b1220)'],
-];
-const osOf = (vm) => OS.find(([re]) => re.test(`${vm.ostype} ${vm.name}`.replace(/^l26 /, '')) ) || OS[OS.length - 1];
 
 let railUpdate = null;
 function renderSystems() {
@@ -315,7 +304,7 @@ function renderSystems() {
     return;
   }
   el.innerHTML = st.sysView.map((vm, i) => {
-    const [, logo, art] = osOf(vm);
+    const [, logo, art] = launch.osOf(vm);
     const run = vm.status === 'running';
     return `<div class="sys" style="--i:${i}" draggable="true" data-drag="systems" data-key="${vm.vmid}"><div class="art" style="background:${art}"></div>
       <img class="os" src="/icons/${logo}.svg" alt="" draggable="false" style="${logo === 'apple' ? 'filter:invert(1)' : ''}" onerror="this.style.visibility='hidden'">
@@ -324,7 +313,7 @@ function renderSystems() {
       <button class="play${run ? ' go' : ''}" type="button" data-sys="${i}" data-move="systems" data-key="${vm.vmid}" title="${esc(t(run ? 'sys.go' : 'sys.start', { name: vm.name }))}">
         <svg><use href="#${run ? 'i-arrow' : 'i-play'}"/></svg></button></div>`;
   }).join('');
-  $$('[data-sys]').forEach((b) => (b.onclick = () => { lastSysBtn = b; openLaunch(st.sysView[+b.dataset.sys]); }));
+  $$('[data-sys]').forEach((b) => (b.onclick = () => launch.open(st.sysView[+b.dataset.sys], b)));
 }
 
 function renderServices() {
@@ -346,7 +335,7 @@ function renderServices() {
   }
   $('#svcgrid').innerHTML = list.map((s, i) => {
     const cls = s.status === 'running' ? '' : s.status ? ' down' : ' unknown';
-    const gname = s.guest ? `${s.guest.type === 'lxc' ? 'CT' : s.guest.type === 'qemu' ? 'VM' : ''} ${s.guest.vmid || ''} ${s.guest.name || ''}`.trim() : '';
+    const gname = s.guest ? `${kindLabel(s.guest.type)} ${s.guest.vmid || ''} ${s.guest.name || ''}`.trim() : '';
     const src = s.source === 'port' ? t('svc.src_port', { guest: gname, port: s.port })
       : s.source === 'notes' ? t('svc.src_notes', { guest: gname })
       : s.source === 'link' ? t('svc.src_link') : t('svc.src_caddy', { host: s.upstream || s.host });
@@ -359,209 +348,23 @@ function renderServices() {
   $$('#svcgrid [data-url]').forEach((b) => (b.onclick = () => app.openUrl(b.dataset.url)));
 }
 
-/* ---------------- ordering: drag with the mouse, Alt+←/→ with the keyboard ---------------- */
-async function saveOrder(kind, keys) {
-  if (!keys) return;
-  st.prefs.order = { ...(st.prefs.order || {}), [kind]: keys };
-  st.prefs.sort = { ...(st.prefs.sort || {}), [kind]: 'manual' };
-  const body = $('.scr-dash .body');
-  keepFocus(body, kind === 'systems' ? renderSystems : renderServices);
-  try { await api.put('/api/prefs', st.prefs); } catch (e) { toast(e.message, true); }
-}
-app.saveOrder = saveOrder;
+/* ---------------- ordering: drag with the mouse, Alt+←/→ with the keyboard (dnd.js) ---------------- */
+dnd.init({ renderSystems, renderServices });
+app.saveOrder = dnd.saveOrder;
 
-const listOf = (kind) => (kind === 'systems' ? st.systems : st.services);
-let dragKey = null, dragKind = null;
-addEventListener('dragstart', (e) => {
-  const el = e.target.closest?.('[data-drag]');
-  if (!el) return;
-  dragKey = el.dataset.key; dragKind = el.dataset.drag;
-  el.classList.add('dragging');
-  e.dataTransfer.effectAllowed = 'move';
-  e.dataTransfer.setData('text/plain', dragKey);
-});
-addEventListener('dragover', (e) => {
-  const el = e.target.closest?.('[data-drag]');
-  if (!el || el.dataset.drag !== dragKind) return;
-  e.preventDefault();
-  $$('.drop-before').forEach((x) => x !== el && x.classList.remove('drop-before'));
-  el.classList.add('drop-before');
-});
-addEventListener('drop', (e) => {
-  const el = e.target.closest?.('[data-drag]');
-  if (!el || el.dataset.drag !== dragKind) return;
-  e.preventDefault();
-  if (el.dataset.key !== dragKey) saveOrder(dragKind, moved(dragKind, listOf(dragKind), st.prefs, dragKey, { beforeKey: el.dataset.key }));
-});
-addEventListener('dragend', () => {
-  $$('.dragging, .drop-before').forEach((x) => x.classList.remove('dragging', 'drop-before'));
-  dragKey = dragKind = null;
-});
-addEventListener('keydown', (e) => {
-  if (st.screen !== 'dash' || !e.altKey || e.ctrlKey || !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) return;
-  const el = document.activeElement?.closest?.('[data-move]');
-  if (!el || st.filter) return;
-  e.preventDefault();
-  const delta = e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 1;
-  saveOrder(el.dataset.move, moved(el.dataset.move, listOf(el.dataset.move), st.prefs, el.dataset.key, { delta }));
-});
+/* ---------------- search: just start typing on the dashboard (search.js) ---------------- */
+search.init({ renderServices });
 
-/* ---------------- search: just start typing on the dashboard ---------------- */
-function setFilter(v) {
-  st.filter = v;
-  const box = $('#svcSearch');
-  box.hidden = !v;
-  if (box.value !== v) box.value = v;
-  if (v) $$('[data-ptab]').forEach((x) => x.setAttribute('aria-selected', x.dataset.ptab === 'web')), $$('[data-pane]').forEach((p) => (p.hidden = p.dataset.pane !== 'web'));
-  renderServices();
-}
-$('#svcSearch').addEventListener('input', (e) => setFilter(e.target.value));
-$('#svcSearch').addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') { e.stopPropagation(); setFilter(''); nav.focusFirst(undefined, '#svcgrid .svc'); }
-  if (e.key === 'Enter') { const first = $('#svcgrid .svc'); if (first) first.click(); }
-});
-addEventListener('keydown', (e) => {
-  if (st.screen !== 'dash' || e.ctrlKey || e.altKey || e.metaKey || e.key.length !== 1 || e.key === ' ' || e.key === '?') return;
-  if (/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName)) return;
-  const box = $('#svcSearch');
-  box.hidden = false;
-  box.focus(); // the key lands in the search box
-}, true);
-
-function renderGuests() {
-  $('#guestCount').textContent = st.guests.length;
-  const svcBy = {};
-  st.services.forEach((s) => { if (s.guest) (svcBy[s.guest.vmid] ||= s); });
-  $('#guestrows').innerHTML = st.guests.map((g) => {
-    const run = g.status === 'running', svc = svcBy[g.vmid];
-    const logo = svc ? `<img src="/icons/${esc(svc.icon)}.svg" alt="" onerror="this.style.visibility='hidden'">` : `<span class="gen">${icon('i-box')}</span>`;
-    return `<tr><td class="nm"><span>${logo}${esc(g.name)}</span></td><td>${g.vmid}</td><td><span class="type">${g.type === 'qemu' ? 'VM' : 'CT'}</span></td>
-      <td>${run ? `<span class="stp"><span class="dot ok"></span>${t('guest.running')}</span>` : `<span class="stp mute"><span class="dot off"></span>${t('guest.stopped')}</span>`}</td>
-      <td>${run ? fmt.pct((g.cpu || 0) * 100) : '—'}</td><td>${run ? fmt.bytes(g.mem) : '—'}</td>
-      <td>${svc ? `<button class="lnk" type="button" data-url="${esc(svc.url)}">${esc(svc.key)} ${icon('i-ext')}</button>` : ''}</td>
-      <td><div class="acts"><button type="button" data-act="${g.type}|${g.vmid}|${run ? 'shutdown' : 'start'}|${esc(g.name)}" title="${t(run ? 'guest.shutdown' : 'guest.start')}">${icon(run ? 'i-stop' : 'i-start')}</button>
-        ${run ? `<button type="button" data-act="${g.type}|${g.vmid}|reboot|${esc(g.name)}" title="${t('guest.reboot')}">${icon('i-restart')}</button>` : ''}
-        <button type="button" data-console="${g.type}|${g.vmid}|${esc(g.name)}" title="${t('guest.console')}">${icon('i-term')}</button></div></td></tr>`;
-  }).join('');
-  $$('#guestrows [data-url]').forEach((b) => (b.onclick = () => app.openUrl(b.dataset.url)));
-  $$('#guestrows [data-console]').forEach((b) => (b.onclick = () => {
-    const [type, id, name] = b.dataset.console.split('|');
-    // Inside the menu, signed in as this user; the Proxmox web console is the fallback.
-    const web = () => app.openUrl(`${app.pveUrl()}/?console=${type === 'qemu' ? 'kvm' : 'lxc'}&novnc=1&vmid=${id}&vmname=${encodeURIComponent(name)}&node=${st.pub.node}`);
-    openConsole({ vmid: +id, name, type }, web);
-  }));
-  $$('#guestrows [data-act]').forEach((b) => (b.onclick = async () => {
-    const [type, id, act, name] = b.dataset.act.split('|');
-    if (act !== 'start') {
-      const r = act === 'reboot';
-      const ok = await confirmBox(t(r ? 'guest.confirm_reboot' : 'guest.confirm_shutdown', { name }),
-        t(r ? 'guest.confirm_reboot_text' : 'guest.confirm_shutdown_text'), t(r ? 'guest.reboot' : 'guest.shutdown'));
-      if (!ok) return;
-    }
-    try { await api.post(`/api/guests/${type}/${id}/${act}`); toast(t('guest.sent', { name })); setTimeout(refreshDash, 1500); }
-    catch (e) { toast(e.message, true); }
-  }));
-}
+/* ---------------- containers & VMs table (guests.js) ---------------- */
+guests.init({ openUrl: (u) => app.openUrl(u), pveUrl: () => app.pveUrl(), openConsole, refreshDash });
 
 $$('[data-ptab]').forEach((b) => (b.onclick = () => {
   $$('[data-ptab]').forEach((x) => x.setAttribute('aria-selected', x === b));
   $$('[data-pane]').forEach((p) => (p.hidden = p.dataset.pane !== b.dataset.ptab));
 }));
 
-/* ---------------- launch ---------------- */
-let launchVm = null, launchGpu = null, polling = null, lastSysBtn = null;
-
-function openLaunch(vm) {
-  launchVm = vm;
-  const [, logo, art] = osOf(vm);
-  const run = vm.status === 'running';
-  $('#mArt').style.background = art;
-  $('#mLogo').src = `/icons/${logo}.svg`;
-  $('#mLogo').style.filter = logo === 'apple' ? 'invert(1)' : '';
-  $('#mTitle').textContent = vm.name;
-  $('#mSub').textContent = `VM ${vm.vmid} · ${t('cores', { n: vm.cores })} · ${t('gb', { n: Math.round(vm.memory / 1024) })}`;
-  $('#mSteps').hidden = true; $('#mErr').hidden = true; $('#mOpts').hidden = false;
-  $('#mStart').disabled = false; $('#mCancel').textContent = t('launch.cancel');
-
-  // A running VM can only be joined where it already is: its passthrough GPU, or the menu (VirGL / no GPU).
-  const opts = !run ? vm.options
-    : vm.gpus.length ? vm.options.filter((o) => vm.gpus.includes(o.pci))
-    : vm.options.filter((o) => o.mode === 'virgl');
-  const usable = (o) => !o.disabled || (run && vm.gpus.includes(o.pci));
-  const enabled = opts.filter(usable);
-  const wantIgpu = st.prefs.launch.gpu === 'igpu';
-  const pick = (wantIgpu && enabled.find((o) => o.is_seat_gpu)) || enabled.find((o) => !o.is_seat_gpu) || enabled[0];
-  launchGpu = pick?.pci || null;
-
-  const noteOf = (o) => {
-    if (!usable(o)) return o.disabled;
-    if (o.mode === 'virgl') return t(vm.suspended ? 'launch.note_virgl_suspended' : 'launch.note_virgl');
-    return t(o.is_seat_gpu ? 'launch.note_seat' : 'launch.note_discrete');
-  };
-  const info = run
-    ? t(vm.gpus.length ? 'launch.info_running_gpu' : 'launch.info_running_menu')
-    : t('launch.info');
-  $('#mOpts').innerHTML = (opts.length ? opts.map((o) => {
-    const color = o.vendor === 'nvidia' ? 'rgba(118,185,0,.16);color:#8fd400' : 'rgba(255,90,90,.14);color:#ff8f8f';
-    const pill = o.mode === 'virgl' ? '<span class="pill dim">VirGL</span>' : o.is_seat_gpu ? '<span class="pill dim">iGPU</span>' : `<span class="pill here">${t('launch.pill_monitor')}</span>`;
-    return `<button class="opt${o.pci === launchGpu ? ' sel' : ''}" type="button" data-gpu="${o.pci}" ${usable(o) ? '' : 'disabled'}>
-      <span class="radio"></span><span class="chip" style="background:${color}">${icon(o.integrated ? 'i-chip' : 'i-gpu')}</span>
-      <b>${esc(o.name)}</b>${pill}<small>${o.pci.slice(5)} · ${esc(noteOf(o))}</small></button>`;
-  }).join('') : `<div class="errbox">${esc(t('launch.no_gpus'))}</div>`)
-    + `<div class="warnbox">${icon('i-info')}<span>${info}</span></div>`;
-  $$('#mOpts [data-gpu]').forEach((b) => (b.onclick = () => {
-    launchGpu = b.dataset.gpu;
-    $$('#mOpts [data-gpu]').forEach((x) => x.classList.toggle('sel', x === b));
-  }));
-  $('#mStart').querySelector('span').textContent = t(run ? 'launch.go' : 'launch.start');
-  $('#mStart').querySelector('use').setAttribute('href', run ? '#i-arrow' : '#i-play');
-  $('#mStart').querySelector('svg').style.cssText = run ? '' : 'fill:currentColor;stroke:none';
-  $('#mStart').disabled = !launchGpu;
-  go('launch');
-  if (!run && !st.prefs.launch.ask && launchGpu) startLaunch();
-}
-
-async function startLaunch() {
-  if (!launchVm || !launchGpu) return;
-  $('#mStart').disabled = true;
-  $('#mErr').hidden = true;
-  $('#mSteps').hidden = true; // a retry must not show the failed run's steps
-  try {
-    const job = await api.post('/api/launch', { vmid: launchVm.vmid, gpu: launchGpu });
-    $('#mOpts').hidden = true;
-    showJob(job);
-    clearInterval(polling);
-    polling = setInterval(async () => {
-      try {
-        const j = await api.get(`/api/jobs/${job.id}`);
-        showJob(j);
-        if (j.done) {
-          clearInterval(polling);
-          // Left the launch screen meanwhile: never pull the user into the VM, just refresh.
-          if (st.screen !== 'launch') { refreshDash(); return; }
-          if (j.error) fail(j.error);
-          else if (j.result?.console) openConsole(launchVm);
-          else { $('#mCancel').textContent = t('launch.close'); setTimeout(() => { if (st.screen === 'launch') go('dash'); refreshDash(); }, 2500); }
-        }
-      } catch (e) { clearInterval(polling); fail(e.message); }
-    }, 500);
-  } catch (e) { fail(e.message); }
-}
-
-function showJob(j) {
-  const ol = $('#mSteps');
-  ol.hidden = false;
-  ol.innerHTML = j.steps.map((s) => `<li class="${s.state === 'todo' ? '' : s.state}">${esc(s.text)}</li>`).join('');
-}
-
-function fail(msg) {
-  $('#mErr').textContent = msg;
-  $('#mErr').hidden = false;
-  $('#mOpts').hidden = false;
-  $('#mStart').disabled = false;
-}
-
-$('#mStart').onclick = startLaunch;
+/* ---------------- launch (launch.js) ---------------- */
+launch.init({ go, refreshDash, openConsole });
 
 /* ---------------- open service tabs ---------------- */
 function renderOpenTabs(list) {

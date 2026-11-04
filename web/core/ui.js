@@ -114,3 +114,6 @@ const WX_ICON = {
   snow: ['snow', 'snow'], fog: ['fog', 'fog'],
 };
 export const wxIcon = (kind, night) => `/assets/wx/${(WX_ICON[kind] || WX_ICON.partly)[night ? 1 : 0]}.svg`;
+
+// "VM" / "CT" for a guest type as Proxmox names it (qemu / lxc); empty for anything else.
+export const kindLabel = (type) => (type === 'qemu' ? 'VM' : type === 'lxc' ? 'CT' : '');

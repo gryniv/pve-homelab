@@ -285,6 +285,44 @@ async def launch(r):
     r.check("the system is running", running == 1, running)
 
 
+async def search(r):
+    p = r.p
+    await r.open()
+    await p.js("document.querySelector('#svcgrid .svc').focus();")
+    for ch in "jelly":
+        await p.key(ch, 0, ch)
+    await asyncio.sleep(0.4)
+    names = await p.js("return [...document.querySelectorAll('#svcgrid .svc .n')].map(n => n.textContent);")
+    r.check("typing on the dashboard narrows the services", names == ["Jellyfin"], names)
+    await p.key("Escape", 27)
+    await asyncio.sleep(0.3)
+    n = await p.js("return [document.querySelectorAll('#svcgrid .svc').length, document.querySelector('#svcSearch').hidden];")
+    r.check("Esc clears the search", n[0] > 5 and n[1], n)
+
+
+async def reorder(r):
+    p = r.p
+    await r.open()
+    first = await p.js("const b = document.querySelector('#svcgrid .svc'); b.focus(); return b.dataset.key;")
+    await p.send("Input.dispatchKeyEvent", type="rawKeyDown", key="ArrowRight", code="ArrowRight", windowsVirtualKeyCode=39, modifiers=1)
+    await p.send("Input.dispatchKeyEvent", type="keyUp", key="ArrowRight", code="ArrowRight", windowsVirtualKeyCode=39, modifiers=1)
+    await asyncio.sleep(0.6)
+    keys = await p.js("return [...document.querySelectorAll('#svcgrid .svc')].slice(0, 2).map(b => b.dataset.key);")
+    r.check("Alt+→ moves a service one place right", keys and keys[1] == first, keys)
+    r.check("…and focus moves with it", await p.js("return document.activeElement?.dataset.key;") == first)
+    saved = await p.js(API + "return (await q('GET', '/api/me')).prefs.order.services.slice(0, 2);")
+    r.check("the new order is saved", saved and saved[1] == first, saved)
+
+
+async def service_tabs(r):
+    p = r.p
+    await r.open()
+    # What the kiosk extension sends when service tabs are open next to the menu.
+    await p.js("postMessage({pvehomelabTabs: [{id: 7, title: 'Jellyfin', url: 'https://jellyfin.home.example', icon: ''}]}, location.origin);", 0.5)
+    tabs = await p.js("return [...document.querySelectorAll('#openTabs .otab')].map(t => [t.textContent.trim(), !!t.querySelector('[data-tab=\"7\"] svg'), !!t.querySelector('[data-tabx=\"7\"]')]);")
+    r.check("open service tabs show in the top bar", tabs == [["Jellyfin", True, True]], tabs)
+
+
 async def misc(r):
     p = r.p
     await r.open(None)
@@ -307,7 +345,7 @@ async def misc(r):
 
 CHECKS = {"guests": guests, "logout": logout, "widgets": widgets, "toasts": toasts, "offline": offline,
           "aria": dialogs_aria, "alerts": alerts, "update": failed_update, "focus": settings_focus,
-          "console": console, "launch": launch, "misc": misc}
+          "console": console, "launch": launch, "search": search, "order": reorder, "tabs": service_tabs, "misc": misc}
 
 
 # ---------------------------------------------------------------- driver
