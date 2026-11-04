@@ -8,6 +8,7 @@ import { arrange, moved } from './order.js';
 import { current as currentLang } from './i18n.js';
 import { label as updLabel, check as updCheck } from './updates.js';
 import { $, $$, icon, esc, AVATARS, toast, confirmBox, keepFocus, t } from './ui.js';
+import * as SYS from './system.js';
 
 const ZONES = {
   login: { title: 'set.layout.zone_login', sub: 'set.layout.zone_login_sub' },
@@ -16,8 +17,10 @@ const ZONES = {
 
 const SECTIONS = [
   ['look', 'i-palette', 'set.s.look'], ['login', 'i-lock', 'set.s.login'], ['dash', 'i-layout', 'set.s.dash'],
-  ['systems', 'i-monitor', 'set.s.systems'], ['weather', 'i-cloud', 'set.s.weather'], ['about', 'i-info', 'set.s.about'],
+  ['systems', 'i-monitor', 'set.s.systems'], ['weather', 'i-cloud', 'set.s.weather'], ['system', 'i-gear', 'set.s.system', 'admin'],
+  ['about', 'i-info', 'set.s.about'],
 ];
+const sections = () => SECTIONS.filter(([, , , who]) => who !== 'admin' || app.isAdmin());
 // Settings → Look: a grid of designs (grid); one opens like a folder with everything it is worn
 // with (design: the current one); My designs installs and removes them (mine).
 const LOOK_AT = ['grid', 'design', 'mine'];
@@ -320,6 +323,7 @@ function journal() {
 }
 
 const views = {
+  system: () => SYS.view(),
   look(p) {
     const lang = currentLang();
     if (lookAt === 'design') F.all().forEach((m) => F.load(m.id));
@@ -399,6 +403,7 @@ const views = {
 
 function bind(p) {
   const box = $('#settingsBox');
+  if (current === 'system') SYS.bind(app, render);
   const segBind = (id, fn) => $$(`#${id} button`).forEach((b) => (b.onclick = () => { fn(b.dataset.v); render(); }));
   const chk = (id, fn) => { const el = $('#' + id); if (el) el.onchange = () => fn(el.checked); };
   // look
@@ -592,7 +597,8 @@ function draw() {
   const p = app.prefs();
   const me = app.me();
   const av = app.avatarOf(me);
-  if (!SECTIONS.some(([id]) => id === current)) current = 'look';
+  if (!sections().some(([id]) => id === current)) current = 'look';
+  if (current === 'system') SYS.ensure(app, render);
   if (loginCfg && loginCfg.for !== me.id) loginCfg = null;
   if (current === 'login' && !loginCfg) {
     loginCfg = { for: me.id, pending: true };
@@ -601,7 +607,7 @@ function draw() {
   $('#settingsBox').innerHTML = `
     <nav class="snav">
       <div class="me2"><span class="av" style="background:${av.bg}">${av.inner}</span><div><b>${esc(me.name)}</b><small>${esc(me.id)}</small></div></div>
-      ${SECTIONS.map(([id, ic, label]) => `<button type="button" data-sp="${id}" aria-selected="${id === current}">${icon(ic)}${t(label)}</button>`).join('')}
+      ${sections().map(([id, ic, label]) => `<button type="button" data-sp="${id}" aria-selected="${id === current}">${icon(ic)}${t(label)}</button>`).join('')}
       <span class="sp"></span><span class="saved" id="savedNote">${t('set.saved_hint')}</span>
     </nav>
     <div class="scont"><button class="chipbtn sclose" type="button" id="sClose">${icon('i-x')}${t('set.close')}</button>${views[current](p)}</div>`;

@@ -329,6 +329,33 @@ async def settings_focus(r):
         r.check(f"focus stays on {attr} after a change", before and before == after, f"{before} -> {after}")
 
 
+async def system_settings(r):
+    """Settings → System: admins only; a change shows where it comes from and goes back to the file."""
+    p = r.p
+    await r.open("guest@pve")
+    await p.js("document.querySelector('.top [data-go=settings]').click();", 0.8)
+    r.check("someone who isn't an admin has no System section", await p.js("return !document.querySelector('[data-sp=system]');"))
+    await r.open()
+    await p.js("document.querySelector('.top [data-go=settings]').click();", 0.8)
+    await p.js("document.querySelector('[data-sp=system]').click();")
+    shown = await p.until("return document.querySelectorAll('.sys-item').length > 2 && document.querySelectorAll('#sysGroups button').length", 6)
+    r.check("an admin gets the host's settings in groups", shown and shown > 5, shown)
+    await p.js("[...document.querySelectorAll('#sysGroups button')].find(b => b.dataset.v === 'alerts').click();", 0.5)
+    await p.js("const i = document.querySelector('[data-sys=\"alerts.storage_pct\"]'); i.value = '77'; i.dispatchEvent(new Event('change'));")
+    badge = await p.until("return document.querySelector('[data-path=\"alerts.storage_pct\"] .sys-src.menu')?.textContent", 5)
+    r.check("a change is saved and marked as made here", badge, badge)
+    await p.js("const i = document.querySelector('[data-sys=\"alerts.temp_c\"]'); i.value = '500'; i.dispatchEvent(new Event('change'));")
+    err = await p.until("return document.querySelector('[data-path=\"alerts.temp_c\"] .sys-err')?.textContent", 5)
+    r.check("a wrong value is refused next to the setting", err, err)
+    await p.js("document.querySelector('[data-sys-reset=\"alerts.storage_pct\"]').click();")
+    back = await p.until("return !document.querySelector('[data-path=\"alerts.storage_pct\"] .sys-src.menu') && document.querySelector('[data-sys=\"alerts.storage_pct\"]').value", 5)
+    r.check("Back to config.yaml takes the change out", back == "90", back)
+    await p.js("const s = document.querySelector('#sysSearch'); s.value = 'caddy'; s.dispatchEvent(new Event('input'));", 0.5)
+    found = await p.js("return [...document.querySelectorAll('.sys-item')].map(e => e.dataset.path);")
+    want = {"caddy.ct", "caddy.admin", "caddy.prefer_suffix", "caddy.hide"}
+    r.check("search finds settings across groups", found and want <= set(found) and not any(x.startswith("alerts") for x in found), found)
+
+
 async def console(r):
     p = r.p
     await r.open()
@@ -1003,7 +1030,7 @@ async def misc(r):
     r.check("the weather icon exists", icon and code == 200, f"{icon} {code}")
 
 
-CHECKS = {"guests": guests, "logout": logout, "tfa_signin": tfa_signin, "widgets": widgets, "toasts": toasts, "offline": offline,
+CHECKS = {"guests": guests, "logout": logout, "tfa_signin": tfa_signin, "system_settings": system_settings, "widgets": widgets, "toasts": toasts, "offline": offline,
           "aria": dialogs_aria, "alerts": alerts, "update": failed_update, "focus": settings_focus,
           "console": console, "launch": launch, "search": search, "order": reorder, "guests_table": guest_table, "designs": my_designs, "design_pack": design_pack, "widget_strings": widget_strings, "my_widgets": my_widgets, "feedback": write_to_author, "node_updates": node_updates, "narrow": narrow, "layout_hooks": layout_hooks, "layout_theme": layout_theme, "theme_whole": theme_whole, "design_folders": design_folders, "update_check": update_check, "designing": designing, "quiet_faults": quiet_faults, "tabs": service_tabs, "misc": misc}
 

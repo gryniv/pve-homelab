@@ -12,7 +12,7 @@ from urllib.parse import quote
 import aiohttp
 from aiohttp import web
 
-from . import caddy, config, designs, discover, errlog, feedback, gpus as G, i18n, icons, prefs, update, userwidgets, weather, wol
+from . import caddy, config, designs, discover, errlog, feedback, gpus as G, i18n, icons, prefs, settings, update, userwidgets, weather, wol
 from .ddc import DDC
 from .host import HostStats
 from .launch import Launcher
@@ -1207,6 +1207,79 @@ async def update_status(req):
 UPDATE_CHECK_GAP = 30   # s: GitHub limits how often a host may ask
 
 
+# ---------------- Settings → System: the host's settings, changed in the menu ----------------
+def _system_form(app):
+    return {"groups": list(settings.GROUPS), "settings": settings.describe(config.load_file(), settings.load_overlay()),
+            "restart": app["runtime"].get("restart"), "not_in_menu": sorted(settings.NOT_IN_MENU)}
+
+
+def apply_settings(app, paths):
+    """Settings that take effect at once: the running config gets the new values of `paths`
+    (the rest of it, changed at run time, stays), and what was built from them is built again."""
+    fresh = config.load()
+    cfg = app["cfg"]
+    for p in paths:
+        v, there = settings._get(fresh, p)
+        if there:
+            settings._set(cfg, p, v)
+    hosts = app["allowed_hosts_cache"]
+    hosts.clear()
+    hosts.update(allowed_hosts(app))
+    if any(p.split(".")[0] in ("caddy", "discovery", "services", "links") for p in paths):
+        app["services"].invalidate()
+        if any(p.startswith("discovery") for p in paths):
+            app["discovered"].invalidate()
+    if any(p.startswith(("update.", "feedback.")) for p in paths):
+        app["update"].invalidate()
+
+
+@routes.get("/api/system/settings")
+async def system_settings(req):
+    s = await session(req)
+    await require(req, s, "Sys.Modify")
+    return web.json_response(_system_form(req.app))
+
+
+@routes.put("/api/system/settings")
+async def system_settings_put(req):
+    """{"set": {path: value}, "reset": [path, ...]}: reset takes a setting back to config.yaml."""
+    s = await session(req)
+    await require(req, s, "Sys.Modify")
+    try:
+        body = await req.json()
+    except ValueError:
+        body = None
+    if not isinstance(body, dict) or not isinstance(body.get("set", {}), dict) or not isinstance(body.get("reset", []), list):
+        raise web.HTTPBadRequest(text='{"set": {...}, "reset": [...]} expected')
+    sets, resets = body.get("set") or {}, [str(p) for p in body.get("reset") or []]
+    _, errors = settings.change(sets, resets)
+    if errors:
+        return web.json_response({"error": "; ".join(errors.values()), "errors": errors}, status=400)
+    paths = list(sets) + resets
+    apply_settings(req.app, paths)
+    need = settings.restart_needed(paths)
+    if need:
+        rt = req.app["runtime"]
+        rt["restart"] = "all" if rt.get("restart") and rt["restart"] != need else need
+    log.info("settings changed by %s: %s", s["user"], ", ".join(paths))
+    return web.json_response(_system_form(req.app))
+
+
+@routes.post("/api/system/restart")
+async def system_restart(req):
+    """Restart what the changed settings need: the backend, the kiosk screens, or both."""
+    s = await session(req)
+    await require(req, s, "Sys.Modify")
+    what = req.app["runtime"].get("restart") or "backend"
+    req.app["runtime"]["restart"] = None
+    units = (["pve-homelab.service"] if what in ("backend", "all") else []) + (["pve-homelab-kiosk@*"] if what in ("kiosk", "all") else [])
+    log.info("restart of %s asked by %s", ", ".join(units), s["user"])
+    if not req.app.get("demo"):
+        # its own unit: restarting the backend must not cut the command that does it
+        await run("systemd-run", "--unit=pve-homelab-restart", "--collect", "--quiet", "systemctl", "restart", *units)
+    return web.json_response({"restarting": what})
+
+
 @routes.put("/api/update/auto")
 async def update_auto(req):
     """Settings → About: install new releases by night (admins). Kept beside config.yaml, winning over its update.auto."""
@@ -1292,6 +1365,7 @@ async def on_startup(app):
     app["allowed_hosts_cache"] = allowed_hosts(app)
     app["login_fails"] = {}
     app["tfa"] = {}   # id -> a sign-in waiting for its second factor
+    app["runtime"] = {}   # what changes while the menu runs: a restart the settings are waiting for
     app["apt_lock"] = asyncio.Lock()
     try:
         app["pveversion"] = (await pvesh("/version"))["version"]

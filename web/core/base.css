@@ -524,6 +524,30 @@ html,body{margin:0;height:100%;background:#05080e}
 .A .addw{display:flex;gap:.5em;margin-top:.6em}
 .A .addw select{flex:1;min-width:0;background:rgba(0,0,0,.25);border:1px solid var(--edge);border-radius:.5em;padding:.4em .6em;font-size:.9em}
 .A .addw .btn{padding:.4em .8em;font-size:.88em}
+/* Settings → System: the host's settings, described by the server */
+.A .sys-bar{display:flex;flex-wrap:wrap;gap:.7em;align-items:center;margin-bottom:1em}
+.A .sys-bar input{flex:1 1 14em;min-width:10em;background:rgba(0,0,0,.25);border:1px solid var(--edge);border-radius:.5em;padding:.55em .7em;font-size:1em;color:#e8edf3;user-select:text}
+.A .sys-item{display:grid;grid-template-columns:minmax(14em,1fr) minmax(12em,1.1fr);gap:.4em 1.4em;align-items:start;padding:.8em 0;border-top:1px solid var(--edge);max-width:60em}
+.A .sys-item.wide{grid-template-columns:1fr}
+.A .sys-label label{font-size:.95em}
+.A .sys-label small{display:block;color:var(--mute);font-size:.8em;margin-top:.15em}
+.A .sys-meta{display:flex;flex-wrap:wrap;gap:.4em .6em;align-items:center;margin-top:.3em;font-size:.74em;color:var(--mute)}
+.A .sys-meta code{opacity:.6}
+.A .sys-src{border:1px solid var(--edge);border-radius:1em;padding:.05em .55em}
+.A .sys-src.menu{border-color:var(--acc);color:var(--acc)}
+.A .sys-src.warn{border-color:#f5c451;color:#f5c451}
+.A .sys-err{color:#ffb3b3;font-size:.82em;margin-top:.3em}
+.A .sys-field input:not([type=checkbox]),.A .sys-field textarea{width:100%;box-sizing:border-box;background:rgba(0,0,0,.25);border:1px solid var(--edge);border-radius:.5em;padding:.5em .7em;font-size:.95em;color:#e8edf3;user-select:text;font-family:inherit}
+.A .sys-field .sw{justify-self:start}
+.A .sys-table table{width:100%;border-collapse:collapse;font-size:.88em}
+.A .sys-table th{text-align:left;font-weight:500;color:var(--mute);padding:.2em .3em;font-size:.85em}
+.A .sys-table td{padding:.2em .3em}
+.A .sys-table td input{width:100%;box-sizing:border-box;background:rgba(0,0,0,.25);border:1px solid var(--edge);border-radius:.4em;padding:.4em .5em;color:#e8edf3;font:inherit;user-select:text}
+.A .sys-tbtns{display:flex;gap:.5em;margin-top:.5em}
+.A .sys-restart{display:flex;align-items:center;gap:.8em;flex-wrap:wrap;padding:.8em 1em;border:1px solid #f5c451;border-radius:.7em;margin-bottom:1em;color:#f5c451}
+.A .sys-restart .btn{margin-left:auto}
+.A .sys-note{font-size:.8em;margin-top:1.2em;max-width:50em}
+@media (max-width:900px){.A .sys-item{grid-template-columns:1fr}}
 .A .fld{display:flex;flex-direction:column;gap:.3em;font-size:.85em;color:var(--mute);margin-bottom:.8em;max-width:24em}
 .A .fld input,.A .fld select,.A .fld textarea{background:rgba(0,0,0,.25);border:1px solid var(--edge);border-radius:.5em;padding:.55em .7em;font-size:1.1em;color:#e8edf3;user-select:text}
 .A .svclist{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.1em 1.4em}

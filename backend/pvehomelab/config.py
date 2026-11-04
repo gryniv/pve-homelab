@@ -58,12 +58,19 @@ def _merge(base, over):
     return out
 
 
-def load():
-    data = {}
+def load_file():
+    """config.yaml as written by hand (or by setup), without defaults."""
     if os.path.exists(CONFIG_PATH):
         with open(CONFIG_PATH, encoding="utf-8") as f:
             data = yaml.safe_load(f) or {}
-    cfg = _merge(DEFAULTS, data)
+        return data if isinstance(data, dict) else {}
+    return {}
+
+
+def load():
+    """DEFAULTS, then config.yaml, then what was changed in the menu (settings.yaml)."""
+    from . import settings
+    cfg = _merge(_merge(DEFAULTS, load_file()), settings.load_overlay())
     cfg["node"] = cfg["node"] or socket.gethostname().split(".")[0]
     # YAML gives hex input codes as ints already; PCI keys stay strings.
     for mon in cfg["monitors"].values():
