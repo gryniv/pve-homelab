@@ -138,11 +138,16 @@ function applyThemeOpts(skin, chosen = {}) {
   (th?.options || []).forEach((o) => b.setAttribute(`data-o-${o.key}`, o.values.includes(chosen[o.key]) ? chosen[o.key] : o.default));
 }
 
+// A theme or background removed since someone chose it: the built-in default stands in, quietly
+// (clocks.js does the same for a clock).
 function applyLook(look = {}) {
-  document.body.dataset.skin = look.skin || 'dusk';
-  applyThemeOpts(look.skin || 'dusk', look.theme_opts?.[look.skin || 'dusk']);
-  document.body.dataset.bg = look.background || 'scene';
-  bg.apply(look.background || 'scene');
+  const has = (list, id) => !!id && (!list || list.some((x) => x.id === id));
+  const skin = has(st.pub?.themes, look.skin) ? look.skin : 'dusk';
+  const back = has(bg.all(), look.background) ? look.background : 'scene';
+  document.body.dataset.skin = skin;
+  applyThemeOpts(skin, look.theme_opts?.[skin]);
+  document.body.dataset.bg = back;
+  bg.apply(back);
   fonts.apply(look.fonts);
   if ((look.clock || 'digital') !== clockId) { clockId = look.clock || 'digital'; tick(); }
 }
@@ -315,7 +320,7 @@ async function logout() {
   guests.reset();
   st.admin = false;
   st.me = null; st.prefs = null;
-  try { st.pub = await api.get('/api/public'); } catch {}
+  try { st.pub = await api.get('/api/public'); clocks.init(st.pub.clocks); } catch {}
   await useLang();
   renderUsers();
   go('login');
@@ -453,6 +458,7 @@ addEventListener('keydown', (e) => {
   addEventListener(ev, () => { st.lastInput = Date.now(); if (st.screen === 'saver') go(st.me ? 'dash' : 'login'); }, { passive: true, capture: true }));
 
 addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && st.screen === 'settings' && S.back()) return;   // out of a design folder first
   if (e.key === 'Escape' && ['settings', 'launch'].includes(st.screen)) go('dash');
 });
 
@@ -503,6 +509,7 @@ async function boot() {
   }
   bg.init(st.pub.backgrounds);
   fonts.init(st.pub.fonts);
+  clocks.init(st.pub.clocks);
   setSeat(st.pub.seat.id);
   document.body.classList.toggle('remote', !!st.pub.seat.remote);
   paintSeat();

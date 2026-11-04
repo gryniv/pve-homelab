@@ -8,7 +8,7 @@ Plug a monitor into your Proxmox VE host and get a beautiful sign-in screen, a l
 of your homelab, your web services one click away, and a launcher that boots your desktop VMs
 straight onto the GPU that monitor is wired to.
 
-![version](https://img.shields.io/badge/version-0.6.0-ff8a3d)
+![version](https://img.shields.io/badge/version-0.7.0-ff8a3d)
 ![Proxmox VE](https://img.shields.io/badge/Proxmox%20VE-8%20%7C%209-e57000)
 ![python](https://img.shields.io/badge/python-3.10%2B-3776ab)
 ![no build step](https://img.shields.io/badge/frontend-no%20build%20step-4cc9f0)
@@ -138,8 +138,8 @@ cards, and settings and dialogs take the whole width.
 
 ### Runs itself
 - **Updates from GitHub.** A badge in the top bar and a reminder after sign-in. Admins install it with one
-  click, and nightly auto-update is optional. *Settings → About → Check now* asks GitHub at once
-  instead of waiting for the next check. No git is needed on the host.
+  click, or switch on *Update by itself* in *Settings → About* for a nightly install. *Check now* there
+  asks GitHub at once instead of waiting for the next check. No git is needed on the host.
 - **Proxmox updates.** For those who may update the node, a button in the top bar counts the
   packages waiting; an amber dot means a new kernel is among them. Its dialog lists them, says when
   the package lists were last checked, checks again on request, and opens Proxmox, where they are
@@ -289,7 +289,9 @@ newest commit of a branch with `channel: main`. When there is something new:
 
 - an **"Update vX.Y.Z"** badge appears in the top bar, with a reminder after sign-in;
 - anyone with `Sys.Modify` on `/` installs it with one click;
-- `update.auto: true` installs new versions every night at 04:30.
+- *Settings → About → Update by itself* (admins), or `update.auto: true`, installs new versions
+  every night around 04:30, or right after the host is switched on if it was off then. The menu's
+  switch is kept in `/etc/pve-homelab/update-settings.json` and wins over `config.yaml`.
 
 An update can't leave the host with a broken menu:
 
@@ -330,8 +332,10 @@ settings, with a live preview.
 `/etc/pve-homelab/designs/<kind>/` on the host: updates never touch that folder, and a file there
 with the same id as a built-in design replaces it.
 
-A theme can come as a whole: picking it brings its own background and clock, and its own settings
-(say, its colour, font or layout) show under the theme tiles, kept for each person.
+*Settings → Look* is a grid of designs, each opening like a folder: inside are its own settings
+(say, its colour, font or layout), the background, the clock and the fonts, and every design
+remembers how each person wore it. A theme that brings its own background and clock is one pack in
+*My designs*, removed with one click.
 
 **Making designs** — scaffolding, live reload in the demo, the showcase page and every contract: [DESIGNS.md](DESIGNS.md).
 
@@ -410,6 +414,7 @@ On the host, next to the real service:
 
 ```bash
 python3 tools/dryrun.py --port 8901        # real data, password "test", actions only logged
+python3 tools/launch_plan.py 102           # what starting VM 102 would change (qm set, monitor input), nothing done
 python3 tools/screenshots.py --out /tmp/shots --lang en
 ```
 

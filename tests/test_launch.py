@@ -159,3 +159,32 @@ def test_vm_gpus_sees_mapped_cards(monkeypatch):
     assert used["0000:01:00"] == [102] and used["0000:79:00.6"] == [102]
     assert "0000:09:00" not in used                       # snapshot sections don't count
     assert used["0000:05:00.0"] == [103] and used["0000:05:00.1"] == [103]
+
+
+async def test_a_vm_started_outside_the_menu_gives_the_monitor_back(client, monkeypatch):
+    """Started from Proxmox while the menu runs: the menu picks it up, and when it stops the monitor
+    goes back to the menu (it used to stay on that GPU's input, with no picture)."""
+    from pvehomelab.ddc import DDC
+    await login(client)
+    app = client.server.app
+    L, switched = app["launcher"], []
+    monkeypatch.setitem(app["cfg"]["seats"]["igpu"], "kiosk", True)   # the menu is on that monitor, as on a host
+
+    async def switch(self, mon, pci):
+        switched.append((mon, pci))
+        return True
+    monkeypatch.setattr(DDC, "switch_to_gpu", switch)
+    vm = await _system(client, "ubuntu-desktop")
+    gpu = next(o["pci"] for o in vm["options"] if o["mode"] == "passthrough")
+    demo.WORLD[vm["vmid"]].update(hostpci=[gpu.rsplit(".", 1)[0]], status="running")   # as Proxmox would
+    app["resources"].invalidate()
+    assert vm["vmid"] not in L.watch
+    await L.adopt()
+    seat_gpu = app["cfg"]["seats"]["igpu"]["gpu"]
+    mon = app["ddc"].monitor_for_gpu(seat_gpu)
+    assert L.watch[vm["vmid"]] == (mon, seat_gpu)
+    await L.give_back()
+    assert switched == [] and vm["vmid"] in L.watch            # still running: nothing happens
+    demo.WORLD[vm["vmid"]]["status"] = "stopped"
+    await L.give_back()
+    assert switched == [(mon, seat_gpu)] and vm["vmid"] not in L.watch

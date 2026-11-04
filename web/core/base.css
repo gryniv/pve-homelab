@@ -413,7 +413,23 @@ html,body{margin:0;height:100%;background:#05080e}
 .A .seg button[aria-pressed="true"]{background:var(--acc-soft);color:#fff}
 .A .tgl{display:flex;justify-content:space-between;align-items:center;gap:1em;padding:.65em 0;border-top:1px solid var(--edge);font-size:.95em;max-width:44em}
 .A .tgl small{display:block;color:var(--mute);font-size:.82em}
-/* a theme's own settings (Settings → Look → Theme) */
+/* Settings → Look: designs as folders; inside one, its own settings and what it is worn with */
+.A .lkfold{position:relative}
+.A .lkfold .lkopen{position:absolute;top:.95em;right:.95em;width:1.7em;height:1.7em;border-radius:50%;display:grid;place-items:center;
+  background:rgba(0,0,0,.55);border:1px solid var(--edge);color:#fff;opacity:.75;transition:opacity .15s,transform .15s}
+.A .lkfold .lkopen .i{width:1em;height:1em}
+.A .lkfold:hover .lkopen,.A .lkfold:focus-visible .lkopen,.A .lkfold.sel .lkopen{opacity:1;background:var(--acc-soft);border-color:var(--acc-line)}
+.A .lkfold:hover .lkopen,.A .lkfold:focus-visible .lkopen{transform:translateX(.15em)}
+.A .lkmine .lkplus{display:grid;place-items:center;aspect-ratio:16/9;border-radius:.2em;border:1px dashed var(--edge);color:var(--mute);background:rgba(255,255,255,.02)}
+.A .lkmine .lkplus .i{width:2.2em;height:2.2em}
+.A .lkmine:hover .lkplus,.A .lkmine:focus-visible .lkplus{color:var(--acc-text);border-color:var(--acc-line)}
+.A .lkhead{display:flex;align-items:center;gap:.6em 1em;flex-wrap:wrap;margin:0 0 1.2em}
+.A .lkhead .lkname{flex:1;min-width:12em;display:flex;flex-direction:column}
+.A .lkhead .lkname b{font-size:1.15em}
+.A .lkhead .lkname small{color:var(--mute);font-size:.85em}
+.A .lookbar .lead{margin:0}
+.A .i.lkback{transform:rotate(180deg)}
+/* a design's own settings (Settings → Look → a design) */
 .A .topt{display:flex;justify-content:space-between;align-items:center;gap:.6em 1em;flex-wrap:wrap;padding:.55em 0;border-top:1px solid var(--edge);font-size:.95em;max-width:44em}
 .A .tbundle{margin:.6em 0 0}
 .A .sw{position:relative;width:2.6em;height:1.45em;flex:none}

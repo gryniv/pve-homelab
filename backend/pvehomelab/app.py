@@ -375,7 +375,11 @@ async def designs_admin(req):
 @routes.get("/api/designs")
 async def designs_list(req):
     await session(req)
-    return web.json_response({"mine": designs.mine(), "folder": config.USER_DESIGNS_DIR})
+    worn = prefs.usage()
+    mine = designs.mine()
+    for d in mine:   # how many wear it (a pack: its theme or any of its parts), so removing it can say so
+        d["worn"] = max([worn.get((d["kind"], d["id"]), 0)] + [worn.get((p["kind"], p["id"]), 0) for p in d.get("parts", [])])
+    return web.json_response({"mine": mine, "folder": config.USER_DESIGNS_DIR})
 
 
 async def uploaded_files(req):
@@ -457,10 +461,13 @@ async def designs_events(req):
 async def designs_remove(req):
     s = await designs_admin(req)
     kind, did = req.match_info["kind"], req.match_info["did"]
-    if not designs.remove(kind, did):
+    # ?pack=1 on a theme: with the background and clock it brings (DESIGNS.md, "A theme as a whole")
+    gone = designs.remove_pack(did) if kind == "themes" and req.query.get("pack") == "1" \
+        else [(kind, did)] if designs.remove(kind, did) else []
+    if not gone:
         raise web.HTTPNotFound(text="no such design of yours")
-    log.info("design %s/%s removed by %s", kind, did, s["user"])
-    return web.json_response({"ok": True})
+    log.info("designs removed by %s: %s", s["user"], ", ".join(f"{k}/{i}" for k, i in gone))
+    return web.json_response({"ok": True, "removed": [{"kind": k, "id": i} for k, i in gone]})
 
 
 # ---------------- your own widgets ----------------
@@ -1082,6 +1089,25 @@ async def update_status(req):
 UPDATE_CHECK_GAP = 30   # s: GitHub limits how often a host may ask
 
 
+@routes.put("/api/update/auto")
+async def update_auto(req):
+    """Settings → About: install new releases by night (admins). Kept beside config.yaml, winning over its update.auto."""
+    s = await session(req)
+    if not await req.app["pve"].can(s["ticket"], "/", "Sys.Modify"):
+        raise PVEError(403, i18n._("forbidden"))
+    try:
+        on = (await req.json()).get("auto")
+    except (ValueError, AttributeError):
+        on = None
+    if not isinstance(on, bool):
+        raise web.HTTPBadRequest(text='{"auto": true | false} expected')
+    update.set_auto(on)
+    if req.app["update"].value:   # the held answer says what the switch is: keep it true at once
+        req.app["update"].value = {**req.app["update"].value, "auto": on}
+    log.info("automatic updates turned %s by %s", "on" if on else "off", s["user"])
+    return web.json_response({"auto": on})
+
+
 @routes.post("/api/update/check")
 async def update_check(req):
     """Ask GitHub now instead of waiting for the next check (every update.check_hours), from
@@ -1195,19 +1221,10 @@ async def on_startup(app):
 
 
 async def _adopt_running(app):
-    """Watch VMs that already hold a GPU wired to a menu monitor (started before us)."""
-    cfg, ddc = app["cfg"], app["ddc"]
+    """Watch VMs that already hold a GPU wired to a menu monitor (started before us); the watch
+    loop keeps doing it for those started from Proxmox while the menu runs."""
     try:
-        running = await app["running"]()
-        for g in await G.list_gpus(running):
-            vm, mon = g["running_vm"], ddc.monitor_for_gpu(g["pci"])
-            if not vm or not mon:
-                continue
-            seat_gpu = next((s["gpu"] for s in cfg["seats"].values()
-                             if s.get("kiosk") and ddc.monitor_for_gpu(s["gpu"]) == mon), None)
-            if seat_gpu:
-                app["launcher"].watch[vm] = (mon, seat_gpu)
-                log.info("watching VM %s on monitor %s", vm, mon)
+        await app["launcher"].adopt()
     except Exception as e:
         log.warning("adopt running VMs: %s", e)
 

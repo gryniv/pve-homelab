@@ -220,6 +220,27 @@ async def offline(r):
     await p.js("window.fetch = window.__rf;")
 
 
+async def quiet_faults(r):
+    """What is no fault of the page stays out of the error journal: a chosen clock design that was
+    removed since (the digital one shows), and a widget whose request was cut (the banner shows it)."""
+    p = r.p
+    await r.open()
+    await p.js(API + "await q('DELETE', '/api/logs'); await q('PUT', '/api/prefs', {...(await q('GET', '/api/me')).prefs, clock: 'uicheck-gone'});")
+    await p.send("Page.navigate", url=r.base)
+    await p.until("return document.querySelector('[data-scr=dash]')?.hidden === false && document.querySelectorAll('.sys .play').length > 0", 15)
+    await asyncio.sleep(1.5)
+    shown = await p.js("return document.querySelector('[data-clock]').dataset.clockk;")
+    logged = await p.js(API + "return (await q('GET', '/api/logs')).entries.filter(e => e.source.startsWith('client:')).map(e => e.msg);")
+    r.check("a removed clock design: the digital one, nothing in the journal", shown == "digital" and logged == [], [shown, logged])
+    await p.js("window.__rf = window.fetch; window.__urls = [];"
+               "window.fetch = (u) => { window.__urls.push(String(u)); return Promise.reject(new TypeError('Failed to fetch')); };"
+               "const W = await import('/core/widgets.js'); const box = document.createElement('div'); document.body.append(box);"
+               "W.mount(box, 'disks', 'side', {opts: {}});", 1.0)
+    st = await p.js("return [!!document.querySelector('.werr'), window.__urls.filter(u => u.includes('/api/client-log')).length];")
+    await p.js("window.fetch = window.__rf;")
+    r.check("a widget whose request was cut says so, but records no fault", st == [True, 0], st)
+
+
 async def dialogs_aria(r):
     p = r.p
     await r.open(None)
@@ -382,7 +403,7 @@ async def my_designs(r):
                 ".A[data-skin=\"uicheck-neon\"],.A [data-skin=\"uicheck-neon\"]{--acc:#00e5ff}\n")
     open_mine = ("document.querySelector('.top [data-go=settings]').click();"
                  "await new Promise(r => setTimeout(r, 500));"
-                 "document.querySelector('#lookTabs [data-v=mine]').click();")
+                 "document.querySelector('[data-lookmine]').click();")
     await r.open()
     await p.js(open_mine)
     ok = await p.until(f"return !!document.querySelector('#designPick') && {LOADED} && "
@@ -393,14 +414,14 @@ async def my_designs(r):
     node = await p.send("DOM.querySelector", nodeId=doc["root"]["nodeId"], selector="#designFiles")
     await p.send("DOM.setFileInputFiles", files=[theme], nodeId=node["nodeId"])
     back = await p.until("return !document.querySelector('[data-layer=settings]')?.hidden && "
-                         "document.querySelector('#lookTabs [data-v=mine]')?.getAttribute('aria-pressed') === 'true' && "
+                         "!!document.querySelector('#lookMine') && "
                          "[...document.querySelectorAll('.mylist li')].map(l => l.textContent).join('|').includes('UI check neon');", 12)
     r.check("installing reloads back to My designs, listing the new one", back)
     themes = await p.js(API + "return (await q('GET', '/api/public')).themes.map(t => t.id);")
     r.check("…and it is offered as a theme", "uicheck-neon" in (themes or []), themes)
     await p.js("document.querySelector('[data-rmdesign^=\"themes|uicheck-neon\"]').click();", 0.4)
     await p.js("document.querySelector('#cYes').click();")
-    gone = await p.until("return document.querySelector('#lookTabs [data-v=mine]')?.getAttribute('aria-pressed') === 'true' && "
+    gone = await p.until("return !!document.querySelector('#lookMine') && "
                          "!document.querySelector('[data-rmdesign]') && document.querySelectorAll('.mylist li').length === 0;", 12)
     r.check("removing it reloads back with the list empty", gone)
     await r.open("guest@pve")
@@ -408,6 +429,51 @@ async def my_designs(r):
     guest = await p.until("return !document.querySelector('#designPick') && document.querySelector('.scont').textContent.includes('admins');", 5)
     r.check("someone without Sys.Modify is told installing is for admins", guest)
     shutil.rmtree(os.path.dirname(theme), ignore_errors=True)
+
+
+async def design_pack(r):
+    """A theme with the background and clock of yours it brings is one row in My designs, removed as one;
+    whoever wore it gets the built-in look back, with nothing in the error journal."""
+    p = r.p
+    if not r.designs_dir:
+        r.check("design_pack (needs --start-demo: it writes into the demo's designs folder)", True)
+        return
+    files = {("themes", "uicheck-pack.css"): '/*\n * @name.en Pack check\n * @background uicheck-vec\n * @clock uicheck-tty\n */\n'
+                                             '.A[data-skin="uicheck-pack"],.A [data-skin="uicheck-pack"]{--acc:#ff00ff}\n',
+             ("backgrounds", "uicheck-vec.css"): '/*\n * @name.en Vec check\n */\n.bgx[data-k="uicheck-vec"]{background:#123}\n',
+             ("clocks", "uicheck-tty.js"): "/*\n * @name.en Tty check\n */\nexport const css = '';\nexport function render(el) { el.textContent = 'TTY'; }\n"}
+    for (kind, name), text in files.items():
+        os.makedirs(os.path.join(r.designs_dir, kind), exist_ok=True)
+        with open(os.path.join(r.designs_dir, kind, name), "w", encoding="utf-8") as f:
+            f.write(text)
+    try:
+        await r.open()
+        await p.js(API + "await q('DELETE', '/api/logs'); await q('PUT', '/api/prefs', {...(await q('GET', '/api/me')).prefs,"
+                   " skin: 'uicheck-pack', background: 'uicheck-vec', clock: 'uicheck-tty'});")
+        await p.send("Page.navigate", url=r.base)
+        await p.until("return document.querySelector('[data-scr=dash]')?.hidden === false && document.querySelectorAll('.sys .play').length > 0", 15)
+        await p.js("document.querySelector('.top [data-go=settings]').click(); await new Promise(r => setTimeout(r, 500));"
+                   "document.querySelector('[data-lookmine]').click();", 0.5)
+        rows = await p.until(f"return {LOADED} && [...document.querySelectorAll('.mylist li')].map(l => l.textContent.replace(/\\s+/g, ' ').trim());", 8)
+        r.check("a pack is one row in My designs, with what it brings and who wears it",
+                rows and len(rows) == 1 and all(w in rows[0] for w in ("Pack check", "Vec check", "Tty check", "worn by 1 person")), rows)
+        await p.js("document.querySelector('[data-rmdesign^=\"themes|uicheck-pack\"]').click();", 0.4)
+        text = await p.js("return document.querySelector('#confirmLayer').textContent;")
+        r.check("…removing it says what goes with it and who wears it", text and "Vec check" in text and "1 person" in text, text)
+        await p.js("document.querySelector('#cYes').click();")
+        gone = await p.until("return !!document.querySelector('#lookMine') && !document.querySelector('[data-rmdesign]') && "
+                             "document.querySelectorAll('.mylist li').length === 0;", 12)
+        left = sorted(n for k in ("themes", "backgrounds", "clocks") for n in os.listdir(os.path.join(r.designs_dir, k)) if n.startswith("uicheck-"))
+        r.check("…one click removes all three", gone and left == [], left)
+        st = await p.js("return [document.body.dataset.skin, document.body.dataset.bg, document.querySelector('[data-clock]').dataset.clockk];")
+        logged = await p.js(API + "return (await q('GET', '/api/logs')).entries.filter(e => e.source.startsWith('client:')).map(e => e.msg);")
+        r.check("…and whoever wore it gets the built-in look back, quietly", st == ["dusk", "scene", "digital"] and logged == [], [st, logged])
+    finally:
+        for kind, name in files:
+            try:
+                os.remove(os.path.join(r.designs_dir, kind, name))
+            except OSError:
+                pass
 
 
 async def write_to_author(r):
@@ -640,7 +706,7 @@ WHOLE = """/*
  * @option.uk color Колір: червоний | зелений
  */
 .A[data-skin="uicheck-whole"],.A [data-skin="uicheck-whole"]{--acc:#ff0000}
-.A[data-skin="uicheck-whole"][data-o-color="green"]{--acc:#00ff00}
+.A[data-skin="uicheck-whole"][data-o-color="green"],.A [data-skin="uicheck-whole"][data-o-color="green"]{--acc:#00ff00}
 """
 
 
@@ -664,6 +730,16 @@ async def update_check(r):
     await r.open("guest@pve")
     await p.js(open_about, 0.6)
     r.check("someone without Sys.Modify has no Check now", await p.js("return !document.querySelector('#updCheck');"))
+    r.check("…and no switch for automatic updates", await p.js("return !document.querySelector('#pAutoUpd');"))
+    await r.open()
+    await p.js(open_about, 0.6)
+    was = await p.until("const c = document.querySelector('#pAutoUpd'); return c ? [c.checked] : null;", 6)
+    await p.js("document.querySelector('#pAutoUpd').click();", 0.6)
+    on = await p.until(API + "const u = await q('GET', '/api/update'); return u.auto === true && u.auto;", 4)
+    await p.js("document.querySelector('[data-sp=look]').click(); await new Promise(r => setTimeout(r, 300)); document.querySelector('[data-sp=about]').click();", 0.5)
+    kept = await p.js("return document.querySelector('#pAutoUpd').checked;")
+    r.check("an admin switches automatic updates on in About, and it stays on", was == [False] and on is True and kept, [was, on, kept])
+    await p.js(API + "await q('PUT', '/api/update/auto', {auto: false});")
 
 
 async def theme_whole(r):
@@ -684,12 +760,14 @@ async def theme_whole(r):
         st = await p.js("return [document.body.dataset.skin, document.body.dataset.bg, document.querySelector('[data-clock]').dataset.clockk,"
                         " document.body.getAttribute('data-o-color')];")
         r.check("picking the theme brings its background and clock", st == ["uicheck-whole", "night", "flip", "red"], st)
-        r.check("…its setting shows under the tiles, named in the person's language",
+        r.check("…its setting shows inside it, named in the person's language",
                 await p.js("return document.querySelector('.topt')?.textContent.includes('Colour') && !!document.querySelector('#to-color [data-v=green]');"))
         r.check("…and the default value paints the page", await p.js(acc) == "#ff0000", await p.js(acc))
         await p.js("document.querySelector('#to-color [data-v=green]').click();", 0.8)
         st = await p.js("return [document.body.getAttribute('data-o-color'), getComputedStyle(document.body).getPropertyValue('--acc').trim()];")
         r.check("another value changes the page", st == ["green", "#00ff00"], st)
+        mini = await p.js("const s = document.querySelector('[data-clk] .scrn'); return [s.getAttribute('data-o-color'), getComputedStyle(s).getPropertyValue('--acc').trim()];")
+        r.check("…and the previews inside the design", mini == ["green", "#00ff00"], mini)
         saved = await p.until(API + "const o = (await q('GET', '/api/me')).prefs.theme_opts; return o['uicheck-whole']?.color;", 4)
         r.check("…and is kept", saved == "green", saved)
         await p.js("document.querySelector('#settingsBox .sclose, [data-go=dash]')?.click();", 0.3)
@@ -699,6 +777,54 @@ async def theme_whole(r):
         r.check("the sign-in screen shows the person's theme with their setting", st == ["uicheck-whole", "green"], st)
     finally:
         os.remove(path)
+
+
+async def design_folders(r):
+    """Settings → Look: designs are folders; inside one, its settings and what it is worn with, kept per design."""
+    p = r.p
+    await r.open()
+    now = "return [document.body.dataset.skin, document.body.dataset.bg, document.querySelector('[data-clock]').dataset.clockk];"
+    themes = await p.js(API + "return (await q('GET', '/api/public')).themes.map(t => t.id);")
+    a = (await p.js(now))[0]
+    worn_a = await p.js(now)
+    b, c = [x for x in themes if x != a][:2]
+    pick = lambda d: p.js(f"document.querySelector('[data-skinpick=\"{d}\"]').click();", 1.0)
+    await p.js("document.querySelector('.top [data-go=settings]').click();", 0.6)
+    grid = await p.js("return [document.querySelectorAll('[data-skinpick]').length, !!document.querySelector('[data-lookmine]'),"
+                      " !!document.querySelector('#lookTabs'), document.querySelectorAll('[data-bgk], [data-clk]').length];")
+    r.check("Look is one grid of designs and My designs, no tabs", grid == [len(themes), True, False, 0], grid)
+    await pick(b)
+    inside = await p.js("return [document.body.dataset.skin, !!document.querySelector('#lookBack'), !!document.querySelector('#lookReset'),"
+                        " document.querySelectorAll('[data-bgk]').length > 3, document.querySelectorAll('[data-clk]').length > 1,"
+                        " document.querySelectorAll('[data-font^=\"display|\"]').length > 1, document.querySelectorAll('[data-font^=\"ui|\"]').length > 1,"
+                        " !!document.querySelector('[data-skinpick]'), document.activeElement?.id];")
+    r.check("a design opens like a folder: it is worn, with its background, clock and fonts inside",
+            inside == [b, True, True, True, True, True, True, False, "lookBack"], inside)
+    r.check("…as it was designed, the first time", await p.js(now) == [b, "scene", "digital"], await p.js(now))
+    await p.js("document.querySelector('[data-bgk=night]').click();", 0.4)
+    await p.js("document.querySelector('[data-clk=flip]').click();", 0.6)
+    await p.key("Escape", 27)
+    await asyncio.sleep(0.4)
+    st = await p.js("return [!document.querySelector('[data-layer=settings]')?.hidden, !!document.querySelector('[data-skinpick]'), !document.querySelector('#lookBack')];")
+    r.check("Esc inside a design goes back to the grid, settings stay open", st == [True, True, True], st)
+    await pick(c)
+    r.check("another design comes as it was designed", await p.js(now) == [c, "scene", "digital"], await p.js(now))
+    await p.js("document.querySelector('#lookBack').click();", 0.5)
+    tile = await p.js(f"const s = document.querySelector('[data-skinpick=\"{b}\"] .scrn'); return [s.dataset.clockId, s.querySelector('.bgx')?.dataset.k];")
+    r.check("…and the tile of the one before shows what it was worn with", tile == ["flip", "night"], tile)
+    await pick(b)
+    r.check("coming back to a design brings back what it was worn with", await p.js(now) == [b, "night", "flip"], await p.js(now))
+    saved = await p.until(API + f"const l = (await q('GET', '/api/me')).prefs.looks; return l['{c}']?.background === 'scene' && l['{a}'] && l;", 4)
+    r.check("…kept for each design", bool(saved), saved)
+    await p.js("document.querySelector('#lookReset').click();", 0.8)
+    r.check("As designed puts its own background and clock back", await p.js(now) == [b, "scene", "digital"], await p.js(now))
+    await p.js("document.querySelector('#lookBack').click();", 0.5)
+    await pick(a)
+    r.check("the design worn before all this comes back as it was", await p.js(now) == worn_a, [await p.js(now), worn_a])
+    await p.js("document.querySelector('#lookBack').click();", 0.5)
+    await p.js("document.querySelector('[data-lookmine]').click();", 0.8)
+    mine = await p.until(f"return !!document.querySelector('#lookMine') && !!document.querySelector('#designPick') && {LOADED};", 6)
+    r.check("My designs is the last tile and opens the same way", mine)
 
 
 async def widget_strings(r):
@@ -849,7 +975,7 @@ async def misc(r):
 
 CHECKS = {"guests": guests, "logout": logout, "widgets": widgets, "toasts": toasts, "offline": offline,
           "aria": dialogs_aria, "alerts": alerts, "update": failed_update, "focus": settings_focus,
-          "console": console, "launch": launch, "search": search, "order": reorder, "guests_table": guest_table, "designs": my_designs, "widget_strings": widget_strings, "my_widgets": my_widgets, "feedback": write_to_author, "node_updates": node_updates, "narrow": narrow, "layout_hooks": layout_hooks, "layout_theme": layout_theme, "theme_whole": theme_whole, "update_check": update_check, "designing": designing, "tabs": service_tabs, "misc": misc}
+          "console": console, "launch": launch, "search": search, "order": reorder, "guests_table": guest_table, "designs": my_designs, "design_pack": design_pack, "widget_strings": widget_strings, "my_widgets": my_widgets, "feedback": write_to_author, "node_updates": node_updates, "narrow": narrow, "layout_hooks": layout_hooks, "layout_theme": layout_theme, "theme_whole": theme_whole, "design_folders": design_folders, "update_check": update_check, "designing": designing, "quiet_faults": quiet_faults, "tabs": service_tabs, "misc": misc}
 
 
 # ---------------------------------------------------------------- driver

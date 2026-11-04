@@ -122,8 +122,9 @@ export function mount(box, id, zone, ctx) {
       box.innerHTML = `<h4>${ui.esc(w.title)}</h4><div class="werr">${ui.esc(e.message)}</div>
         <button type="button" class="wretry">${ui.esc(ui.t('widget.retry'))}</button>`;
       box.querySelector('.wretry').onclick = () => refresh();
-      // the backend already logged its own failures; record what broke in the browser
-      if (!e.status) report('widget', `${id} (${zone}): ${e.message}`, e.stack);
+      // the backend already logged its own failures, and a lost connection is no fault of the
+      // widget (the offline banner shows it): record what broke in the browser
+      if (!e.status && !e.offline) report('widget', `${id} (${zone}): ${e.message}`, e.stack);
     }
   };
   refresh();

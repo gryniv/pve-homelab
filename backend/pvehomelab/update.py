@@ -2,7 +2,7 @@
 
     python3 -m pvehomelab.update check          # print installed vs latest
     python3 -m pvehomelab.update apply          # download and install the latest version
-    python3 -m pvehomelab.update auto           # apply only if update.auto is true (systemd timer)
+    python3 -m pvehomelab.update auto           # apply only if automatic updates are on (systemd timer)
 
 Channel "release": the latest GitHub release (tag vX.Y.Z). Channel "main": the newest commit
 of a branch. Git is not needed on the host: the source archive comes from codeload.github.com
@@ -52,6 +52,29 @@ def installed():
     return {"version": _read("VERSION", "0.0.0"), "commit": _read("COMMIT"), "repo": _read("REPO")}
 
 
+# Automatic updates can be switched in the menu (Settings → About, admins): the switch is kept here,
+# next to config.yaml, and wins over its update.auto (config.yaml stays the admin's hand-written file).
+MENU_FILE = "update-settings.json"
+
+
+def _menu():
+    try:
+        with open(os.path.join(config.STATE_DIR, MENU_FILE), encoding="utf-8") as f:
+            d = json.load(f)
+    except (OSError, ValueError):
+        return {}
+    return {"auto": d["auto"]} if isinstance(d, dict) and isinstance(d.get("auto"), bool) else {}
+
+
+def set_auto(on):
+    """The menu's switch: install new releases by night (the pve-homelab-update timer), or not."""
+    os.makedirs(config.STATE_DIR, exist_ok=True)
+    p = os.path.join(config.STATE_DIR, MENU_FILE)
+    with open(p + ".tmp", "w", encoding="utf-8") as f:
+        json.dump({"auto": bool(on)}, f)
+    os.replace(p + ".tmp", p)
+
+
 def settings(cfg):
     u = dict(cfg.get("update") or {})
     u.setdefault("channel", "release")
@@ -59,6 +82,7 @@ def settings(cfg):
     u.setdefault("auto", False)
     u.setdefault("auto_main", False)  # nightly install of whatever was pushed to the branch: opt-in only
     u.setdefault("check_hours", 6)
+    u.update(_menu())
     u["repo"] = _repo_slug(u.get("repo") or installed()["repo"] or DEFAULT_REPO)
     return u
 
@@ -261,7 +285,7 @@ def main():
     else:
         u = settings(cfg)
         if not u["auto"]:
-            print("update.auto is off")
+            print("automatic updates are off (Settings → About, or update.auto in config.yaml)")
             return
         if u["channel"] == "main" and not u["auto_main"]:
             print("channel main: automatic install of any pushed commit needs update.auto_main: true")

@@ -343,3 +343,53 @@ async def test_public_lists_a_themes_options(client, mine):
     pub = await (await client.get("/api/public", headers={"X-Seat": "igpu"})).json()
     th = next(x for x in pub["themes"] if x["id"] == "whole")
     assert [o["key"] for o in th["options"]] == ["color", "layout"] and th["background"] == "vector"
+
+
+# A pack: a theme of yours with the background and clock of yours it names, shown and removed as one.
+def pack_theme(did, bg="vector", clock="tty"):
+    return (f'/*\n * @kind theme\n * @name.en {did}\n * @background {bg}\n * @clock {clock}\n */\n'
+            f'.A[data-skin="{did}"]{{--acc:#fb0}}\n')
+
+
+BG = "/*\n * @name.en Vector\n */\n.bgx[data-k=\"vector\"]{background:#000}\n"
+CLOCK = "/*\n * @name.en Terminal\n */\nexport const css = '';\nexport function render(el) { el.textContent = 'x'; }\n"
+
+
+def test_a_theme_lists_the_designs_it_brings_as_parts(mine):
+    write(mine, "themes", "phosphor.css", pack_theme("phosphor"))
+    write(mine, "backgrounds", "vector.css", BG)
+    write(mine, "clocks", "tty.js", CLOCK)
+    write(mine, "themes", "plain.css", pack_theme("plain", bg="night", clock="flip"))   # names built-in ones only
+    got = {(d["kind"], d["id"]): d for d in designs.mine()}
+    assert got[("themes", "phosphor")]["parts"] == [{"kind": "backgrounds", "id": "vector", "name": {"en": "Vector"}},
+                                                    {"kind": "clocks", "id": "tty", "name": {"en": "Terminal"}}]
+    assert got[("backgrounds", "vector")]["part_of"] == got[("clocks", "tty")]["part_of"] == "phosphor"
+    assert "parts" not in got[("themes", "plain")]
+
+
+def test_removing_a_pack_keeps_what_another_theme_brings(mine):
+    write(mine, "themes", "phosphor.css", pack_theme("phosphor"))
+    write(mine, "themes", "amber.css", pack_theme("amber", bg="night"))   # also brings tty
+    write(mine, "backgrounds", "vector.css", BG)
+    write(mine, "clocks", "tty.js", CLOCK)
+    assert designs.remove_pack("phosphor") == [("themes", "phosphor"), ("backgrounds", "vector")]
+    assert sorted(os.listdir(mine / "clocks")) == ["tty.js"]
+    assert designs.remove_pack("phosphor") == []
+    assert designs.remove_pack("dusk") == []   # a built-in theme is no pack of yours
+
+
+async def test_api_removes_a_pack_and_says_who_wears_it(client, mine):
+    await login(client)
+    write(mine, "themes", "phosphor.css", pack_theme("phosphor"))
+    write(mine, "backgrounds", "vector.css", BG)
+    write(mine, "clocks", "tty.js", CLOCK)
+    await client.put("/api/prefs", json={"skin": "dusk", "clock": "tty"})   # wears a part only
+    lst = {(d["kind"], d["id"]): d for d in (await (await client.get("/api/designs")).json())["mine"]}
+    assert lst[("themes", "phosphor")]["worn"] == 1 and lst[("clocks", "tty")]["worn"] == 1
+    assert lst[("backgrounds", "vector")]["worn"] == 0
+    r = await client.delete("/api/designs/themes/phosphor?pack=1")
+    assert r.status == 200
+    assert (await r.json())["removed"] == [{"kind": "themes", "id": "phosphor"}, {"kind": "backgrounds", "id": "vector"},
+                                           {"kind": "clocks", "id": "tty"}]
+    assert (await (await client.get("/api/designs")).json())["mine"] == []
+    assert (await client.delete("/api/designs/themes/phosphor?pack=1")).status == 404

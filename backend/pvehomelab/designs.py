@@ -287,10 +287,42 @@ def remove(kind, did):
     return True
 
 
+# What a theme names in its header (@background, @clock) and so brings along: a pack is a theme
+# of yours with those of the named designs that are yours too, shown and removed as one.
+BRINGS = {"background": "backgrounds", "clock": "clocks"}
+
+
+def _parts(theme, own):
+    """[(kind, id)] of your designs that `theme` (its meta) names."""
+    return [(kind, theme[key]) for key, kind in BRINGS.items() if (kind, theme.get(key)) in own]
+
+
 def mine():
-    """Your designs, every kind: [{kind, id, name, replaces?}]."""
+    """Your designs, every kind: [{kind, id, name, replaces?}]. A theme that names others of yours
+    lists them as parts [{kind, id, name}], and each of those says which theme it is part_of."""
     # the folder decides the kind (a header's own "@kind theme" must not override "themes")
-    return [{**m, "kind": k} for k in KINDS for m in catalog(k) if m["source"] == "user"]
+    out = [{**m, "kind": k} for k in KINDS for m in catalog(k) if m["source"] == "user"]
+    own = {(d["kind"], d["id"]): d for d in out}
+    for d in out:
+        if d["kind"] == "themes":
+            parts = _parts(d, own)
+            if parts:
+                d["parts"] = [{"kind": k, "id": i, "name": own[(k, i)]["name"]} for k, i in parts]
+                for p in parts:
+                    own[p].setdefault("part_of", d["id"])
+    return out
+
+
+def remove_pack(did):
+    """Remove theme `did` of yours with the parts it brings that no other theme of yours names.
+    [(kind, id)] removed, the theme first; [] if there was no such theme."""
+    themes = {d["id"]: d for d in catalog("themes") if d["source"] == "user"}
+    if did not in themes:
+        return []
+    own = {(k, m["id"]) for k in BRINGS.values() for m in catalog(k) if m["source"] == "user"}
+    kept = {p for t, m in themes.items() if t != did for p in _parts(m, own)}
+    gone = [("themes", did)] + [p for p in _parts(themes[did], own) if p not in kept]
+    return [p for p in gone if remove(*p)]
 
 
 # ---------------- live reload while designing ----------------

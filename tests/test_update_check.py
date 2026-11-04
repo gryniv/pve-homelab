@@ -60,3 +60,24 @@ async def test_fresh_skips_a_stale_value():
     assert await c.fresh() == 2        # asked now
     await asyncio.sleep(0)
     assert await c.get() == 2
+
+
+async def test_automatic_updates_switched_in_the_menu(client, tmp_path, monkeypatch):
+    """Settings → About: the switch is kept beside config.yaml and wins over its update.auto."""
+    from pvehomelab import config
+    monkeypatch.setattr(config, "STATE_DIR", str(tmp_path))
+    assert update.settings({"update": {"auto": True}})["auto"] is True      # nothing from the menu yet
+    assert (await client.put("/api/update/auto", json={"auto": True})).status == 401
+    await login(client, "guest@pve")
+    assert (await client.put("/api/update/auto", json={"auto": True})).status == 403
+    await login(client)
+    assert (await client.put("/api/update/auto", json={"auto": "yes"})).status == 400
+    r = await client.put("/api/update/auto", json={"auto": True})
+    assert r.status == 200 and (await r.json()) == {"auto": True}
+    assert update.settings({})["auto"] is True
+    assert (await (await client.get("/api/update")).json())["auto"] is True
+    assert (await client.put("/api/update/auto", json={"auto": False})).status == 200
+    assert update.settings({"update": {"auto": True}})["auto"] is False     # the menu wins
+    assert (await (await client.get("/api/update")).json())["auto"] is False
+    (tmp_path / update.MENU_FILE).write_text("junk", encoding="utf-8")
+    assert update.settings({"update": {"auto": True}})["auto"] is True      # a broken file is ignored

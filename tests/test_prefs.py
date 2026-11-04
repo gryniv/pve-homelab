@@ -69,6 +69,25 @@ def test_theme_opts_keep_only_plain_names():
     assert prefs._merge(prefs.DEFAULT, {"theme_opts": "junk"})["theme_opts"] == {}
 
 
+def test_looks_keep_design_ids_only():
+    got = prefs._merge(prefs.DEFAULT, {"looks": {
+        "phosphor": {"background": "vector", "clock": "tty", "fonts": {"ui": "", "display": "vt323", "x": "y"}, "evil": "z"},
+        "forest": {"background": "../../etc", "clock": 3, "fonts": {"ui": "<b>"}},
+        "../x": {"background": "scene"}, "dusk": "not a dict"}})["looks"]
+    assert got == {"phosphor": {"background": "vector", "clock": "tty", "fonts": {"ui": "", "display": "vt323"}},
+                   "forest": {"fonts": {}}}
+    assert prefs._merge(prefs.DEFAULT, {"looks": "junk"})["looks"] == {}
+    assert "looks" not in prefs.public(prefs._merge(prefs.DEFAULT, {"looks": {"dusk": {"clock": "flip"}}}))
+
+
+async def test_looks_round_trip(client):
+    await login(client)
+    r = await client.put("/api/prefs", json={"looks": {"dusk": {"background": "night", "clock": "flip"}}})
+    assert r.status == 200
+    me = await (await client.get("/api/me")).json()
+    assert me["prefs"]["looks"] == {"dusk": {"background": "night", "clock": "flip"}}
+
+
 def test_the_sign_in_screen_sees_the_chosen_themes_settings():
     pr = prefs._merge(prefs.DEFAULT, {"skin": "phosphor", "theme_opts": {"phosphor": {"color": "green"}, "dusk": {"x": "y"}}})
     assert prefs.public(pr)["theme_opts"] == {"phosphor": {"color": "green"}}   # only the theme in use
