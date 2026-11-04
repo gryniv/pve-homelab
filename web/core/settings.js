@@ -229,6 +229,7 @@ const lookViews = {
 };
 
 // Your own designs (Settings → Look → My designs): what is installed, install more, remove.
+const PART_LABEL = { backgrounds: 'set.look.with_bg', clocks: 'set.look.with_clock' };
 const KIND_LABEL = { themes: 'set.look.tab_theme', backgrounds: 'set.look.tab_bg', fonts: 'set.look.tab_fonts', clocks: 'set.look.tab_clock', widgets: 'set.designs.kind_widgets' };
 lookViews.mine = (_p, lang) => `<div class="lkhead">${backBtn('set.look.all')}</div><div id="lookMine">${myDesignsView(lang)}</div>`;
 function myDesignsView(lang) {
@@ -246,9 +247,12 @@ function myDesignsView(lang) {
   let list = '<p class="mute">…</p>';
   if (myDesigns.error) list = `<p class="bad">${esc(myDesigns.error)}</p>`;
   else if (!myDesigns.pending) {
-    list = myDesigns.mine.length ? `<ul class="mylist">${myDesigns.mine.map((d) => `<li>
-        <span class="nm">${esc(pick(d.name, lang))}<small class="mute">${esc(t(KIND_LABEL[d.kind] || d.kind))} · ${esc(d.id)}${d.replaces ? ` · ${esc(t('set.designs.replaces'))}` : ''}</small></span>
-        ${admin ? `<button class="chipbtn" type="button" data-rmdesign="${esc(d.kind)}|${esc(d.id)}|${esc(pick(d.name, lang))}">${icon('i-x')}${esc(t('set.designs.remove'))}</button>` : ''}</li>`).join('')}</ul>`
+    // A theme with the background and clock of yours it brings is one row, removed as one (a pack).
+    const rows = myDesigns.mine.filter((d) => !d.part_of);
+    const parts = (d) => (d.parts || []).map((x) => t(PART_LABEL[x.kind], { name: pick(x.name, lang) }));
+    list = rows.length ? `<ul class="mylist">${rows.map((d) => `<li${d.parts ? ' class="pack"' : ''}>
+        <span class="nm">${esc(pick(d.name, lang))}<small class="mute">${[t(KIND_LABEL[d.kind] || d.kind), ...parts(d)].map(esc).join(' + ')} · ${esc(d.id)}${d.replaces ? ` · ${esc(t('set.designs.replaces'))}` : ''}${d.worn ? ` · <b class="acc-text">${esc(t('set.designs.worn', { n: d.worn }))}</b>` : ''}</small></span>
+        ${admin ? `<button class="chipbtn" type="button" data-rmdesign="${esc(d.kind)}|${esc(d.id)}|${esc(pick(d.name, lang))}|${d.parts ? 1 : ''}|${d.worn || 0}|${esc(parts(d).join(', '))}">${icon('i-x')}${esc(t('set.designs.remove'))}</button>` : ''}</li>`).join('')}</ul>`
       : `<p class="mute">${esc(t('set.designs.none'))}</p>`;
   }
   return grp('set.designs.title', `${lead('set.designs.lead', { folder: myDesigns.folder || '/etc/pve-homelab/designs' })}${install}${list}`);
@@ -471,9 +475,12 @@ function bind(p) {
     } catch (err) { toast(err.message, true); e.target.value = ''; }
   });
   $$('[data-rmdesign]').forEach((b) => (b.onclick = async () => {
-    const [kind, id, name] = b.dataset.rmdesign.split('|');
-    if (!(await confirmBox(t('set.designs.confirm_remove', { name }), t('set.designs.confirm_text'), t('set.designs.remove')))) return;
-    try { await app.api.del(`/api/designs/${kind}/${id}`); toast(t('set.designs.removed', { name })); reloadHere(); }
+    const [kind, id, name, pack, worn, ...rest] = b.dataset.rmdesign.split('|');
+    const list = rest.join('|');
+    const text = [pack && t('set.designs.confirm_pack', { list }), +worn && t('set.designs.confirm_worn', { n: +worn }),
+      t('set.designs.confirm_text')].filter(Boolean).join(' ');
+    if (!(await confirmBox(t('set.designs.confirm_remove', { name }), text, t('set.designs.remove')))) return;
+    try { await app.api.del(`/api/designs/${kind}/${id}${pack ? '?pack=1' : ''}`); toast(t('set.designs.removed', { name })); reloadHere(); }
     catch (err) { toast(err.message, true); }
   }));
   // my widgets

@@ -375,7 +375,11 @@ async def designs_admin(req):
 @routes.get("/api/designs")
 async def designs_list(req):
     await session(req)
-    return web.json_response({"mine": designs.mine(), "folder": config.USER_DESIGNS_DIR})
+    worn = prefs.usage()
+    mine = designs.mine()
+    for d in mine:   # how many wear it (a pack: its theme or any of its parts), so removing it can say so
+        d["worn"] = max([worn.get((d["kind"], d["id"]), 0)] + [worn.get((p["kind"], p["id"]), 0) for p in d.get("parts", [])])
+    return web.json_response({"mine": mine, "folder": config.USER_DESIGNS_DIR})
 
 
 async def uploaded_files(req):
@@ -457,10 +461,13 @@ async def designs_events(req):
 async def designs_remove(req):
     s = await designs_admin(req)
     kind, did = req.match_info["kind"], req.match_info["did"]
-    if not designs.remove(kind, did):
+    # ?pack=1 on a theme: with the background and clock it brings (DESIGNS.md, "A theme as a whole")
+    gone = designs.remove_pack(did) if kind == "themes" and req.query.get("pack") == "1" \
+        else [(kind, did)] if designs.remove(kind, did) else []
+    if not gone:
         raise web.HTTPNotFound(text="no such design of yours")
-    log.info("design %s/%s removed by %s", kind, did, s["user"])
-    return web.json_response({"ok": True})
+    log.info("designs removed by %s: %s", s["user"], ", ".join(f"{k}/{i}" for k, i in gone))
+    return web.json_response({"ok": True, "removed": [{"kind": k, "id": i} for k, i in gone]})
 
 
 # ---------------- your own widgets ----------------

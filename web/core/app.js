@@ -138,11 +138,16 @@ function applyThemeOpts(skin, chosen = {}) {
   (th?.options || []).forEach((o) => b.setAttribute(`data-o-${o.key}`, o.values.includes(chosen[o.key]) ? chosen[o.key] : o.default));
 }
 
+// A theme or background removed since someone chose it: the built-in default stands in, quietly
+// (clocks.js does the same for a clock).
 function applyLook(look = {}) {
-  document.body.dataset.skin = look.skin || 'dusk';
-  applyThemeOpts(look.skin || 'dusk', look.theme_opts?.[look.skin || 'dusk']);
-  document.body.dataset.bg = look.background || 'scene';
-  bg.apply(look.background || 'scene');
+  const has = (list, id) => !!id && (!list || list.some((x) => x.id === id));
+  const skin = has(st.pub?.themes, look.skin) ? look.skin : 'dusk';
+  const back = has(bg.all(), look.background) ? look.background : 'scene';
+  document.body.dataset.skin = skin;
+  applyThemeOpts(skin, look.theme_opts?.[skin]);
+  document.body.dataset.bg = back;
+  bg.apply(back);
   fonts.apply(look.fonts);
   if ((look.clock || 'digital') !== clockId) { clockId = look.clock || 'digital'; tick(); }
 }

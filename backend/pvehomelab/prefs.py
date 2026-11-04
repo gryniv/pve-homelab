@@ -165,6 +165,27 @@ def _merge(base, over):
     return out
 
 
+def usage():
+    """How many people wear each design: {(kind, id): n}, from every user's file. Nothing about who."""
+    out = {}
+    folder = os.path.join(STATE_DIR, "users")
+    try:
+        names = [n for n in os.listdir(folder) if n.endswith(".yaml")]
+    except OSError:
+        return out
+    for name in names:
+        try:
+            with open(os.path.join(folder, name), encoding="utf-8") as f:
+                pr = _merge(DEFAULT, yaml.safe_load(f) or {})
+        except (OSError, yaml.YAMLError):
+            continue
+        worn = {("themes", pr["skin"]), ("backgrounds", pr["background"]), ("clocks", pr["clock"])}
+        worn |= {("fonts", f) for f in pr["fonts"].values() if f}
+        for k in worn:
+            out[k] = out.get(k, 0) + 1
+    return out
+
+
 def load_defaults():
     return copy.deepcopy(DEFAULT)
 

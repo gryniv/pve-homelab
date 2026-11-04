@@ -431,6 +431,51 @@ async def my_designs(r):
     shutil.rmtree(os.path.dirname(theme), ignore_errors=True)
 
 
+async def design_pack(r):
+    """A theme with the background and clock of yours it brings is one row in My designs, removed as one;
+    whoever wore it gets the built-in look back, with nothing in the error journal."""
+    p = r.p
+    if not r.designs_dir:
+        r.check("design_pack (needs --start-demo: it writes into the demo's designs folder)", True)
+        return
+    files = {("themes", "uicheck-pack.css"): '/*\n * @name.en Pack check\n * @background uicheck-vec\n * @clock uicheck-tty\n */\n'
+                                             '.A[data-skin="uicheck-pack"],.A [data-skin="uicheck-pack"]{--acc:#ff00ff}\n',
+             ("backgrounds", "uicheck-vec.css"): '/*\n * @name.en Vec check\n */\n.bgx[data-k="uicheck-vec"]{background:#123}\n',
+             ("clocks", "uicheck-tty.js"): "/*\n * @name.en Tty check\n */\nexport const css = '';\nexport function render(el) { el.textContent = 'TTY'; }\n"}
+    for (kind, name), text in files.items():
+        os.makedirs(os.path.join(r.designs_dir, kind), exist_ok=True)
+        with open(os.path.join(r.designs_dir, kind, name), "w", encoding="utf-8") as f:
+            f.write(text)
+    try:
+        await r.open()
+        await p.js(API + "await q('DELETE', '/api/logs'); await q('PUT', '/api/prefs', {...(await q('GET', '/api/me')).prefs,"
+                   " skin: 'uicheck-pack', background: 'uicheck-vec', clock: 'uicheck-tty'});")
+        await p.send("Page.navigate", url=r.base)
+        await p.until("return document.querySelector('[data-scr=dash]')?.hidden === false && document.querySelectorAll('.sys .play').length > 0", 15)
+        await p.js("document.querySelector('.top [data-go=settings]').click(); await new Promise(r => setTimeout(r, 500));"
+                   "document.querySelector('[data-lookmine]').click();", 0.5)
+        rows = await p.until(f"return {LOADED} && [...document.querySelectorAll('.mylist li')].map(l => l.textContent.replace(/\\s+/g, ' ').trim());", 8)
+        r.check("a pack is one row in My designs, with what it brings and who wears it",
+                rows and len(rows) == 1 and all(w in rows[0] for w in ("Pack check", "Vec check", "Tty check", "worn by 1 person")), rows)
+        await p.js("document.querySelector('[data-rmdesign^=\"themes|uicheck-pack\"]').click();", 0.4)
+        text = await p.js("return document.querySelector('#confirmLayer').textContent;")
+        r.check("…removing it says what goes with it and who wears it", text and "Vec check" in text and "1 person" in text, text)
+        await p.js("document.querySelector('#cYes').click();")
+        gone = await p.until("return !!document.querySelector('#lookMine') && !document.querySelector('[data-rmdesign]') && "
+                             "document.querySelectorAll('.mylist li').length === 0;", 12)
+        left = sorted(n for k in ("themes", "backgrounds", "clocks") for n in os.listdir(os.path.join(r.designs_dir, k)) if n.startswith("uicheck-"))
+        r.check("…one click removes all three", gone and left == [], left)
+        st = await p.js("return [document.body.dataset.skin, document.body.dataset.bg, document.querySelector('[data-clock]').dataset.clockk];")
+        logged = await p.js(API + "return (await q('GET', '/api/logs')).entries.filter(e => e.source.startsWith('client:')).map(e => e.msg);")
+        r.check("…and whoever wore it gets the built-in look back, quietly", st == ["dusk", "scene", "digital"] and logged == [], [st, logged])
+    finally:
+        for kind, name in files:
+            try:
+                os.remove(os.path.join(r.designs_dir, kind, name))
+            except OSError:
+                pass
+
+
 async def write_to_author(r):
     """Settings → About → Write to the author: the issue is shown, the QR code and the link follow it."""
     p = r.p
@@ -920,7 +965,7 @@ async def misc(r):
 
 CHECKS = {"guests": guests, "logout": logout, "widgets": widgets, "toasts": toasts, "offline": offline,
           "aria": dialogs_aria, "alerts": alerts, "update": failed_update, "focus": settings_focus,
-          "console": console, "launch": launch, "search": search, "order": reorder, "guests_table": guest_table, "designs": my_designs, "widget_strings": widget_strings, "my_widgets": my_widgets, "feedback": write_to_author, "node_updates": node_updates, "narrow": narrow, "layout_hooks": layout_hooks, "layout_theme": layout_theme, "theme_whole": theme_whole, "design_folders": design_folders, "update_check": update_check, "designing": designing, "quiet_faults": quiet_faults, "tabs": service_tabs, "misc": misc}
+          "console": console, "launch": launch, "search": search, "order": reorder, "guests_table": guest_table, "designs": my_designs, "design_pack": design_pack, "widget_strings": widget_strings, "my_widgets": my_widgets, "feedback": write_to_author, "node_updates": node_updates, "narrow": narrow, "layout_hooks": layout_hooks, "layout_theme": layout_theme, "theme_whole": theme_whole, "design_folders": design_folders, "update_check": update_check, "designing": designing, "quiet_faults": quiet_faults, "tabs": service_tabs, "misc": misc}
 
 
 # ---------------------------------------------------------------- driver

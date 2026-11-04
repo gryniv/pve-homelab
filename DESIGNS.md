@@ -129,6 +129,9 @@ clock.
   show the choice too, write the rule twice, like the base one: for the page
   (`.A[data-skin=…][data-o-…]`) and for a preview inside it (`.A [data-skin=…][data-o-…]`).
 - The settings are kept per person and per theme, and the sign-in screen shows each person's.
+- In *My designs* such a theme of yours and the background and clock of yours it names are one
+  row, a pack, removed with one click (a part another theme of yours names stays). The row says
+  how many people wear it; they get the built-in look back, as with any design that is removed.
 
 ## Background
 
