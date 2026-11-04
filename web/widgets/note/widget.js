@@ -1,9 +1,5 @@
 // Note: the user's own text (widget settings; older setups kept it in prefs.note).
 export default {
-  i18n: {
-    uk: { title: 'Нотатка', empty: 'Порожньо. Текст пишеться в ⚙ налаштуваннях віджета.', opt_head: 'Заголовок', opt_text: 'Текст' },
-    en: { title: 'Note', empty: 'Empty. Write the text in the widget settings (⚙).', opt_head: 'Heading', opt_text: 'Text' },
-  },
   zones: ['side'],
   options: [
     { key: 'head', type: 'text', label: 'opt_head', default: '' },

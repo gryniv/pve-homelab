@@ -63,18 +63,25 @@ def identify(title, guest_name, port):
     return (clean[:40] or guest_name or f"port {port}"), re.sub(r"[^a-z0-9-]+", "-", (guest_name or "").lower()).strip("-")
 
 
+def parse_proc_net(text):
+    """Ports listening on a non-loopback address in a /proc/net/tcp(6) table."""
+    ports = set()
+    for line in text.splitlines()[1:]:
+        p = line.split()
+        if len(p) < 4 or p[3] != "0A":  # LISTEN
+            continue
+        addr, port = p[1].split(":")
+        if addr not in LOOPBACK:
+            ports.add(int(port, 16))
+    return ports
+
+
 def _listening(pid):
     ports = set()
     for fam in ("tcp", "tcp6"):
         try:
             with open(f"/proc/{pid}/net/{fam}") as f:
-                for line in f.readlines()[1:]:
-                    p = line.split()
-                    if p[3] != "0A":  # LISTEN
-                        continue
-                    addr, port = p[1].split(":")
-                    if addr not in LOOPBACK:
-                        ports.add(int(port, 16))
+                ports |= parse_proc_net(f.read())
         except OSError:
             pass
     return ports - NOT_WEB

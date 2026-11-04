@@ -1,0 +1,15 @@
+{
+  "title": "Quick actions",
+  "pve": "PVE web UI",
+  "saver": "Screensaver",
+  "reboot": "Reboot",
+  "shutdown": "Shut down host",
+  "reboot_q": "Reboot the host?",
+  "reboot_text": "All VMs and containers will restart.",
+  "shutdown_q": "Shut down the host?",
+  "shutdown_text": "All VMs and containers stop and the computer powers off.",
+  "shutdown_btn": "Shut down",
+  "rebooting": "The host is rebooting",
+  "stopping": "The host is shutting down",
+  "opt_buttons": "Buttons"
+}

@@ -1,9 +1,5 @@
 // Host network: traffic on the default-route interface and load.
 export default {
-  i18n: {
-    uk: { title: 'Мережа', traffic: 'Трафік', mbit: 'Мбіт/с', address: 'Адреса', load: 'Навантаження', opt_show: 'Показувати' },
-    en: { title: 'Network', traffic: 'Traffic', mbit: 'Mbit/s', address: 'Address', load: 'Load', opt_show: 'Show' },
-  },
   zones: ['side', 'login'],
   public: true,
   options: [

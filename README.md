@@ -8,7 +8,7 @@ Plug a monitor into your Proxmox VE host and get a beautiful sign-in screen, a l
 of your homelab, your web services one click away, and a launcher that boots your desktop VMs
 straight onto the GPU that monitor is wired to.
 
-![version](https://img.shields.io/badge/version-0.4.0-ff8a3d)
+![version](https://img.shields.io/badge/version-0.5.0-ff8a3d)
 ![Proxmox VE](https://img.shields.io/badge/Proxmox%20VE-8%20%7C%209-e57000)
 ![python](https://img.shields.io/badge/python-3.10%2B-3776ab)
 ![no build step](https://img.shields.io/badge/frontend-no%20build%20step-4cc9f0)
@@ -65,6 +65,8 @@ signed in, so each person sees and controls exactly what PVE allows them to.
 - **On the integrated GPU:** the VM starts with **VirGL** and its screen opens right inside the
   menu over a built-in noVNC relay. **Ctrl+Alt+Q** brings you back.
 - Each step (assign GPU, start, switch monitor) shows as a clear checklist while it happens.
+- GPUs given to VMs as Proxmox **resource mappings** (`hostpci0: mapping=…`, PVE 8+) are understood
+  like plain PCI addresses.
 
 ### Web services, found by themselves
 Your services are collected from three places and merged:
@@ -112,9 +114,14 @@ settings form (⚙) and a live preview:
 | Services | how many services are up, and which are down | list style |
 | Network | traffic, address, load | fields |
 | Storage | how full each storage is | which storages, used or free |
+| Proxmox updates | packages waiting on the node, a new kernel, when the lists were checked | packages to list |
 | Links | your own bookmarks, opened as tabs | links |
 | Note | your text | heading, text |
 | Quick actions | PVE web UI, screensaver, reboot, shut down | buttons |
+
+**Your own widgets** sit next to these: `/etc/pve-homelab/widgets/<id>/widget.js` on the host
+(updates leave it alone), or installed by an admin from *Settings → Dashboard → My widgets*.
+`python3 tools/new_widget.py <id>` starts one in the demo; see [DESIGNS.md](DESIGNS.md#your-own-widgets).
 
 ### Screensaver
 After a few idle minutes the sign-in screen dims into a big clock over the living landscape,
@@ -125,11 +132,24 @@ Arrow keys move like a TV remote: they always pick the nearest thing in the dire
 Tab never escapes an open dialog, and Esc closes it. Press **?** for the full list of keys.
 A mouse works everywhere, but you never need one.
 
+On a narrow screen (under 900 px: a phone, a tablet held upright, a small window) the menu
+becomes one scrolling column with readable type: systems swipe sideways, guests turn into
+cards, and settings and dialogs take the whole width.
+
 ### Runs itself
 - **Updates from GitHub.** A badge in the top bar and a reminder after sign-in. Admins install it with one
   click, and nightly auto-update is optional. No git is needed on the host.
+- **Proxmox updates.** For those who may update the node, a button in the top bar counts the
+  packages waiting; an amber dot means a new kernel is among them. Its dialog lists them, says when
+  the package lists were last checked, checks again on request, and opens Proxmox, where they are
+  installed (*Node → Updates → Upgrade*). It can be turned off in *Settings → Dashboard*.
 - **Error journal.** Backend warnings and the screens' own errors (JavaScript, failed widgets,
   server errors) are collected in *Settings → About*, and also in `/var/log/pve-homelab/errors.log`.
+- **Write to the author.** *Settings → About → Write to the author* composes a GitHub issue: a bug,
+  an idea or a question, optionally with the versions and the latest errors (user, host and guest
+  names and addresses taken out). Everything that would be sent is shown first; a QR code takes it
+  to a phone to finish there, or it opens in a tab. Nothing leaves the host until you submit it on
+  GitHub. `feedback: false` in `config.yaml` hides it.
 - **English and Ukrainian.** A new language is one JSON file.
 
 ## Screenshots
@@ -246,7 +266,18 @@ After installing:
 3. **Web services.** Most are found automatically. To add one by hand, write it into the guest's
    notes (`[Name](http://address:port)`) or under `links:`. To hide one, add it to `discovery.ignore`
    or switch it off in the menu settings.
-4. Apply the changes with `systemctl restart pve-homelab 'pve-homelab-kiosk@*'`.
+4. **The menu in a browser elsewhere** (a phone, a laptop) goes through your reverse proxy with TLS,
+   never straight to port 8900. Let the backend listen beyond loopback and name the proxy:
+   ```yaml
+   listen: 0.0.0.0:8900
+   web:
+     allow_from: [192.168.8.150]   # the Caddy container; an address or a network
+   ```
+   and proxy a site to it in Caddy (`reverse_proxy 192.168.8.146:8900`). Everyone else beyond
+   loopback gets 403. A browser that comes through the proxy is the **web seat**: it never switches
+   a monitor or hands over a GPU; a system opens right in the browser (noVNC) or starts on the GPU
+   it already has. `web: {enabled: false}` turns this off.
+5. Apply the changes with `systemctl restart pve-homelab 'pve-homelab-kiosk@*'`.
 
 Every option is explained in [`etc/config.example.yaml`](etc/config.example.yaml).
 
@@ -259,11 +290,21 @@ newest commit of a branch with `channel: main`. When there is something new:
 - anyone with `Sys.Modify` on `/` installs it with one click;
 - `update.auto: true` installs new versions every night at 04:30.
 
+An update can't leave the host with a broken menu:
+
+- the tag is resolved to its commit first, and the archive of exactly that commit is installed;
+- the new version is put in place next to the old one, which stays as `/opt/pve-homelab.prev`;
+- if the menu doesn't come back running the new commit within a minute, the old version is put
+  back (the failed one is kept as `/opt/pve-homelab.failed` for a look);
+- the outcome is saved in `/etc/pve-homelab/update-result.json`, and an admin who signs in after
+  a failed update is told once.
+
 ```yaml
 update:
   repo: ""          # owner/name; empty = where it was cloned from, else gryniv/pve-homelab
   channel: release  # release | main
   auto: false
+  auto_main: false  # with channel main, auto installs any pushed commit only if this is true
 ```
 
 By hand: `./update.sh` in the clone, or `PYTHONPATH=/opt/pve-homelab/backend python3 -m pvehomelab.update check|apply`.
@@ -281,21 +322,34 @@ By hand: `./update.sh` in the clone, or `PYTHONPATH=/opt/pve-homelab/backend pyt
 ## Extending it
 
 Everything visual is a **drop-in file**. The backend finds it, and its name comes from the file's
-first comment (`@name.en …`, `@name.uk …`, `@order 10`). After `install.sh` it shows up in the
+first comment, one `@key` per line (`@name.en …`, `@name.uk …`, `@order 10`). It shows up in the
 settings, with a live preview.
+
+**Designs** (how it looks) live apart from the program, in `designs/`. Your own go to
+`/etc/pve-homelab/designs/<kind>/` on the host: updates never touch that folder, and a file there
+with the same id as a built-in design replaces it.
+
+**Making designs** — scaffolding, live reload in the demo, the showcase page and every contract: [DESIGNS.md](DESIGNS.md).
+
+| Design | File | Contract |
+|---|---|---|
+| Theme | `designs/themes/<id>.css` | only tokens (`--acc`, `--acc2`, `--glass`, `--solid`, `--display`, `--lf` …) |
+| Background | `designs/backgrounds/<id>.css` | `@group scape\|flat`; paint `.bgx[data-k="<id>"]` and layers `.l1`–`.l4` from the `--sky1..3 --far --mid --ink` palette. The engine adds sun, moon, stars, clouds, fog and weather |
+| Clock | `designs/clocks/<id>.js` | `export const css` + `export function render(el, {h, m, s, text})`, called every second |
+| Font | `designs/fonts/<id>.css` | `@family "Name", sans-serif` in the header + an `@import` of the web font |
+| Widget look | `designs/widgets/<id>.css` | styles for `.A .w[data-w="<id>"]`; the widget's logic stays in `web/widgets/<id>/` |
+
+The program's own extension points:
 
 | Module | File | Contract |
 |---|---|---|
-| Widget | `web/widgets/<id>/widget.js` (+ `widget.css`) | `zones`, `public`, `source`, `every`, `options`, `render(data, ctx)`, `after(el, data, ctx)`, own `i18n` |
-| Theme | `web/themes/<id>.css` | only tokens (`--acc`, `--acc2`, `--glass`, `--solid`, `--display`, `--lf` …) |
-| Background | `web/backgrounds/<id>.css` | `@group scape\|flat`; paint `.bgx[data-k="<id>"]` and layers `.l1`–`.l4` from the `--sky1..3 --far --mid --ink` palette. The engine adds sun, moon, stars, clouds, fog and weather |
-| Clock | `web/clocks/<id>.js` | `export const css` + `export function render(el, {h, m, s, text})`, called every second |
-| Font | `web/fonts/<id>.css` | `@family "Name", sans-serif` in the header + an `@import` of the web font |
+| Widget | `web/widgets/<id>/widget.js`, yours in `/etc/pve-homelab/widgets/<id>/widget.js` | `zones`, `public`, `source`, `every`, `options`, `render(data, ctx)`, `after(el, data, ctx)`; its strings in `<id>/i18n/<lang>.json` |
 | Language | `web/i18n/<code>.json` | the same keys as `en.json`, plus `"_name"` |
 
-A widget with settings looks like this:
+A widget with settings looks like this, its strings apart from the code:
 
 ```js
+// widgets/network/widget.js
 export default {
   zones: ['side', 'login'],          // where it may be placed
   public: true,                      // allowed on the sign-in screen
@@ -303,9 +357,13 @@ export default {
   options: [                         // gets a ⚙ form and a live preview in Settings
     { key: 'graph', type: 'toggle', label: 'opt_graph', default: true },
   ],                                 // toggle · select · checks · number · text · date · list · textarea
-  i18n: { en: { title: 'Network', opt_graph: 'Graph' }, uk: { title: 'Мережа', opt_graph: 'Графік' } },
   render: (h, { t, opts }) => `<h4>${t('title')}</h4>${opts.graph ? '…' : ''}`,
 };
+```
+
+```json
+// widgets/network/i18n/en.json (and uk.json, or any other language)
+{ "title": "Network", "opt_graph": "Graph" }
 ```
 
 ## How it works
@@ -314,17 +372,35 @@ export default {
 backend/pvehomelab/  aiohttp on 127.0.0.1:8900: Proxmox API with the user's ticket, host stats,
                      GPUs and DDC/CI, Caddy + port + notes discovery, weather, launcher,
                      noVNC relay, updater, error journal, demo world
-web/                 the UI, plain ES modules with no build step: core/, widgets/, themes/,
-                     backgrounds/, clocks/, fonts/, i18n/, vendor/novnc
+web/                 the UI, plain ES modules with no build step: core/, widgets/, i18n/,
+                     vendor/novnc
+designs/             how it looks, apart from the program: themes/, backgrounds/, clocks/,
+                     fonts/, widgets/ (widget styles); yours in /etc/pve-homelab/designs/
 kiosk/               kiosk.sh (cage + Chromium on the seat's GPU), an MV3 extension for service
                      tabs and the Alt+Q dock, Chromium policy (system DNS)
 systemd/             pve-homelab.service, pve-homelab-kiosk@.service, pve-homelab-update.{service,timer}
 tools/               dryrun.py (a safe backend next to the real one), screenshots.py (layout checks
-                     at 10 resolutions), readme_shots.py (the pictures above)
+                     at 10 resolutions), readme_shots.py (the pictures above), new_design.py and
+                     new_widget.py (start a design or a widget of your own)
 demo.py              the real app over an in-memory fake host
 ```
 
 ## Development
+
+Tests and checks run anywhere, no Proxmox needed: the backend is tested through the demo.
+
+```bash
+pip install -r requirements-dev.txt
+python -m pytest -q                         # backend: unit tests and the HTTP API
+python3 tools/check_web.py                  # front end: JS syntax, same i18n keys in every language
+python tools/ui_check.py --start-demo       # the menu in a headless Chrome: ~30 checks, about a minute
+```
+
+`ui_check.py` signs in, clicks and types like a person on the demo (guest actions, sign-out,
+widgets, alerts, launching, consoles, settings, keyboard) and fails on any JavaScript error.
+`--only alerts,launch` runs a few; without `--start-demo` it uses a demo already running on :8900.
+
+GitHub Actions runs all of it on every push (Python 3.10 to 3.13), plus `shellcheck` on the scripts.
 
 On the host, next to the real service:
 

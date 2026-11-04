@@ -10,7 +10,7 @@ systemctl disable --now pve-homelab.service pve-homelab-update.timer 2>/dev/null
 rm -rf /etc/systemd/system/pve-homelab-update.service /etc/systemd/system/pve-homelab-update.timer
 rm -rf /etc/systemd/system/pve-homelab.service /etc/systemd/system/pve-homelab-kiosk@.service /etc/systemd/system/pve-homelab-kiosk@*.service.d
 rm -f /etc/modules-load.d/pve-homelab.conf /etc/chromium/policies/managed/pve-homelab.json
-rm -rf /opt/pve-homelab /var/cache/pve-homelab /var/log/pve-homelab
+rm -rf /opt/pve-homelab /opt/pve-homelab.prev /opt/pve-homelab.new /opt/pve-homelab.failed /var/cache/pve-homelab /var/log/pve-homelab
 systemctl daemon-reload
 chvt 1 || true
 echo "PVE Homelab removed. Packages (cage, chromium, ddcutil) and the pvehomelab user are left in place."

@@ -6,6 +6,7 @@ import * as BG from './backgrounds.js';
 import * as F from './fonts.js';
 import { arrange, moved } from './order.js';
 import { current as currentLang } from './i18n.js';
+import { label as updLabel } from './updates.js';
 import { $, $$, icon, esc, AVATARS, toast, confirmBox, keepFocus, t } from './ui.js';
 
 const ZONES = {
@@ -17,9 +18,9 @@ const SECTIONS = [
   ['look', 'i-palette'], ['login', 'i-lock'], ['dash', 'i-layout'], ['systems', 'i-monitor'],
   ['weather', 'i-cloud'], ['about', 'i-info'],
 ];
-const LOOK_TABS = [['theme', 'set.look.tab_theme'], ['bg', 'set.look.tab_bg'], ['fonts', 'set.look.tab_fonts'], ['clock', 'set.look.tab_clock']];
+const LOOK_TABS = [['theme', 'set.look.tab_theme'], ['bg', 'set.look.tab_bg'], ['fonts', 'set.look.tab_fonts'], ['clock', 'set.look.tab_clock'], ['mine', 'set.look.tab_mine']];
 
-let app, current = 'look', lookTab = 'theme', saveTimer, loginCfg = null, loginTimer, openW = '', stopPreview = null, logs = null;
+let app, current = 'look', lookTab = 'theme', saveTimer, loginCfg = null, loginTimer, openW = '', stopPreview = null, logs = null, myDesigns = null, myWidgets = null;
 
 const sw = (id, on) => `<span class="sw"><input type="checkbox" id="${id}" ${on ? 'checked' : ''}><i></i></span>`;
 const tgl = (id, on, title, sub = '') => `<label class="tgl"><span>${esc(t(title))}${sub ? `<small>${esc(t(sub))}</small>` : ''}</span>${sw(id, on)}</label>`;
@@ -38,7 +39,7 @@ function save(changes, { relayout = false } = {}) {
     try {
       await app.api.put('/api/prefs', p);
       $('#savedNote') && ($('#savedNote').textContent = t('set.saved'));
-    } catch (e) { toast(e.message, true); }
+    } catch (e) { $('#savedNote') && ($('#savedNote').textContent = t('set.save_failed')); toast(e.message, true); }
   }, 400);
 }
 
@@ -48,7 +49,7 @@ function saveLogin(changes) {
   clearTimeout(loginTimer);
   loginTimer = setTimeout(async () => {
     try { app.setLoginSettings(await app.api.put('/api/login-settings', loginCfg.settings)); $('#savedNote').textContent = t('set.saved'); }
-    catch (e) { toast(e.message, true); }
+    catch (e) { $('#savedNote') && ($('#savedNote').textContent = t('set.save_failed')); toast(e.message, true); }
   }, 400);
 }
 
@@ -149,6 +150,67 @@ const lookViews = {
   },
 };
 
+// Your own designs (Settings → Look → My designs): what is installed, install more, remove.
+const KIND_LABEL = { themes: 'set.look.tab_theme', backgrounds: 'set.look.tab_bg', fonts: 'set.look.tab_fonts', clocks: 'set.look.tab_clock', widgets: 'set.designs.kind_widgets' };
+lookViews.mine = (_p, lang) => {
+  if (!myDesigns) {
+    myDesigns = { pending: true };
+    app.api.get('/api/designs').then((r) => { myDesigns = r; render(); })
+      .catch((e) => { myDesigns = { error: e.message }; render(); });
+  }
+  const admin = app.isAdmin();
+  const install = admin
+    ? `<div class="dinstall"><button class="btn" type="button" id="designPick">${icon('i-plus')}<span>${esc(t('set.designs.install'))}</span></button>
+        <input id="designFiles" type="file" multiple accept=".css,.js,.zip" hidden>
+        <span class="mute">${esc(t('set.designs.install_hint'))}</span></div>`
+    : `<p class="mute">${esc(t('set.designs.admin_only'))}</p>`;
+  let list = '<p class="mute">…</p>';
+  if (myDesigns.error) list = `<p class="bad">${esc(myDesigns.error)}</p>`;
+  else if (!myDesigns.pending) {
+    list = myDesigns.mine.length ? `<ul class="mylist">${myDesigns.mine.map((d) => `<li>
+        <span class="nm">${esc(pick(d.name, lang))}<small class="mute">${esc(t(KIND_LABEL[d.kind] || d.kind))} · ${esc(d.id)}${d.replaces ? ` · ${esc(t('set.designs.replaces'))}` : ''}</small></span>
+        ${admin ? `<button class="chipbtn" type="button" data-rmdesign="${esc(d.kind)}|${esc(d.id)}|${esc(pick(d.name, lang))}">${icon('i-x')}${esc(t('set.designs.remove'))}</button>` : ''}</li>`).join('')}</ul>`
+      : `<p class="mute">${esc(t('set.designs.none'))}</p>`;
+  }
+  return grp('set.designs.title', `${lead('set.designs.lead', { folder: myDesigns.folder || '/etc/pve-homelab/designs' })}${install}${list}`);
+};
+
+// Your own widgets (Settings → Dashboard → My widgets). A widget is code that runs in the menu with
+// the signed-in person's rights, so installing one is for admins.
+function widgetsMine() {
+  if (!myWidgets) {
+    myWidgets = { pending: true };
+    app.api.get('/api/widgets').then((r) => { myWidgets = r; render(); })
+      .catch((e) => { myWidgets = { error: e.message }; render(); });
+  }
+  const admin = app.isAdmin();
+  const install = admin
+    ? `<div class="dinstall"><button class="btn" type="button" id="widgetPick">${icon('i-plus')}<span>${esc(t('set.mywidgets.install'))}</span></button>
+        <input id="widgetFiles" type="file" multiple accept=".js,.css,.json,.zip" hidden>
+        <span class="mute">${esc(t('set.mywidgets.install_hint'))}</span></div>
+      <p class="mute wwarn">${icon('i-info')}${esc(t('set.mywidgets.warn'))}</p>`
+    : `<p class="mute">${esc(t('set.mywidgets.admin_only'))}</p>`;
+  let list = '<p class="mute">…</p>';
+  if (myWidgets.error) list = `<p class="bad">${esc(myWidgets.error)}</p>`;
+  else if (!myWidgets.pending) {
+    const reg = W.all();
+    list = myWidgets.mine.length ? `<ul class="mylist" id="myWidgets">${myWidgets.mine.map((w) => {
+      const name = reg[w.id]?.title || w.id;
+      const notes = reg[w.id] ? [w.look && t('set.mywidgets.with_look'), w.languages?.length && w.languages.join(', ')] : [t('set.mywidgets.broken')];
+      return `<li><span class="nm">${esc(name)}<small class="mute">${[w.id, ...notes].filter(Boolean).map(esc).join(' · ')}</small></span>
+        ${admin ? `<button class="chipbtn" type="button" data-rmwidget="${esc(w.id)}|${esc(name)}">${icon('i-x')}${esc(t('set.designs.remove'))}</button>` : ''}</li>`;
+    }).join('')}</ul>`
+      : `<p class="mute">${esc(t('set.mywidgets.none'))}</p>`;
+  }
+  return `<h4 class="subh">${t('set.mywidgets.title')}</h4>${lead('set.mywidgets.lead', { folder: myWidgets.folder || '/etc/pve-homelab/widgets' })}${install}${list}`;
+}
+
+// After installing or removing, the page reloads (new stylesheets and lists) and comes back here.
+function reloadHere(where = 'look:mine') {
+  try { sessionStorage.setItem('pvehomelab.reopen', where); } catch {}
+  setTimeout(() => location.reload(), 900);
+}
+
 // Error journal (Settings → About): backend warnings and the screens' own errors.
 function journal() {
   if (!logs) {
@@ -181,7 +243,7 @@ const views = {
     return `<h3>${t('set.s.look')}</h3>${lead('set.look.lead')}
       <div class="lookbar">${seg('lookTabs', lookTab, LOOK_TABS.map(([id, k]) => [id, t(k)]))}
         <span class="sp"></span>${seg('langSeg', lang, app.pub().languages.map((l) => [l.code, l.name]))}</div>
-      <p class="lead hint">${icon('i-monitor')}${esc(t('set.look.hover'))}</p>
+      ${lookTab === 'mine' ? '' : `<p class="lead hint">${icon('i-monitor')}${esc(t('set.look.hover'))}</p>`}
       ${lookViews[lookTab](p, lang)}`;
   },
   login(p) {
@@ -203,6 +265,8 @@ const views = {
   dash(p) {
     return `<h3>${t('set.s.dash')}</h3>${lead('set.dash.lead')}
       <div class="zones one">${zone(p, 'side')}</div>
+      ${app.nodeUpdatesAllowed() ? grp('set.dash.top', tgl('pPveUpd', p.top?.pve_updates !== false, 'set.dash.pve_updates', 'set.dash.pve_updates_sub')) : ''}
+      ${widgetsMine()}
       <h4 class="subh">${t('set.dash.services')}</h4>${lead('set.services.lead')}
       ${orderEditor('services', app.services(), p, p.hidden_services,
         (x) => `<img src="/icons/${esc(x.icon || x.key)}.svg" alt="" onerror="this.style.visibility='hidden'"><span class="nm">${esc(x.name)}<small>${esc(x.host)}</small></span>`)}`;
@@ -231,7 +295,7 @@ const views = {
     const repo = a.repo || (pub.app.repo ? `https://github.com/${pub.app.repo}` : '');
     return `<h3>${esc(a.name || 'PVE Homelab')}</h3>${lead('about.lead')}
       <div class="grp about-box">
-        ${row('about.version', `v${esc(pub.app.version)}${u?.available ? ` · <span class="acc-text">${esc(t('about.update_new', { v: u.latest.version ? 'v' + u.latest.version : (u.latest.commit || '').slice(0, 7) }))}</span>` : u?.enabled ? ` · ${esc(t('about.update_ok'))}` : ''}`)}
+        ${row('about.version', `v${esc(pub.app.version)}${u?.available ? ` · <span class="acc-text">${esc(t('about.update_new', { v: updLabel(u) }))}</span>` : u?.enabled ? ` · ${esc(t('about.update_ok'))}` : ''}`)}
         ${a.author ? row('about.author', a.author_url ? `<a href="${esc(a.author_url)}" target="_blank" rel="noopener">${esc(a.author)}</a>` : esc(a.author)) : ''}
         ${row('about.repo', repo ? `<a href="${esc(repo)}" target="_blank" rel="noopener">${esc(repo.replace(/^https?:\/\//, ''))}</a>` : esc(t('about.none')))}
         ${row('about.license', esc(a.license || t('about.none')))}
@@ -239,7 +303,8 @@ const views = {
       </div>
       <div class="grp"><div class="gl">${t('about.credits')}</div>
         <div class="mute credits">noVNC (MPL-2.0) · Meteocons, Bas Milius (MIT) · dashboard-icons, homarr-labs · Open-Meteo · Google Fonts (OFL) · cage · Chromium</div></div>
-      <button class="btn ghost" type="button" id="showHelp">${icon('i-info')}${t('help.title')}</button>
+      <div class="aboutbtns"><button class="btn ghost" type="button" id="showHelp">${icon('i-info')}${t('help.title')}</button>
+        ${pub.feedback ? `<button class="btn ghost" type="button" id="writeAuthor">${icon('i-note')}${t('fb.button')}</button>` : ''}</div>
       <div style="margin-top:1.6em">${journal()}</div>`;
   },
 };
@@ -249,7 +314,7 @@ function bind(p) {
   const segBind = (id, fn) => $$(`#${id} button`).forEach((b) => (b.onclick = () => { fn(b.dataset.v); render(); }));
   const chk = (id, fn) => { const el = $('#' + id); if (el) el.onchange = () => fn(el.checked); };
   // look
-  segBind('lookTabs', (v) => { lookTab = v; });
+  segBind('lookTabs', (v) => { lookTab = v; if (v === 'mine') myDesigns = null; });
   segBind('langSeg', (v) => { save({ lang: v }); app.useLang(v); });
   $$('[data-skinpick]', box).forEach((b) => (b.onclick = () => { save({ skin: b.dataset.skinpick }); render(); }));
   $$('[data-bgk]', box).forEach((b) => (b.onclick = () => { save({ background: b.dataset.bgk }); render(); }));
@@ -289,6 +354,7 @@ function bind(p) {
   chk('pSky', (v) => save({ sky_by_time: v }));
   chk('pFx', (v) => save({ saver: { ...p.saver, fx: v } }));
   chk('pClock', (v) => save({ saver: { ...p.saver, clock: v } }));
+  chk('pPveUpd', (v) => save({ top: { ...p.top, pve_updates: v } }));
   $('#showSaver') && ($('#showSaver').onclick = () => app.go('saver'));
   $('#wxForm') && ($('#wxForm').onsubmit = async (e) => {
     e.preventDefault();
@@ -296,6 +362,45 @@ function bind(p) {
     try { await app.weather(true); toast(t('set.weather.updated')); app.applyPrefs({ relayout: true }); } catch (err) { toast(err.message, true); }
   });
   $('#showHelp') && ($('#showHelp').onclick = () => app.showHelp());
+  $('#writeAuthor') && ($('#writeAuthor').onclick = (e) => app.showFeedback(e.currentTarget));
+  // my designs
+  $('#designPick') && ($('#designPick').onclick = () => $('#designFiles').click());
+  $('#designFiles') && ($('#designFiles').onchange = async (e) => {
+    const files = [...e.target.files];
+    if (!files.length) return;
+    const form = new FormData();
+    files.forEach((f) => form.append('file', f, f.name));
+    try {
+      const r = await app.api.post('/api/designs', form);
+      toast(t('set.designs.installed', { list: r.installed.map((d) => d.id).join(', ') }));
+      reloadHere();
+    } catch (err) { toast(err.message, true); e.target.value = ''; }
+  });
+  $$('[data-rmdesign]').forEach((b) => (b.onclick = async () => {
+    const [kind, id, name] = b.dataset.rmdesign.split('|');
+    if (!(await confirmBox(t('set.designs.confirm_remove', { name }), t('set.designs.confirm_text'), t('set.designs.remove')))) return;
+    try { await app.api.del(`/api/designs/${kind}/${id}`); toast(t('set.designs.removed', { name })); reloadHere(); }
+    catch (err) { toast(err.message, true); }
+  }));
+  // my widgets
+  $('#widgetPick') && ($('#widgetPick').onclick = () => $('#widgetFiles').click());
+  $('#widgetFiles') && ($('#widgetFiles').onchange = async (e) => {
+    const files = [...e.target.files];
+    if (!files.length) return;
+    const form = new FormData();
+    files.forEach((f) => form.append('file', f, f.name));
+    try {
+      const r = await app.api.post('/api/widgets', form);
+      toast(t('set.designs.installed', { list: r.installed.map((w) => w.id).join(', ') }));
+      reloadHere('dash');
+    } catch (err) { toast(err.message, true); e.target.value = ''; }
+  });
+  $$('[data-rmwidget]').forEach((b) => (b.onclick = async () => {
+    const [id, name] = b.dataset.rmwidget.split('|');
+    if (!(await confirmBox(t('set.designs.confirm_remove', { name }), t('set.mywidgets.confirm_text'), t('set.designs.remove')))) return;
+    try { await app.api.del(`/api/widgets/${id}`); toast(t('set.designs.removed', { name })); reloadHere('dash'); }
+    catch (err) { toast(err.message, true); }
+  }));
   $('#logRefresh') && ($('#logRefresh').onclick = () => { logs = null; render(); });
   $('#logClear') && ($('#logClear').onclick = async () => {
     if (!(await confirmBox(t('log.clear_q'), t('log.clear_text'), t('log.clear')))) return;
@@ -370,8 +475,9 @@ function draw() {
   bind(p);
 }
 
-export function open(section) {
+export function open(section, tab) {
   if (section) current = section;
+  if (tab && LOOK_TABS.some(([id]) => id === tab)) lookTab = tab;
   render();
 }
 

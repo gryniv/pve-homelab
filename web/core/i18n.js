@@ -1,5 +1,5 @@
 // Translations. Dictionaries live in web/i18n/<code>.json; adding a file adds a language.
-// Widgets bring their own strings (module.i18n) under the "w.<id>." prefix.
+// Widgets bring their own strings (widgets/<id>/i18n/<lang>.json) under the "w.<id>." prefix.
 //
 //   t('login.who')                        plain string
 //   t('launch.cores', { n: 12 })          "12 ядер" / "12 cores"; plural forms via {one, few, many, other}

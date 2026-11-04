@@ -1,0 +1,14 @@
+{
+  "title": "Proxmox updates",
+  "opt_list": "Packages to list",
+  "opt_list_hint": "0 = summary only",
+  "none": "Up to date",
+  "waiting": "waiting to be installed",
+  "from_pve": "{n} of them from Proxmox",
+  "kernel": "new kernel: a reboot will be needed after updating",
+  "more": "and {n} more",
+  "no_rights": "The update list is for those who may change the node (Sys.Modify)",
+  "new_pkg": "new",
+  "checked": "checked {ago} ago",
+  "details": "Details"
+}

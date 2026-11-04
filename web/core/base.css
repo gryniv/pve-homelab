@@ -82,6 +82,10 @@ html,body{margin:0;height:100%;background:#05080e}
 .A .w{padding:1.1em 1.2em;position:relative;min-width:0}
 .A .zone-side .w{padding:1em 1.1em}
 .A .w .werr{font-size:.85em;color:var(--mute)}
+.A .w .wload{height:3.2em;border-radius:.5em;background:linear-gradient(90deg,rgba(255,255,255,.04) 25%,rgba(255,255,255,.1) 50%,rgba(255,255,255,.04) 75%);background-size:300% 100%;animation:wshimmer 1.4s linear infinite}
+@keyframes wshimmer{from{background-position:100% 0}to{background-position:-200% 0}}
+.A .w .wretry{margin-top:.6em;font:inherit;font-size:.8em;color:var(--acc);background:none;border:1px solid var(--edge);border-radius:.5em;padding:.3em .8em;cursor:pointer}
+.A .w .wretry:hover,.A .w .wretry:focus-visible{border-color:var(--acc)}
 .A .kv{display:flex;justify-content:space-between;gap:1em;font-size:.86em;padding:.32em 0;border-top:1px solid var(--edge)}
 .A .kv:first-of-type{border-top:0}
 .A .kv b{font-weight:500;font-variant-numeric:tabular-nums;text-align:right}
@@ -135,6 +139,8 @@ html,body{margin:0;height:100%;background:#05080e}
 .A .loginerr{color:#ffb3b3;font-size:.9em;margin-top:-.5em}
 .A .seatnote{font-size:.82em;color:var(--mute);border-top:1px solid var(--edge);padding-top:1em;display:flex;gap:.6em;align-items:center}
 .A .seatnote b{color:#e8edf3;font-weight:500}
+/* a browser elsewhere (the "web" seat): no "this monitor is connected to" */
+.A.remote .seat-local{display:none}
 .A .power{position:absolute;right:5em;bottom:2em;display:flex;gap:.6em}
 .A .power .chipbtn{background:rgba(10,14,20,.45);backdrop-filter:blur(.8em)}
 
@@ -152,6 +158,37 @@ html,body{margin:0;height:100%;background:#05080e}
 .A .updpill{display:inline-flex;align-items:center;gap:.45em;border:1px solid var(--acc-line);background:var(--acc-soft);color:var(--acc-text);
   border-radius:2em;padding:.3em .8em;font-size:.82em;font-weight:600;white-space:nowrap;animation:fadein .4s ease both}
 .A .updpill:hover{background:var(--acc);color:var(--acc-ink)}
+.A .bell{--c:#ffd38a;position:relative;display:inline-flex;align-items:center;justify-content:center;width:2.2em;height:2.2em;border-radius:50%;border:1px solid var(--edge);background:rgba(255,190,80,.08);color:var(--c);cursor:pointer;font:inherit}
+.A .bell.bad{--c:#ff9b9b;background:rgba(255,100,100,.12);border-color:rgba(255,100,100,.45)}
+.A .bell:hover,.A .bell:focus-visible{border-color:currentColor}
+.A .bell .i{width:1.15em;height:1.15em}
+.A .bell .n{position:absolute;top:-.35em;right:-.35em;min-width:1.35em;height:1.35em;padding:0 .3em;border-radius:1em;background:var(--c);color:#10151d;font-size:.7em;font-weight:800;line-height:1.35em;text-align:center}
+.A .confirm.alerts{width:34em}
+.A .alist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.45em;max-height:50vh;overflow:auto}
+.A .alist li{display:flex;align-items:center;gap:.65em;padding:.55em .7em;border-radius:.6em;background:rgba(255,255,255,.04);font-size:.92em}
+.A .alist li.bad{background:rgba(255,100,100,.08)}
+.A .alist li.none{color:var(--mute)}
+/* Proxmox updates: the bell's shape in the accent colour, an amber dot when a new kernel is among them */
+.A .bell.pkg{--c:var(--acc-text);background:var(--acc-soft);border-color:var(--acc-line)}
+.A .bell.pkg.kern::after{content:'';position:absolute;bottom:-.1em;left:-.1em;width:.6em;height:.6em;border-radius:50%;background:#ffd38a;box-shadow:0 0 0 .15em rgba(16,21,29,.85)}
+.A .confirm.nodeupd{width:38em}
+.A .confirm.nodeupd .mbtns .btn{white-space:nowrap}
+.A .nusum{display:flex;align-items:center;gap:.7em;margin-bottom:.7em}
+.A .nusum b{font-family:var(--font-display,var(--display));font-size:2.2em;line-height:1;color:var(--acc)}
+.A .nusum span{display:flex;flex-direction:column;gap:.15em;line-height:1.3}
+.A .nusum small{font-size:.82em}
+.A .nusum.none{font-size:1.05em}
+.A .nukern{display:flex;align-items:center;gap:.55em;font-size:.88em;color:#ffd38a;background:rgba(255,190,80,.08);border-radius:.55em;padding:.45em .65em;margin-bottom:.6em}
+.A .nukern .i{width:1.15em;height:1.15em;flex:none}
+.A .pkglist{list-style:none;margin:0;padding:0;max-height:min(40vh,22em);overflow:auto;display:grid;grid-template-columns:1fr 1fr;gap:.15em 1.2em}
+.A .pkglist li{display:flex;flex-direction:column;min-width:0;padding:.25em 0;font-size:.88em}
+.A .pkglist .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.A .pkglist li.pve .nm{color:var(--acc-text)}
+.A .pkglist small{font-size:.82em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.A .pkglist li.more{grid-column:1/-1;font-size:.82em}
+.A .nuhow{margin:.8em 0 0;font-size:.85em}
+@media (max-width:760px){.A .pkglist{grid-template-columns:1fr}}
+.A .dot.warn{color:#ffc46b}
 .A .ibtn{background:none;border:0;border-radius:.5em;width:2.2em;height:2.2em;display:grid;place-items:center;color:var(--mute);transition:background .15s,color .15s}
 .A .ibtn:hover{background:rgba(255,255,255,.08);color:#fff}
 /* open service tabs: flexible middle strip, fades out instead of clipping */
@@ -248,6 +285,50 @@ html,body{margin:0;height:100%;background:#05080e}
 .A td.nm span{display:inline-flex;align-items:center;gap:.55em}
 .A td.nm img,.A td.nm .gen{width:1.5em;height:1.5em;border-radius:.3em;object-fit:contain}
 .A td.nm .gen{display:inline-grid;place-items:center;background:rgba(255,255,255,.08);color:var(--mute)}
+/* guests table: sortable headers, the name opens the guest's history, the filter above */
+.A th button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer;display:inline-flex;align-items:center;gap:.3em}
+.A th button:hover,.A th button:focus-visible{color:var(--txt,#fff)}
+.A th[aria-sort] button{color:var(--acc-text)}
+.A th[aria-sort="ascending"] button::after{content:"▲";font-size:.7em}
+.A th[aria-sort="descending"] button::after{content:"▼";font-size:.7em}
+.A td.nm .gname{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer;display:inline-flex;align-items:center;gap:.55em;text-align:left}
+.A td.nm .gname img,.A td.nm .gname .gen{width:1.5em;height:1.5em;border-radius:.3em;object-fit:contain}
+.A td.nm .gname:hover,.A td.nm .gname:focus-visible{color:var(--acc-text);text-decoration:underline;text-underline-offset:.2em}
+.A .gtools{display:flex;justify-content:flex-end;margin:0 0 .5em}
+.A .gtools input{font:inherit;font-size:.85em;color:inherit;background:rgba(255,255,255,.05);border:1px solid var(--edge);border-radius:.55em;padding:.4em .7em;width:16em;max-width:100%}
+.A .gtools input:focus{outline:none;border-color:var(--acc)}
+/* a guest's history */
+.A .confirm.gdetail{width:min(44em,92vw)}
+/* Write to the author */
+.A .confirm.feedback{width:min(52em,94vw);max-height:92vh;overflow:auto}
+.A .confirm.feedback .lead{margin:-.4em 0 0}
+.A .fbgrid{display:grid;grid-template-columns:1fr 15em;gap:1.4em;align-items:start}
+.A .fbform{display:flex;flex-direction:column;gap:.8em;min-width:0}
+.A .fbform .fld{max-width:none;margin:0}
+.A .fbform textarea{min-height:7em;resize:vertical}
+.A .fbside{display:flex;flex-direction:column;align-items:center;gap:.7em;text-align:center}
+.A .fbqr{width:15em;aspect-ratio:1;background:#fff;border-radius:.6em;padding:.4em}
+.A .fbqr svg{display:block;width:100%;height:100%}
+.A .fbnote{font-size:.82em;margin:0}
+.A .fbside .btn{display:inline-flex;align-items:center;gap:.5em}
+.A .fbprev summary{cursor:pointer;color:var(--mute);font-size:.88em}
+.A .fbprev pre{white-space:pre-wrap;word-break:break-word;font-size:.8em;max-height:16em;overflow:auto;background:rgba(255,255,255,.04);border-radius:.6em;padding:.8em;margin:.5em 0 0}
+.A .aboutbtns{display:flex;gap:.7em;flex-wrap:wrap}
+@media (max-width:760px){.A .fbgrid{grid-template-columns:1fr}.A .fbqr{width:min(15em,70vw)}}
+.A .gdetail .ghead{display:flex;align-items:center;justify-content:space-between;gap:1em;flex-wrap:wrap}
+.A .gdetail .ghead h3{margin:0}
+.A .gchart{margin:.2em 0 .6em}
+.A .gchart .gch{display:flex;justify-content:space-between;gap:1em;font-size:.88em;margin-bottom:.3em}
+.A .gchart .gch span{color:var(--mute);font-variant-numeric:tabular-nums}
+.A .gchart .chart{width:100%;height:4.4em;display:block;background:rgba(255,255,255,.03);border-radius:.4em}
+.A .glegend{display:flex;gap:1em;font-size:.76em;color:var(--mute);margin-top:.3em}
+.A .glegend i{display:inline-block;width:.8em;height:.25em;border-radius:1em;margin-right:.35em;vertical-align:middle}
+.A .gextra{display:grid;grid-template-columns:1fr 1.4fr;gap:1em;font-size:.88em}
+.A .gextra:empty{display:none}
+.A .gextra section{display:flex;flex-direction:column;gap:.3em;min-width:0}
+.A .gextra .snaps{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.35em}
+.A .gextra .snaps li{display:flex;flex-direction:column;min-width:0}
+.A .gextra .snaps small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .A .type{font-family:var(--mono);font-size:.74em;color:var(--mute);border:1px solid var(--edge);border-radius:.3em;padding:.05em .35em}
 .A .lnk{color:var(--acc-text);background:none;border:0;padding:0;font-size:.95em;display:inline-flex;gap:.3em;align-items:center}
 .A .acts{display:flex;gap:.35em;justify-content:flex-end}
@@ -299,6 +380,8 @@ html,body{margin:0;height:100%;background:#05080e}
 .A .confirm h3{margin:0;font-family:var(--font-display,var(--display))}
 .A .toast{position:absolute;left:50%;bottom:1.6em;transform:translateX(-50%);background:rgba(16,21,29,.95);border:1px solid var(--edge);border-radius:.7em;padding:.7em 1.1em;font-size:.92em;z-index:20;max-width:60%}
 .A .toast.bad{border-color:rgba(255,100,100,.5);color:#ffd0d0}
+.A .offline{position:fixed;left:50%;top:4.6em;transform:translateX(-50%);z-index:40;display:flex;align-items:center;gap:.6em;background:rgba(40,16,16,.95);border:1px solid rgba(255,100,100,.5);color:#ffd0d0;border-radius:.7em;padding:.6em 1.1em;font-size:.92em}
+.A .offline .dot{width:.6em;height:.6em;border-radius:50%;background:#ff6b6b;animation:breathe 1.2s ease-in-out infinite}
 
 /* ---------- settings ---------- */
 .A .settings{position:absolute;inset:0;background:rgba(3,5,9,.55);backdrop-filter:blur(.5em);display:grid;place-items:center;padding:2.2em;z-index:10}
@@ -352,6 +435,25 @@ html,body{margin:0;height:100%;background:#05080e}
 .A .wprev .w{font-size:.92em}
 /* error journal (Settings → About) */
 .A .lbar{display:flex;align-items:center;gap:.6em;margin:.2em 0 .7em}
+/* the design showcase (?showcase=<kind>:<id>, showcase.js) */
+.A .showcase{position:fixed;inset:0;z-index:60;overflow:auto;padding:1.4em 1.8em 2em;background:#0a0d13;color:#e8edf3}
+.A .showcase .schead{display:flex;align-items:baseline;gap:1em;margin-bottom:1em;position:sticky;top:-1.4em;padding:.6em 0;background:#0a0d13;z-index:1}
+.A .showcase .schead h2{margin:0;font-size:1.4em}
+.A .showcase .schead .sp{flex:1}
+.A .showcase .scgrid{display:grid;grid-template-columns:9em repeat(var(--cols),minmax(0,1fr));gap:.3em .8em;align-items:center}
+.A .showcase .sccol{font-size:.8em;color:var(--mute);text-align:center;font-weight:600}
+.A .showcase .scrow{font-size:.8em;color:var(--mute);font-weight:500;line-height:1.3}
+.A .showcase .sccell .mon{margin:.3em .3em .9em}
+.A .showcase .pdots{display:none}
+/* Settings → Look → My designs */
+.A .dinstall{display:flex;align-items:center;gap:.9em;flex-wrap:wrap;margin:.4em 0 1em}
+.A .dinstall .btn{display:inline-flex;align-items:center;gap:.5em}
+.A .mylist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.45em}
+.A .mylist li{display:flex;align-items:center;justify-content:space-between;gap:1em;background:rgba(255,255,255,.04);border-radius:.6em;padding:.55em .8em}
+.A .mylist .nm{display:flex;flex-direction:column;min-width:0}
+.A .mylist .nm small{font-size:.8em}
+.A .wwarn{display:flex;align-items:flex-start;gap:.5em;font-size:.85em;margin:-.4em 0 1em}
+.A .wwarn svg{flex:none;width:1.1em;height:1.1em;margin-top:.1em}
 .A .llist{display:flex;flex-direction:column;gap:.3em;max-height:28em;overflow:auto;padding-right:.3em}
 .A .lrow{border:1px solid var(--edge);border-radius:.6em;background:rgba(255,255,255,.03);font-size:.85em}
 .A .lrow summary{display:flex;align-items:baseline;gap:.7em;padding:.5em .7em;cursor:pointer;list-style:none;min-width:0}
@@ -477,5 +579,92 @@ html,body{margin:0;height:100%;background:#05080e}
 .A .dlist{display:flex;flex-direction:column;gap:.35em;font-size:.88em;max-height:10em;overflow:auto}
 .A .drow{display:flex;align-items:center;justify-content:space-between;gap:.5em;background:rgba(255,255,255,.04);border-radius:.5em;padding:.3em .3em .3em .6em}
 .A .drow .chipbtn{padding:.2em .4em}
+
+
+/* ---------- narrow screens: phones, tablets held upright, small windows ----------
+   The kiosk layout is one fixed screen sized by the viewport; here the type gets a readable size,
+   the screens scroll, and columns stack. Dialogs and settings take the whole width. */
+@media (max-width:900px){
+  .A{font-size:clamp(13.5px,1.6vw + 8px,16px)}
+  .A .scr{overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain}
+  .A .overlay,.A .settings{position:fixed}
+  .A .toast{max-width:92%;bottom:1em}
+
+  /* sign-in */
+  /* the time first, then signing in, then the widgets: the left column's parts become rows of their own */
+  .A .scr-login{grid-template-columns:minmax(0,1fr);gap:0;align-items:start;align-content:start;padding:1.4em 1em 1.6em}
+  .A .scr-login > div:first-child{display:contents}
+  .A .scr-login .clock{font-size:min(5.2em,22vw)}
+  .A .who{order:1;padding:1.3em;margin-top:1.3em}
+  .A .zone-login{order:2;grid-template-columns:repeat(auto-fill,minmax(min(100%,17em),1fr));margin-top:1.3em;max-width:none}
+  .A .login-about,.A .power{order:3;position:static}
+  .A .login-about{margin-top:1.4em}
+  .A .power{justify-content:flex-start;flex-wrap:wrap;margin-top:.8em}
+
+  /* screensaver */
+  .A .sv{left:1.2em;right:1.2em;bottom:2em;flex-direction:column;align-items:flex-start;gap:1em}
+  .A .sv .clock{font-size:min(7em,26vw)}
+  .A .sv-wx img{width:4.5em;height:4.5em}
+  .A .sv-wx .t{font-size:3em}
+  .A .sv-seat{right:1.2em}
+
+  /* dashboard: the top bar stays, the rest is one scrolling column */
+  .A .top{position:sticky;top:0;z-index:6;gap:.5em;padding:0 .7em;height:3.4em}
+  .A .top .tr{gap:.25em}
+  /* the avatar opens the settings too, so the gear goes; the node name gives way before any button */
+  .A .top .tw:not(.clock-s),.A .top .vsep,.A .me [data-whoami],.A .top .ibtn[data-go="settings"]{display:none}
+  .A .brand{flex:0 1 auto;min-width:0}
+  .A .brand [data-node]{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .A .top .ibtn,.A .top .bell{width:2em;height:2em}
+  .A .top .clock-s{font-size:.85em}
+  .A .updpill span{display:none}
+  .A .updpill{padding:.4em .5em}
+  .A .body{position:static;display:flex;flex-direction:column;gap:1em;padding:.9em .8em 1.4em}
+  .A .main{gap:1em}
+  .A .sidecol{order:2}
+  .A .zone-side{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,18em),1fr));align-items:start;overflow:visible;mask-image:none;padding:0;margin:0}
+  .A .systems,.A .systems.many{grid-auto-columns:min(82%,19em)}
+  .A .rail-btn{display:none}
+  .A .tabp{flex:none;padding:.7em .7em .8em}
+  .A .ptabs{flex-wrap:wrap}
+  .A .ptabs .src{display:none}
+  .A .ptabs button{padding:.45em .55em}
+  .A [data-pane].scroll{overflow:visible;margin:0;padding:0}
+  .A .svcgrid{grid-template-columns:repeat(auto-fill,minmax(7.4em,1fr));gap:.55em}
+  .A .svc{height:6.6em}
+  .A .gtools input{width:100%}
+
+  /* dialogs and settings */
+  .A .overlay{padding:.6em}
+  .A .overlay > .confirm,.A .overlay > .modal,.A .overlay > .demo-panel{width:100%;max-width:100%;max-height:100%;overflow:auto}
+  .A .confirm{padding:1.2em}
+  .A .mbtns{flex-wrap:wrap}
+  .A .settings{padding:0}
+  .A .sbox{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);border-radius:0}
+  .A .snav{flex-direction:row;overflow-x:auto;scrollbar-width:none;border-right:0;border-bottom:1px solid var(--edge);padding:.5em 4.6em .5em .5em;gap:.15em}
+  .A .snav .me2,.A .snav .sp,.A .snav .saved,.A .snav + .about-mini{display:none}
+  .A .snav button{white-space:nowrap;flex:none;padding:.5em .6em}
+  .A .sclose{top:.45em;right:.5em}
+  .A .scont{padding:1.1em .9em 2em}
+  .A .skins{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .A .zones{grid-template-columns:minmax(0,1fr)}
+  .A .gextra{grid-template-columns:minmax(0,1fr)}
+}
+
+/* the guests table becomes cards: name and buttons, then the details in one line; the headers stay as a sort bar */
+@media (max-width:640px){
+  .A [data-pane="guests"] table,.A [data-pane="guests"] thead,.A #guestrows{display:block}
+  .A [data-pane="guests"] thead tr{display:flex;flex-wrap:wrap;gap:.2em .9em;margin-bottom:.3em}
+  .A [data-pane="guests"] th{padding:.2em 0}
+  .A [data-pane="guests"] th:not([data-col]){display:none}
+  .A #guestrows tr{display:flex;flex-wrap:wrap;align-items:center;gap:.3em .7em;padding:.65em .1em;border-top:1px solid var(--edge)}
+  .A #guestrows tr::before{content:"";order:2;flex-basis:100%;height:0}
+  .A #guestrows td{border:0;padding:0;order:3;font-size:.9em;color:var(--mute)}
+  .A #guestrows td.nm{order:0;flex:1 1 0;min-width:0;font-size:1em;color:inherit}
+  .A #guestrows td.nm .gname{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .A #guestrows td:last-child{order:1;flex:none}
+  .A #guestrows td:empty{display:none}
+  .A #guestrows td[colspan]{order:0;flex:1}
+}
 
 @media (prefers-reduced-motion:reduce){.A *{animation:none!important;transition:none!important}}

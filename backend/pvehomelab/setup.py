@@ -52,14 +52,19 @@ async def detect_monitors():
         inputs = {}
         try:
             caps = await run("ddcutil", "-b", bus.group(1), "capabilities", timeout=40)
-            sect = re.search(r"Feature: 60.*?Values:\n(.*?)(?:\n\s*Feature:|\Z)", caps, re.S)
-            for code, label in re.findall(r"^\s*([0-9a-fA-F]{2}):\s*(.+)$", sect.group(1) if sect else "", re.M):
-                inputs[int(code, 16)] = label.strip()
+            inputs = parse_inputs(caps)
         except Exception:
             pass
         mons.append({"bus": int(bus.group(1)), "connector": conn.group(2) if conn else None, "pci": pci,
                      "model": model.group(1).strip() if model else "?", "inputs": inputs})
     return mons
+
+
+def parse_inputs(caps):
+    """{code: label} of the input source feature (VCP 0x60) in `ddcutil capabilities` output."""
+    sect = re.search(r"Feature: 60.*?Values:\n(.*?)(?:\n\s*Feature:|\Z)", caps, re.S)
+    return {int(code, 16): label.strip()
+            for code, label in re.findall(r"^\s*([0-9a-fA-F]{2}):\s*(.+)$", sect.group(1) if sect else "", re.M)}
 
 
 def guess_input(connector, inputs):

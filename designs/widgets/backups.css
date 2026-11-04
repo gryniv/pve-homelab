@@ -1,0 +1,10 @@
+.A .w[data-w="backups"] .sum{display:flex;align-items:center;gap:.6em;margin-bottom:.4em}
+.A .w[data-w="backups"] .sum b{font-family:var(--font-display,var(--display));font-size:1.9em;line-height:1}
+.A .w[data-w="backups"] .sum span{font-size:.85em;line-height:1.3}
+.A .w[data-w="backups"] .allok{display:flex;align-items:center;gap:.5em;font-size:.88em}
+.A .w[data-w="backups"] .row{display:flex;align-items:center;gap:.55em;padding:.22em 0;font-size:.85em}
+.A .w[data-w="backups"] .row .nm{flex:1;min-width:0;display:flex;flex-direction:column}
+.A .w[data-w="backups"] .row .nm,.A .w[data-w="backups"] .row .nm small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.A .w[data-w="backups"] .row .nm small{font-size:.8em}
+.A .w[data-w="backups"] .row > small{font-size:.78em}
+.A .w[data-w="backups"] .more{font-size:.78em;margin-top:.2em}

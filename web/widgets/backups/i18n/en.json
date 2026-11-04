@@ -1,0 +1,14 @@
+{
+  "title": "Backups",
+  "opt_days": "Stale after, days",
+  "opt_days_hint": "a guest without a newer backup gets listed",
+  "opt_list": "Guests to list",
+  "all_ok": "Every guest has a fresh backup",
+  "stale": "no backup in {d} days",
+  "of": "of {n}",
+  "never": "never",
+  "ago": "{d} days ago",
+  "today": "today",
+  "more": "and {n} more",
+  "empty": "No guests"
+}

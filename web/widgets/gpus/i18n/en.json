@@ -1,0 +1,8 @@
+{
+  "title": "GPUs",
+  "in_vm": "in VM {id}",
+  "menu": "menu",
+  "free": "free",
+  "no_driver": "no driver",
+  "here": "you are here"
+}

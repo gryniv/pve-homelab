@@ -1,4 +1,4 @@
-// Fonts are drop-in files: web/fonts/<id>.css with "@family" in the header and an @import
+// Fonts are drop-in files: designs/fonts/<id>.css with "@family" in the header and an @import
 // of the web font (see README: "Add a font"). They load only when used or previewed.
 
 let mods = [];

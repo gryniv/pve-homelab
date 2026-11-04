@@ -1,0 +1,9 @@
+{
+  "title": "Світовий час",
+  "opt_zones": "Часові пояси",
+  "opt_zones_hint": "по одному в рядку: Europe/Warsaw або Назва=Europe/Warsaw",
+  "opt_h12": "12-годинний формат",
+  "bad": "невідомий пояс",
+  "tomorrow": "завтра",
+  "yesterday": "вчора"
+}

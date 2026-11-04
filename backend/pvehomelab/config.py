@@ -7,15 +7,27 @@ import yaml
 CONFIG_PATH = os.environ.get("PVEHOMELAB_CONFIG", "/etc/pve-homelab/config.yaml")
 STATE_DIR = os.environ.get("PVEHOMELAB_STATE", "/etc/pve-homelab")
 WEB_DIR = os.environ.get("PVEHOMELAB_WEB", "/opt/pve-homelab/web")
+# Looks live apart from the program: the ones that ship with it (replaced by updates) and your own
+# (kept by updates; a design here with the same id as a built-in one wins).
+DESIGNS_DIR = os.environ.get("PVEHOMELAB_DESIGNS", "/opt/pve-homelab/designs")
+USER_DESIGNS_DIR = os.environ.get("PVEHOMELAB_USER_DESIGNS", os.path.join(STATE_DIR, "designs"))
+# Your own widgets (logic: <id>/widget.js), kept by updates; their look is a design (widgets/<id>.css).
+USER_WIDGETS_DIR = os.environ.get("PVEHOMELAB_USER_WIDGETS", os.path.join(STATE_DIR, "widgets"))
 CACHE_DIR = os.environ.get("PVEHOMELAB_CACHE", "/var/cache/pve-homelab")
 
 DEFAULTS = {
     "listen": "127.0.0.1:8900",
+    "allowed_hosts": [],       # extra Host names the menu answers to; "*" turns the check off
+    # The menu in a browser elsewhere, through a reverse proxy (e.g. Caddy on home.example.com).
+    # Only loopback and these addresses or networks may talk to the backend; whatever does not
+    # come from loopback is the "web" seat, which never touches a monitor or a GPU.
+    "web": {"enabled": True, "allow_from": []},
     "node": "",
     "language": "en",
     "systems_tag": "seat",
     "systems_extra": [],
     "links": [],
+    "wol": [],                 # [{name, mac, broadcast?, port?}]: machines the menu can wake up
     "kiosk": {"debug_port": 0},
     "update": {"repo": "", "channel": "release", "branch": "main", "auto": False, "check_hours": 6},
     "seats": {},
@@ -28,6 +40,10 @@ DEFAULTS = {
     "users": {"hide": []},
     "saver": {"after_min": 5},
     "lock_after_min": 15,
+    "designer": False,         # live reload of designs (the demo has it on): for working on designs on a host
+    "alerts": {"storage_pct": 90, "temp_c": 85, "backup_days": 7},
+    # Settings → About → Write to the author: a GitHub issue in `repo` (default: where updates come from)
+    "feedback": {"enabled": True, "repo": ""},
 }
 
 

@@ -3,13 +3,6 @@ export default {
   zones: ['login', 'side'],
   public: true,
   every: 900,
-  css: true,
-  i18n: {
-    uk: { title: 'Погода', wind: 'вітер {v} {u} · вологість {h}%', ms: 'м/с', mph: 'mph', configure: 'Налаштувати погоду',
-      opt_days: 'Прогноз', d_auto: 'на екрані входу 3 дні, на панелі без нього', d_0: 'без прогнозу', d_3: '3 дні', d_4: '4 дні', opt_details: 'Вітер і вологість' },
-    en: { title: 'Weather', wind: 'wind {v} {u} · humidity {h}%', ms: 'm/s', mph: 'mph', configure: 'Weather settings',
-      opt_days: 'Forecast', d_auto: '3 days on the sign-in screen, none on the dashboard', d_0: 'no forecast', d_3: '3 days', d_4: '4 days', opt_details: 'Wind and humidity' },
-  },
   options: [
     { key: 'days', type: 'select', label: 'opt_days', default: 'auto', choices: [['auto', 'd_auto'], ['0', 'd_0'], ['3', 'd_3'], ['4', 'd_4']] },
     { key: 'details', type: 'toggle', label: 'opt_details', default: true },

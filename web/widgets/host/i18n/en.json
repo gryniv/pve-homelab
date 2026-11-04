@@ -1,0 +1,16 @@
+{
+  "title": "Host",
+  "host": "Host",
+  "now": "Host now",
+  "of": "of {n} GB",
+  "temp": "TEMP",
+  "guests": "Guests",
+  "running": "{n} running",
+  "stopped": "{n} stopped",
+  "wait": "the CPU graph appears in a minute",
+  "opt_rings": "Rings",
+  "r_cpu": "CPU",
+  "r_mem": "memory",
+  "r_temp": "temperature",
+  "opt_graph": "CPU graph, 30 min (dashboard)"
+}

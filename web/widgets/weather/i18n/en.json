@@ -1,0 +1,13 @@
+{
+  "title": "Weather",
+  "wind": "wind {v} {u} · humidity {h}%",
+  "ms": "m/s",
+  "mph": "mph",
+  "configure": "Weather settings",
+  "opt_days": "Forecast",
+  "d_auto": "3 days on the sign-in screen, none on the dashboard",
+  "d_0": "no forecast",
+  "d_3": "3 days",
+  "d_4": "4 days",
+  "opt_details": "Wind and humidity"
+}

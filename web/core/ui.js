@@ -43,7 +43,8 @@ export const fmt = {
 
 // Re-render `root` via fn() without losing keyboard focus (matched by a stable attribute).
 const KEYS = ['id', 'data-sys', 'data-url', 'data-act', 'data-console', 'data-sp', 'data-skinpick', 'data-bgk', 'data-clk', 'data-font', 'data-v', 'data-av',
-  'data-add', 'data-mv', 'data-rm', 'data-hide', 'data-gpu', 'data-ptab', 'data-user', 'data-q', 'data-tab', 'data-tabx'];
+  'data-add', 'data-mv', 'data-rm', 'data-hide', 'data-gpu', 'data-ptab', 'data-user', 'data-q', 'data-tab', 'data-tabx',
+  'data-omv', 'data-vis', 'data-wcfg', 'data-wo', 'data-wochk', 'data-guest', 'data-sort', 'data-range'];
 export function keepFocus(root, fn) {
   const a = document.activeElement;
   let sel = null;
@@ -57,14 +58,25 @@ export function keepFocus(root, fn) {
   if (sel) root.querySelector(sel)?.focus();
 }
 
-let toastTimer;
+// One message at a time; the next waits instead of overwriting it (a repeat is dropped).
+const toastQueue = [];
+let toastBusy = false;
 export function toast(msg, bad = false) {
+  if (toastQueue.some((x) => x.msg === msg) || ($('#toast').textContent === msg && toastBusy)) return;
+  toastQueue.push({ msg, bad });
+  if (!toastBusy) nextToast();
+}
+function nextToast() {
   const t = $('#toast');
-  t.textContent = msg;
-  t.classList.toggle('bad', bad);
+  const m = toastQueue.shift();
+  if (!m) { toastBusy = false; t.hidden = true; t.textContent = ''; return; }
+  toastBusy = true;
+  t.textContent = m.msg;
+  t.classList.toggle('bad', m.bad);
   t.hidden = false;
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => (t.hidden = true), bad ? 6000 : 3000);
+  // a queued message shortens the current one, never below 1.5 s
+  const ms = toastQueue.length ? 1500 : (m.bad ? 6000 : 3000);
+  setTimeout(nextToast, ms);
 }
 
 export function confirmBox(title, text, yes) {
@@ -73,8 +85,22 @@ export function confirmBox(title, text, yes) {
     $('#cText').textContent = text;
     $('#cYes').textContent = yes;
     const layer = $('#confirmLayer');
+    const back = document.activeElement;
     layer.hidden = false;
-    const done = (v) => { layer.hidden = true; $('#cYes').onclick = $('#cNo').onclick = null; resolve(v); };
+    // Esc answers "no" here and stops, so it does not also close the screen underneath.
+    const onKey = (e) => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault(); e.stopImmediatePropagation();
+      done(false);
+    };
+    const done = (v) => {
+      layer.hidden = true;
+      $('#cYes').onclick = $('#cNo').onclick = null;
+      removeEventListener('keydown', onKey, true);
+      if (back?.isConnected) back.focus();
+      resolve(v);
+    };
+    addEventListener('keydown', onKey, true);
     $('#cYes').onclick = () => done(true);
     $('#cNo').onclick = () => done(false);
     $('#cNo').focus();
@@ -88,3 +114,6 @@ const WX_ICON = {
   snow: ['snow', 'snow'], fog: ['fog', 'fog'],
 };
 export const wxIcon = (kind, night) => `/assets/wx/${(WX_ICON[kind] || WX_ICON.partly)[night ? 1 : 0]}.svg`;
+
+// "VM" / "CT" for a guest type as Proxmox names it (qemu / lxc); empty for anything else.
+export const kindLabel = (type) => (type === 'qemu' ? 'VM' : type === 'lxc' ? 'CT' : '');

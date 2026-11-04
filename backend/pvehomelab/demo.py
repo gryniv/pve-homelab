@@ -14,7 +14,7 @@ import time
 
 from aiohttp import web
 
-from . import app as A, caddy, discover, gpus as G, i18n, launch as L, update, util, weather
+from . import app as A, caddy, discover, gpus as G, i18n, launch as L, update, util, weather, wol
 from .ddc import DDC
 from .pve import PVE, PVEError, Ticket
 
@@ -52,6 +52,25 @@ USERS = [
     {"id": "guest@pve", "first": "Guest"},
     {"id": "root@pam", "first": ""},
 ]
+APT_UPDATES = [
+    {"Package": "pve-manager", "OldVersion": "9.2.1", "Version": "9.2.3", "Origin": "Proxmox"},
+    {"Package": "proxmox-kernel-6.17.4-2-pve-signed", "OldVersion": "", "Version": "6.17.4-2", "Origin": "Proxmox"},
+    {"Package": "qemu-server", "OldVersion": "9.1.4", "Version": "9.1.6", "Origin": "Proxmox"},
+    {"Package": "openssl", "OldVersion": "3.5.1-1", "Version": "3.5.1-1+deb13u1", "Origin": "Debian"},
+    {"Package": "libssl3t64", "OldVersion": "3.5.1-1", "Version": "3.5.1-1+deb13u1", "Origin": "Debian"},
+    {"Package": "tzdata", "OldVersion": "2025b-4", "Version": "2025c-0+deb13u1", "Origin": "Debian"},
+]
+DISKS = [
+    {"devpath": "/dev/nvme0n1", "model": "Samsung SSD 990 PRO 2TB", "type": "nvme", "size": 2000 * GB, "health": "PASSED", "wearout": 98},
+    {"devpath": "/dev/nvme1n1", "model": "Samsung SSD 990 PRO 2TB", "type": "nvme", "size": 2000 * GB, "health": "PASSED", "wearout": 97},
+    {"devpath": "/dev/sda", "model": "WDC WD120EFBX", "type": "hdd", "size": 12000 * GB, "health": "PASSED", "wearout": "N/A"},
+]
+POOLS = [{"name": "nvme2tb", "health": "ONLINE", "size": 1800 * GB, "alloc": 612 * GB}]
+SNAPSHOTS = {  # vmid -> [(name, days ago, description, with RAM)]
+    100: [("clean-install", 40, "Fresh Ubuntu, drivers in", False), ("before-upgrade", 3, "Before 26.04 upgrade", True)],
+    201: [("pre-update", 9, "Jellyfin 10.10 before update", False)],
+}
+BACKUP_AGE = {100: 0.5, 101: 1, 102: 12, 200: 0.5, 201: 0.5, 202: 2, 205: 0.5, 206: 0.5}  # days since the last backup
 GUEST_SEES = {100, 201, 202}   # guest@pve's permissions: one VM and two media services
 
 GPUS = {
@@ -90,6 +109,28 @@ def resources(user="root@pam"):
     return out
 
 
+def rrddata(user, vmid, timeframe):
+    """Made-up history: 70 points like Proxmox gives, gaps while the guest was off."""
+    if vmid not in WORLD or vmid not in _visible(user):
+        raise PVEError(403, i18n._("forbidden"))
+    g = WORLD[vmid]
+    step = {"hour": 60, "day": 1200, "week": 8640}[timeframe]
+    now = int(time.time()) // step * step
+    out = []
+    for i in range(70):
+        t = now - (69 - i) * step
+        row = {"time": t}
+        # a stopped guest shows its last hour of activity before it went down, then a gap
+        on = g["status"] == "running" or i < 40
+        if on:
+            w = (math.sin(t / (step * 7) + vmid) + 1) / 2
+            row.update(cpu=0.03 + 0.35 * w * w, maxcpu=g["cores"], mem=g["mem"] * GB * (0.35 + 0.3 * w),
+                       maxmem=g["mem"] * GB, netin=2e5 + 3e6 * w, netout=1e5 + 1.2e6 * (1 - w),
+                       diskread=5e4 * w, diskwrite=2e5 * (1 - w))
+        out.append(row)
+    return out
+
+
 def qemu_config(vmid):
     g = WORLD[vmid]
     conf = {"name": g["name"], "ostype": g["ostype"], "cores": g["cores"], "sockets": 1,
@@ -112,12 +153,38 @@ class DemoPVE(PVE):
         await asyncio.sleep(0.05)
         if endpoint == "/cluster/resources":
             return resources(t.user)
+        if endpoint.endswith("/snapshot"):
+            vmid = int(endpoint.split("/")[4])
+            if vmid not in _visible(t.user):
+                raise PVEError(403, i18n._("forbidden"))
+            now = int(time.time())
+            return [{"name": n, "snaptime": now - age * 86400, "description": d, **({"vmstate": 1} if ram else {})}
+                    for n, age, d, ram in SNAPSHOTS.get(vmid, [])] + [{"name": "current", "running": 1}]
+        if endpoint.endswith("/rrddata"):
+            return rrddata(t.user, int(endpoint.split("/")[4]), params.get("timeframe", "hour"))
         if endpoint.startswith(f"/nodes/{NODE}/qemu/") and endpoint.endswith("/config"):
             return qemu_config(int(endpoint.split("/")[4]))
+        if endpoint == f"/nodes/{NODE}/storage" and params.get("content") == "backup":
+            return [{"storage": "pbs", "type": "pbs", "active": 1, "content": "backup"}]
+        if endpoint == f"/nodes/{NODE}/storage/pbs/content":
+            now = time.time()
+            return [{"volid": f"pbs:backup/{vmid}/{i}", "vmid": vmid, "ctime": int(now - age * 86400 - i * 7 * 86400),
+                     "size": 8 * GB, "content": "backup"}
+                    for vmid, age in BACKUP_AGE.items() for i in range(3)]
         if endpoint == f"/nodes/{NODE}/storage":
             return [{"storage": "local", "type": "dir", "active": 1, "used": 38 * GB, "total": 94 * GB},
                     {"storage": "local-zfs", "type": "zfspool", "active": 1, "used": 612 * GB, "total": 1800 * GB},
                     {"storage": "media", "type": "dir", "active": 1, "used": 7400 * GB, "total": 12000 * GB}]
+        if endpoint == f"/nodes/{NODE}/disks/list":
+            return DISKS
+        if endpoint == f"/nodes/{NODE}/disks/zfs":
+            return POOLS
+        if endpoint == f"/nodes/{NODE}/apt/update":
+            return APT_UPDATES
+        if endpoint == f"/nodes/{NODE}/tasks":
+            end = int(STATE["apt_checked"])
+            return [{"type": "aptupdate", "status": "OK", "user": "root@pam", "starttime": end - 9, "endtime": end}
+                    ] if params.get("typefilter") in (None, "aptupdate") else []
         if endpoint == "/access/permissions":
             path = params["path"]
             return {path: {p: 1 for p in self._privs(t.user, path)}}
@@ -141,6 +208,8 @@ class DemoPVE(PVE):
                 raise PVEError(403, i18n._("forbidden"))
             g = WORLD[vmid]
             if action == "start":
+                if STATE.get("fail") == "start":  # tests: a start that Proxmox refuses
+                    raise PVEError(500, "start failed (demo)")
                 g["status"], g["started"] = "running", time.time()
             elif action in ("stop", "shutdown"):
                 g["status"], g["started"] = "stopped", None
@@ -151,10 +220,17 @@ class DemoPVE(PVE):
             return f"UPID:{NODE}:{next(_upid)}"
         if endpoint.endswith("/vncproxy"):
             raise PVEError(501, i18n._("demo_console"))
+        if endpoint == f"/nodes/{NODE}/apt/update":   # the package lists, refreshed by hand
+            if "Sys.Modify" not in self._privs(t.user, f"/nodes/{NODE}"):
+                raise PVEError(403, i18n._("forbidden"))
+            STATE["apt_checked"] = time.time() + 1.2
+            return f"UPID:{NODE}:{next(_upid)}:aptupdate"
         raise PVEError(501, i18n._("demo_action"))
 
-    async def wait_task(self, *a, **k):
+    async def wait_task(self, t, node, upid, timeout=120):
         await asyncio.sleep(1.2)
+        if "aptupdate" in upid and STATE.get("fail") == "apt":   # tests: a repository that answers 401
+            raise PVEError(500, "command 'apt-get update' failed: exit code 100")
 
     async def can(self, t, path, priv):
         return priv in self._privs(t.user, path)
@@ -191,7 +267,7 @@ async def demo_gpus(running):
     return out
 
 
-async def demo_pvesh(path, **params):
+async def demo_pvesh(path, /, **params):
     if path == "/cluster/resources":
         return resources()
     if path == "/version":
@@ -221,13 +297,28 @@ async def demo_discover(cfg, res, ips, host_ip=None):
 
 
 async def assign_gpu(self, vmid, gpu):
+    old = list(WORLD[vmid].get("hostpci") or [])
     WORLD[vmid]["hostpci"] = [gpu.rsplit(".", 1)[0]]
     log.info("demo: %s now owns %s", WORLD[vmid]["name"], gpu)
+    return old
+
+
+async def undo_assign(self, vmid, old):
+    WORLD[vmid]["hostpci"] = old
+    log.info("demo: %s got its GPU back", WORLD[vmid]["name"])
 
 
 async def to_virgl(self, vmid):
     WORLD[vmid].update(vga="virtio-gl", hostpci=[])
     log.info("demo: %s switched to VirGL", WORLD[vmid]["name"])
+
+
+WOKEN = []
+
+
+def demo_wake(target):
+    WOKEN.append(target["name"])
+    log.info("demo: magic packet for %s (%s) not sent", target["name"], target["mac"])
 
 
 async def switch_input(self, mon, pci):
@@ -282,7 +373,8 @@ A_app = {}
 # ---------------------------------------------------------------- demo panel
 # The menu's demo panel adds systems and services to the in-memory world, changes the
 # weather and pretends an update exists. Everything added is marked so it can be removed.
-STATE = {"weather": "", "update": True, "added": []}
+APT_CHECKED = T0 - 5 * 3600   # Proxmox's own daily refresh of the package lists, a few hours ago
+STATE = {"weather": "", "update": True, "added": [], "apt_checked": APT_CHECKED}
 _initial = None
 OS_TYPES = {"windows": ("win11", "Windows"), "ubuntu": ("l26", "Ubuntu"), "fedora": ("l26", "Fedora"),
             "debian": ("l26", "Debian"), "macos": ("other", "macOS"), "linux": ("l26", "Linux")}
@@ -393,7 +485,7 @@ async def demo_reset(req):
     WORLD.clear(); WORLD.update(copy.deepcopy(world))
     ROUTES[:] = copy.deepcopy(routes)
     DISCOVERED[:] = copy.deepcopy(found)
-    STATE.update(weather="", update=True, added=[])
+    STATE.update(weather="", update=True, added=[], fail=None, apt_checked=APT_CHECKED)
     await _refresh()
     return web.json_response({"ok": True})
 
@@ -413,9 +505,11 @@ def make_app():
     caddy.guest_ips = demo_ips
     discover.discover = demo_discover
     L.Launcher._assign_gpu = assign_gpu
+    L.Launcher._undo_assign = undo_assign
     L.Launcher._to_virgl = to_virgl
     DDC.switch_to_gpu = switch_input
     weather.get = demo_weather
+    wol.send = demo_wake
     update.status = demo_update_status
     app = A.make_app()
     app["demo"] = True
@@ -431,4 +525,10 @@ def make_app():
 
 def run(host="127.0.0.1", port=8900):
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
-    web.run_app(make_app(), host=host, port=port, print=None, access_log=None)
+    app = make_app()
+    if host not in ("127.0.0.1", "localhost", "::1"):
+        # Opened from other devices on purpose: answer to any host name, from any address
+        # (each of them is the "web" seat, as a browser behind the reverse proxy would be).
+        app["cfg"]["allowed_hosts"] = ["*"]
+        app["cfg"]["web"] = {"enabled": True, "allow_from": ["0.0.0.0/0", "::/0"]}
+    web.run_app(app, host=host, port=port, print=None, access_log=None)

@@ -29,8 +29,9 @@
   <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></symbol>
   <symbol id="i-lock" viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></symbol>
   <symbol id="i-monitor" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></symbol>
   <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></symbol>
-  <symbol id="i-box" viewBox="0 0 24 24"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5"/><path d="M12 13v8"/></symbol>
+  <symbol id="i-dl" viewBox="0 0 24 24"><path d="M12 3v11"/><path d="m7.5 9.5 4.5 4.5 4.5-4.5"/><path d="M4 15v3a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3v-3"/></symbol><symbol id="i-box" viewBox="0 0 24 24"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5"/><path d="M12 13v8"/></symbol>
   <symbol id="i-gpu" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="9" cy="12" r="3"/><circle cx="17" cy="12" r="2"/><path d="M5 18v3M9 18v3M13 18v3"/></symbol>
   <symbol id="i-chip" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/></symbol>
   <symbol id="i-palette" viewBox="0 0 24 24"><path d="M12 22a10 10 0 1 1 10-10c0 2.8-2.2 4-4 4h-2a2 2 0 0 0-1.4 3.4A1.9 1.9 0 0 1 12 22z"/><circle cx="7.5" cy="10.5" r="1"/><circle cx="12" cy="7.5" r="1"/><circle cx="16.5" cy="10.5" r="1"/></symbol>
@@ -109,7 +110,7 @@
     <div class="pwlabel" id="pwLabel"></div>
     <div class="pwrow"><input id="pw" type="password" data-i18n-aria="login.password"><button class="btn" type="submit" id="loginBtn" data-i18n="login.submit"></button></div>
     <div class="loginerr" id="loginErr" hidden></div>
-    <div class="seatnote"><svg class="i"><use href="#i-monitor"/></svg><span><span data-i18n="login.seat"></span> <b data-seat-name></b></span></div>
+    <div class="seatnote"><svg class="i"><use href="#i-monitor"/></svg><span><span data-i18n="login.seat" class="seat-local"></span> <b data-seat-name></b></span></div>
   </form>
   <div class="about-mini login-about" data-about></div>
   <div class="power"><div class="seg langseg" id="loginLang" role="group" data-i18n-aria="login.language"></div><button class="chipbtn" type="button" data-go="saver"><svg class="i"><use href="#i-moon"/></svg><span data-i18n="saver.button"></span></button></div>
@@ -121,6 +122,8 @@
     <div class="brand"><img src="/icons/proxmox.svg" alt=""><span data-node></span><span class="health" id="health" ></span></div>
     <div class="opentabs" id="openTabs"></div>
     <div class="tr">
+      <button class="bell" type="button" id="alertBell" hidden data-i18n-title="alerts.title"><svg class="i"><use href="#i-bell"/></svg><span class="n"></span></button>
+      <button class="bell pkg" type="button" id="nodeUpd" hidden><svg class="i"><use href="#i-dl"/></svg><span class="n"></span></button>
       <button class="updpill" type="button" id="updPill" hidden><svg class="i"><use href="#i-refresh"/></svg><span></span></button>
       <span class="tw"><img data-wx-icon alt=""><span data-temp></span><span class="city" data-city></span></span>
       <span class="tw clock-s" data-clock></span>
@@ -146,18 +149,26 @@
         </div>
         <div data-pane="web" class="scroll"><div class="svcgrid" id="svcgrid"></div></div>
         <div data-pane="guests" class="scroll" hidden>
-          <table><thead><tr><th data-i18n="col.name"></th><th data-i18n="col.id"></th><th data-i18n="col.type"></th><th data-i18n="col.state"></th><th data-i18n="col.cpu"></th><th data-i18n="col.ram"></th><th data-i18n="col.site"></th><th></th></tr></thead><tbody id="guestrows"></tbody></table>
+          <div class="gtools"><input id="guestFilter" type="search" autocomplete="off" spellcheck="false" data-i18n-placeholder="guest.filter" data-i18n-aria="guest.filter"></div>
+          <table><thead><tr>
+            <th data-col="name"><button type="button" data-sort="name" data-i18n="col.name"></button></th>
+            <th data-col="vmid"><button type="button" data-sort="vmid" data-i18n="col.id"></button></th>
+            <th data-col="type"><button type="button" data-sort="type" data-i18n="col.type"></button></th>
+            <th data-col="status"><button type="button" data-sort="status" data-i18n="col.state"></button></th>
+            <th data-col="cpu"><button type="button" data-sort="cpu" data-i18n="col.cpu"></button></th>
+            <th data-col="mem"><button type="button" data-sort="mem" data-i18n="col.ram"></button></th>
+            <th data-i18n="col.site"></th><th></th></tr></thead><tbody id="guestrows"></tbody></table>
         </div>
       </div>
     </div>
   </div>
 
   <div class="overlay" data-layer="launch" hidden>
-    <div class="modal">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="mTitle">
       <div class="mhead"><div class="art" id="mArt"></div><img id="mLogo" alt=""><div><h3 id="mTitle"></h3><div class="sub" id="mSub"></div></div></div>
       <div class="mbody">
         <div class="opts" id="mOpts"></div>
-        <ol class="steps" id="mSteps" hidden></ol>
+        <ol class="steps" id="mSteps" aria-live="polite" hidden></ol>
         <div class="errbox" id="mErr" hidden></div>
         <div class="mbtns"><button class="btn ghost" type="button" data-go="dash" id="mCancel" data-i18n="launch.cancel"></button><button class="btn" type="button" id="mStart"><svg class="i" style="fill:currentColor;stroke:none"><use href="#i-play"/></svg><span data-i18n="launch.start"></span></button></div>
       </div>
@@ -178,11 +189,16 @@
   </div>
 </section>
 
-<div class="overlay" id="confirmLayer" hidden><div class="confirm"><h3 id="cTitle"></h3><div class="mute" id="cText"></div><div class="mbtns"><button class="btn ghost" type="button" id="cNo" data-i18n="confirm.cancel"></button><button class="btn danger" type="button" id="cYes"></button></div></div></div>
-<div class="overlay" id="helpLayer" hidden><div class="confirm help"><h3 data-i18n="help.title"></h3><table id="helpTable"></table><div class="mbtns"><button class="btn" type="button" id="helpClose" data-i18n="set.close"></button></div></div></div>
+<div class="overlay" id="confirmLayer" hidden><div class="confirm" role="alertdialog" aria-modal="true" aria-labelledby="cTitle" aria-describedby="cText"><h3 id="cTitle"></h3><div class="mute" id="cText"></div><div class="mbtns"><button class="btn ghost" type="button" id="cNo" data-i18n="confirm.cancel"></button><button class="btn danger" type="button" id="cYes"></button></div></div></div>
+<div class="overlay" id="guestLayer" hidden><div class="confirm gdetail" role="dialog" aria-modal="true" aria-labelledby="gTitle"><div class="ghead"><h3 id="gTitle"></h3><div class="seg" id="gRange" role="group" data-i18n-aria="guest.period"></div></div><div id="gCharts" aria-live="polite"></div><div class="gextra" id="gExtra"></div><div class="mbtns"><button class="btn" type="button" id="gClose" data-i18n="set.close"></button></div></div></div>
+<div class="overlay" id="alertsLayer" hidden><div class="confirm alerts" role="dialog" aria-modal="true" aria-labelledby="alertsTitle"><h3 id="alertsTitle" data-i18n="alerts.title"></h3><ul class="alist" id="alertsList"></ul><div class="mbtns"><button class="btn" type="button" id="alertsClose" data-i18n="set.close"></button></div></div></div>
+<div class="overlay" id="nodeUpdLayer" hidden><div class="confirm nodeupd" role="dialog" aria-modal="true" aria-labelledby="nodeUpdTitle"><h3 id="nodeUpdTitle" data-i18n="nodeupd.title"></h3><div id="nodeUpdBody"></div><div class="mbtns"><button class="btn ghost" type="button" id="nuCheck"><svg class="i"><use href="#i-refresh"/></svg><span data-i18n="nodeupd.check"></span></button><button class="btn ghost" type="button" id="nuOpen"><svg class="i"><use href="#i-ext"/></svg><span data-i18n="nodeupd.open"></span></button><button class="btn" type="button" id="nuClose" data-i18n="set.close"></button></div></div></div>
+<div class="overlay" id="feedbackLayer" hidden><div class="confirm feedback" role="dialog" aria-modal="true" aria-labelledby="fbTitle" id="fbBox"></div></div>
+<div class="overlay" id="helpLayer" hidden><div class="confirm help" role="dialog" aria-modal="true" aria-labelledby="helpTitle"><h3 id="helpTitle" data-i18n="help.title"></h3><table id="helpTable"></table><div class="mbtns"><button class="btn" type="button" id="helpClose" data-i18n="set.close"></button></div></div></div>
 <button class="demo-ribbon" type="button" id="demoRibbon" hidden data-i18n-title="demo.open"><span data-i18n="demo.ribbon"></span></button>
 <div class="overlay" id="demoLayer" hidden><div class="demo-panel glass" id="demoPanel"></div></div>
-<div class="toast" id="toast" hidden></div>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+<div class="offline" id="offline" role="alert" hidden><span class="dot"></span><span data-i18n="error.offline"></span></div>
 
 <script type="module" src="/core/app.js"></script>
 </body>

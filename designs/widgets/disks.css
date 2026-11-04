@@ -1,0 +1,9 @@
+.A .w[data-w="disks"] .sum{display:flex;align-items:center;gap:.6em;margin-bottom:.4em}
+.A .w[data-w="disks"] .sum b{font-family:var(--font-display,var(--display));font-size:1.9em;line-height:1}
+.A .w[data-w="disks"] .allok{display:flex;align-items:center;gap:.5em;font-size:.88em;margin-bottom:.4em}
+.A .w[data-w="disks"] .row{display:flex;align-items:center;gap:.55em;padding:.25em 0;font-size:.85em}
+.A .w[data-w="disks"] .row .nm{flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden}
+.A .w[data-w="disks"] .row .nm,.A .w[data-w="disks"] .row .nm small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.A .w[data-w="disks"] .row .nm small{font-size:.8em}
+.A .w[data-w="disks"] .row > small{font-size:.75em;font-weight:700}
+.A .w[data-w="disks"] .bar{margin:.1em 0 .35em 1.15em}

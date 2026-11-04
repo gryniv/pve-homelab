@@ -2,13 +2,18 @@
 import { current as lang, t } from './i18n.js';
 import { report } from './errlog.js';
 
-export const SEAT = new URLSearchParams(location.search).get('seat') || 'igpu';
+// The kiosk names its seat in the URL; a browser elsewhere is the "web" seat. The backend decides
+// either way and /api/public says which (setSeat), so a page elsewhere can't pass for a monitor.
+export let SEAT = new URLSearchParams(location.search).get('seat') || '';
+export function setSeat(id) { SEAT = id || SEAT; }
 
 // The kiosk has no reload button: if the backend goes away (update, restart), wait for it and reload.
 let waiting = false;
 async function backendLost() {
   if (waiting) return;
   waiting = true;
+  const banner = document.getElementById('offline');
+  if (banner) banner.hidden = false;
   for (;;) {
     await new Promise((r) => setTimeout(r, 3000));
     try { if ((await fetch('/api/host?seat=' + SEAT, { cache: 'no-store' })).ok) return location.reload(); } catch {}
@@ -17,11 +22,13 @@ async function backendLost() {
 
 async function call(method, path, body) {
   let r;
+  // FormData (files) goes as multipart, with the browser's own Content-Type and boundary
+  const form = body instanceof FormData;
   try {
     r = await fetch(path, {
       method,
-      headers: { 'Content-Type': 'application/json', 'X-Seat': SEAT, 'X-Lang': lang() },
-      body: body === undefined ? undefined : JSON.stringify(body),
+      headers: form ? { 'X-Seat': SEAT, 'X-Lang': lang() } : { 'Content-Type': 'application/json', 'X-Seat': SEAT, 'X-Lang': lang() },
+      body: body === undefined ? undefined : form ? body : JSON.stringify(body),
       credentials: 'same-origin',
     });
   } catch (e) {
@@ -39,7 +46,7 @@ async function call(method, path, body) {
   return data;
 }
 
-const withSeat = (p) => p + (p.includes('?') ? '&' : '?') + 'seat=' + encodeURIComponent(SEAT);
+const withSeat = (p) => (SEAT ? p + (p.includes('?') ? '&' : '?') + 'seat=' + encodeURIComponent(SEAT) : p);
 
 export const api = {
   get: (p) => call('GET', withSeat(p)),

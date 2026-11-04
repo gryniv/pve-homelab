@@ -1,5 +1,5 @@
 // Backgrounds: the SVG landscape scene (index.html .land, built in) plus drop-in CSS ones
-// from web/backgrounds/<id>.css, listed by the backend (/api/public → backgrounds).
+// from designs/backgrounds/<id>.css, listed by the backend (/api/public → backgrounds).
 // layer() is shared by the page and the settings previews ("mini monitors").
 import { esc, t } from './ui.js';
 import * as clocks from './clocks.js';
@@ -84,6 +84,19 @@ export function hydrate(root, locale) {
     tile.addEventListener('blur', () => stop(scrn));
   });
 }
+
+// For pages of fixed pictures (the design showcase): the scene copied in and the clocks drawn,
+// without the hover presentation; then frame() sets each one's time, weather and screen.
+export function prepare(root, locale) {
+  const svg = document.querySelector('.land svg');
+  root.querySelectorAll('[data-land]').forEach((el) => { if (svg && !el.firstChild) el.appendChild(svg.cloneNode(true)); });
+  const now = new Date();
+  root.querySelectorAll('.scrn').forEach((scrn) => clocks.paint(scrn.querySelector('.ck'), scrn.dataset.clockId, now, locale));
+}
+// f = {tod, wx, mode: 'login' | 'dash'}
+export function frame(scrn, f) { setFrame(scrn, { cap: '', ...f }); }
+// Let it move: the sky's own animation and, in rain or snow, the falling weather.
+export function play(scrn) { scrn.classList.add('live'); particles(scrn); }
 
 // What a hover shows, in turn: the picture in clear weather, bad weather, night, and the windows.
 const FRAMES = [

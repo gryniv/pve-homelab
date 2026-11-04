@@ -1,0 +1,11 @@
+{
+  "title": "Countdown",
+  "opt_title": "Event",
+  "ph_title": "e.g. Holiday",
+  "opt_date": "Date",
+  "days": "{n} d",
+  "today": "Today!",
+  "passed": "{n} d ago",
+  "left": "to go",
+  "none": "Pick an event and a date: ⚙ in the widget settings."
+}

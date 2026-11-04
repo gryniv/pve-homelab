@@ -1,5 +1,6 @@
 import asyncio
 import glob
+import ipaddress
 import json
 import os
 import re
@@ -11,7 +12,7 @@ from urllib.parse import quote
 import aiohttp
 from aiohttp import web
 
-from . import caddy, config, discover, errlog, gpus as G, i18n, icons, prefs, update, weather
+from . import caddy, config, designs, discover, errlog, feedback, gpus as G, i18n, icons, prefs, update, userwidgets, weather, wol
 from .ddc import DDC
 from .host import HostStats
 from .launch import Launcher
@@ -27,9 +28,46 @@ def err(status, msg):
     return web.json_response({"error": msg}, status=status)
 
 
+def vmid_of(value):
+    """A VM/CT id from the URL or a request body; anything else is the caller's mistake (400)."""
+    try:
+        v = int(value)
+    except (TypeError, ValueError):
+        raise web.HTTPBadRequest(text="bad vmid")
+    if not 100 <= v <= 999999999:
+        raise web.HTTPBadRequest(text="bad vmid")
+    return v
+
+
+def peer(req):
+    return (req.remote or "").removeprefix("::ffff:")
+
+
+def is_remote(req):
+    """Anything but the host itself: a browser coming through the reverse proxy (see gate)."""
+    p = peer(req)
+    return not (p.startswith("127.") or p == "::1")
+
+
+def client_ip(req):
+    """Who is at the other end: behind the proxy it says so in X-Forwarded-For (only the proxy gets this far)."""
+    if not is_remote(req):
+        return peer(req)
+    return req.headers.get("X-Forwarded-For", "").split(",")[0].strip() or peer(req)
+
+
 def seat_of(req):
+    seats = req.app["cfg"]["seats"]
+    # A browser elsewhere is always the "web" seat, whatever it asks for: only the screens
+    # plugged into this host may switch monitors or hand their GPU to a VM.
+    if is_remote(req):
+        if "web" not in seats:
+            raise web.HTTPForbidden(text="web access is off")
+        return "web"
     seat = req.query.get("seat") or req.headers.get("X-Seat") or ""
-    if seat not in req.app["cfg"]["seats"]:
+    if not seat:   # a browser on the host itself, without ?seat=: the first kiosk seat
+        seat = next((k for k, s in seats.items() if s.get("kiosk")), next(iter(seats), ""))
+    if seat not in seats:
         raise web.HTTPBadRequest(text="unknown seat")
     return seat
 
@@ -42,6 +80,63 @@ async def session(req):
     s["seen"] = time.time()
     await req.app["pve"].renew(s["ticket"])
     return s
+
+
+LOOPBACK = {"127.0.0.1", "localhost", "::1"}
+
+
+def _hostname(value):
+    """Host part of a Host header or an Origin URL, without port and brackets."""
+    v = value.split("://", 1)[-1].split("/", 1)[0]
+    if v.startswith("["):
+        return v[1:].split("]", 1)[0].lower()
+    return v.rsplit(":", 1)[0].lower() if v.count(":") == 1 else v.lower()
+
+
+def allowed_hosts(app):
+    cfg = app["cfg"]
+    hosts = set(LOOPBACK) | {h.lower() for h in cfg.get("allowed_hosts") or []}
+    listen = _hostname(cfg["listen"])
+    if listen not in LOOPBACK:
+        hosts |= {listen, app.get("host_ip", ""), socket.gethostname().lower()}
+    return hosts
+
+
+@web.middleware
+async def gate(req, handler):
+    """The backend listens beyond loopback only for the reverse proxy (web.allow_from): any other
+    caller is refused before anything else looks at the request."""
+    if is_remote(req):
+        w = req.app["cfg"]["web"]
+        try:
+            ip = ipaddress.ip_address(peer(req))
+            ok = bool(w.get("enabled")) and any(ip in ipaddress.ip_network(str(n), strict=False)
+                                                for n in w.get("allow_from") or [])
+        except ValueError:
+            ok = False
+        if not ok:
+            return web.Response(status=403, text="forbidden")
+    return await handler(req)
+
+
+@web.middleware
+async def guard(req, handler):
+    """The menu is meant for this machine. A web page elsewhere must not reach it through a
+    rebound DNS name (wrong Host), nor post to it from its own origin (wrong Origin).
+    Through the reverse proxy (the only remote caller gate lets in) the Host is the proxy's own
+    site name, which the proxy chose to send here: it is trusted, and an Origin must match it."""
+    hosts = req.app.get("allowed_hosts_cache") or allowed_hosts(req.app)
+    if "*" not in hosts:
+        host = _hostname(req.headers.get("Host", ""))
+        proxied = is_remote(req)
+        if not proxied and host not in hosts:
+            return err(421, "unknown host")
+        origin = req.headers.get("Origin")
+        ok_origins = (hosts | {host}) if proxied else hosts
+        if req.method not in ("GET", "HEAD", "OPTIONS") and origin and origin != "null" \
+                and _hostname(origin) not in ok_origins:
+            return err(403, "cross-origin request refused")
+    return await handler(req)
 
 
 @web.middleware
@@ -76,44 +171,21 @@ def pve_users(app):
                 uid, enable, first, last = p[1], p[2], p[4], p[5]
                 if enable == "0" or uid in app["cfg"]["users"]["hide"]:
                     continue
-                pr = prefs.load(uid)
+                # One user's unreadable settings must not take the sign-in screen down for everyone.
+                try:
+                    pr = prefs.load(uid)
+                    pub = prefs.public(pr)
+                except Exception as e:
+                    log.warning("settings of %s unreadable, using defaults: %s", uid, e)
+                    pr = prefs.load_defaults()
+                    pub = prefs.public(pr)
                 if not pr["show_on_login"]:
                     continue
                 name = first or uid.split("@")[0]
-                users.append({"id": uid, "name": name, "full": " ".join(x for x in (first, last) if x), **prefs.public(pr)})
+                users.append({"id": uid, "name": name, "full": " ".join(x for x in (first, last) if x), **pub})
     except OSError:
         pass
     return users
-
-
-def list_dir_modules(sub, pattern):
-    base = os.path.join(config.WEB_DIR, sub)
-    return sorted(os.path.basename(os.path.dirname(p)) if pattern.endswith("widget.js") else p
-                  for p in glob.glob(os.path.join(base, pattern)))
-
-
-def catalog(sub, ext):
-    """Drop-in modules: every web/<sub>/<id>.<ext> is one item. Its metadata lives in the
-    header comment: @name.uk Сутінки / @name.en Dusk / @desc.uk … / @group … / @order 10 …
-    (themes, backgrounds, clocks, fonts all work this way, so adding one is adding a file)."""
-    out = []
-    for path in glob.glob(os.path.join(config.WEB_DIR, sub, "*." + ext)):
-        with open(path, encoding="utf-8") as f:
-            m = re.search(r"/\*(.*?)\*/", f.read(4000), re.S)
-        mid = os.path.splitext(os.path.basename(path))[0]
-        meta = {"id": mid, "name": {}, "desc": {}}
-        for key, code, val in re.findall(r"@(\w+)(?:\.(\w+))?[ \t]+([^\n*]+)", m.group(1) if m else ""):
-            if key in ("name", "desc"):
-                meta[key][code or "en"] = val.strip()
-            else:
-                meta[key] = val.strip()
-        meta["name"] = meta["name"] or {"en": mid}
-        out.append(meta)
-    return sorted(out, key=lambda m: (int(m.get("order", 50)), m["id"]))
-
-
-def themes():
-    return catalog("themes", "css")
 
 
 def languages():
@@ -143,7 +215,8 @@ async def public(req):
         "app": {"version": update.installed()["version"], "repo": update.settings(cfg)["repo"]},
         "version": app["pveversion"],
         "ip": app["host_ip"],
-        "seat": {"id": seat, **cfg["seats"][seat], "gpu_name": await G.pretty_name(cfg["seats"][seat]["gpu"])},
+        "seat": {"id": seat, **cfg["seats"][seat],
+                 "gpu_name": await G.pretty_name(cfg["seats"][seat]["gpu"]) if cfg["seats"][seat].get("gpu") else ""},
         "host": app["stats"].snapshot(),
         "guests": {"running": sum(g.get("status") == "running" for g in guests),
                    "stopped": sum(g.get("status") != "running" for g in guests)},
@@ -154,24 +227,81 @@ async def public(req):
         "weather": cfg["weather"],
         "saver_after_min": cfg["saver"]["after_min"],
         "lock_after_min": cfg["lock_after_min"],
-        "themes": themes(),
-        "backgrounds": catalog("backgrounds", "css"),
-        "clocks": catalog("clocks", "js"),
-        "fonts": catalog("fonts", "css"),
+        # looks come from the designs folders (built-in and yours), see designs.py
+        "themes": designs.catalog("themes"),
+        "backgrounds": designs.catalog("backgrounds"),
+        "clocks": designs.catalog("clocks"),
+        "fonts": designs.catalog("fonts"),
+        "widget_styles": [m["id"] for m in designs.catalog("widgets")],
+        "designer": designer_mode(app),
+        "feedback": feedback_cfg(cfg)["enabled"],
         "login": prefs.load_login(),
-        "widgets": list_dir_modules("widgets", "*/widget.js"),
+        "widgets": userwidgets.all_ids(),
     })
+
+
+# ---------------- design files ----------------
+# Same URLs as when they lived in web/: served from the designs folders, yours first.
+DESIGN_ID = r"{did:[a-z0-9][a-z0-9_-]{0,63}}"
+
+
+async def design_file(kind, did):
+    p = designs.path_of(kind, did)
+    if not p:
+        raise web.HTTPNotFound()
+    return web.FileResponse(p)
+
+
+@routes.get("/{kind:themes|backgrounds|fonts}/" + DESIGN_ID + ".css")
+async def design_css(req):
+    return await design_file(req.match_info["kind"], req.match_info["did"])
+
+
+@routes.get("/clocks/" + DESIGN_ID + ".js")
+async def design_clock(req):
+    return await design_file("clocks", req.match_info["did"])
+
+
+@routes.get("/widgets/" + DESIGN_ID + "/widget.css")
+async def design_widget(req):
+    return await design_file("widgets", req.match_info["did"])
+
+
+@routes.get("/widgets/i18n.json")
+async def widget_strings(req):
+    """Every widget's strings from its i18n/<lang>.json files: {id: {lang: {key: text}}}."""
+    data = await asyncio.get_running_loop().run_in_executor(None, userwidgets.translations)
+    return web.json_response(data, headers={"Cache-Control": "no-cache"})
+
+
+@routes.get("/widgets/" + DESIGN_ID + "/widget.js")
+async def widget_code(req):
+    """A widget's logic: the built-in one, or yours from /etc/pve-homelab/widgets."""
+    p = userwidgets.path_of(req.match_info["did"])
+    if not p:
+        raise web.HTTPNotFound()
+    # revalidated every time: a widget reinstalled under the same id must not come from the cache
+    return web.FileResponse(p, headers={"Cache-Control": "no-cache"})
 
 
 @routes.get("/api/weather")
 async def get_weather(req):
     cfg = req.app["cfg"]["weather"]
-    city = req.query.get("city") or cfg["city"]
+    city = (req.query.get("city") or cfg["city"])[:100]
     units = req.query.get("units") or cfg["units"]
+    if units not in ("c", "f"):
+        units = "c"
     try:
         return web.json_response(await weather.get(city, units))
     except ValueError as e:
         return err(404, str(e))
+
+
+@routes.get("/api/health")
+async def health(req):
+    """Alive, and with which code: the commit this process started with (not what is on disk now).
+    The updater waits for this to report the version it just installed."""
+    return web.json_response({"ok": True, **req.app["code"]})
 
 
 @routes.get("/api/host")
@@ -188,16 +318,32 @@ async def icon(req):
 
 
 # ---------------- session ----------------
+LOGIN_TRIES, LOGIN_WINDOW = 5, 60  # wrong passwords per user name per minute
+
+
 @routes.post("/api/login")
 async def login(req):
     body = await req.json()
     seat = seat_of(req)
-    t = await req.app["pve"].login(body.get("user", ""), body.get("password", ""))
+    user = str(body.get("user", ""))
+    fails = req.app["login_fails"]
+    now = time.time()
+    recent = [x for x in fails.get(user.lower(), []) if now - x < LOGIN_WINDOW]
+    if len(recent) >= LOGIN_TRIES:
+        raise web.HTTPTooManyRequests(text=i18n._("too_many_logins", s=int(LOGIN_WINDOW - (now - recent[0])) + 1))
+    try:
+        t = await req.app["pve"].login(user, body.get("password", ""))
+    except PVEError as e:
+        if e.status == 401:
+            fails[user.lower()] = recent + [now]
+        raise
+    fails.pop(user.lower(), None)
     sid = secrets.token_urlsafe(32)
     req.app["sessions"][sid] = {"ticket": t, "seat": seat, "user": t.user, "seen": time.time()}
-    resp = web.json_response({"user": t.user, "prefs": prefs.load(t.user)})
+    admin = await req.app["pve"].can(t, "/", "Sys.Modify")
+    resp = web.json_response({"user": t.user, "prefs": prefs.load(t.user), "admin": admin})
     resp.set_cookie(COOKIE, sid, httponly=True, samesite="Strict", path="/")
-    log.info("login %s on seat %s", t.user, seat)
+    log.info("login %s on seat %s from %s", t.user, seat, client_ip(req))
     return resp
 
 
@@ -212,7 +358,194 @@ async def logout(req):
 @routes.get("/api/me")
 async def me(req):
     s = await session(req)
-    return web.json_response({"user": s["user"], "prefs": prefs.load(s["user"])})
+    admin = await req.app["pve"].can(s["ticket"], "/", "Sys.Modify")
+    return web.json_response({"user": s["user"], "prefs": prefs.load(s["user"]), "admin": admin})
+
+
+# ---------------- your own designs ----------------
+async def designs_admin(req):
+    """Designs and widgets change the menu for everyone on the host (and clocks and widgets are
+    code that runs in it): admins only."""
+    s = await session(req)
+    if not await req.app["pve"].can(s["ticket"], "/", "Sys.Modify"):
+        raise PVEError(403, i18n._("forbidden"))
+    return s
+
+
+@routes.get("/api/designs")
+async def designs_list(req):
+    await session(req)
+    return web.json_response({"mine": designs.mine(), "folder": config.USER_DESIGNS_DIR})
+
+
+async def uploaded_files(req):
+    """[(filename, bytes)] of a multipart form, at most designs.MAX_TOTAL in all."""
+    files, total = [], 0
+    try:
+        reader = await req.multipart()
+    except (AssertionError, ValueError, KeyError):
+        raise web.HTTPBadRequest(text="multipart form expected")
+    async for part in reader:
+        if not part.filename:
+            continue
+        data = bytearray()
+        while chunk := await part.read_chunk(64 * 1024):
+            data += chunk
+            total += len(chunk)
+            if total > designs.MAX_TOTAL:
+                raise web.HTTPRequestEntityTooLarge(max_size=designs.MAX_TOTAL, actual_size=total)
+        files.append((part.filename, bytes(data)))
+    return files
+
+
+@routes.post("/api/designs")
+async def designs_install(req):
+    """One or more designs (.css, .js, or a .zip of them) as multipart files."""
+    s = await designs_admin(req)
+    files = await uploaded_files(req)
+    try:
+        done = await asyncio.get_running_loop().run_in_executor(None, designs.install, files)
+    except designs.DesignError as e:
+        raise web.HTTPBadRequest(text=str(e))
+    log.info("designs installed by %s: %s", s["user"], ", ".join(f"{d['kind']}/{d['id']}" for d in done))
+    return web.json_response({"installed": done})
+
+
+def designer_mode(app):
+    """Live reload of designs: in the demo, or on a host with `designer: true` in config.yaml."""
+    return bool(app.get("demo") or app["cfg"].get("designer"))
+
+
+@routes.get("/api/designs/events")
+async def designs_events(req):
+    """Server-sent events while designing: one whenever a design file is changed, added or removed,
+    so the page swaps the stylesheet or clock without reloading (designer.js)."""
+    if not designer_mode(req.app):
+        raise web.HTTPNotFound()
+    resp = web.StreamResponse(headers={"Content-Type": "text/event-stream", "Cache-Control": "no-cache"})
+    await resp.prepare(req)
+    loop = asyncio.get_running_loop()
+
+    def both():
+        return designs.snapshot(), userwidgets.snapshot()
+
+    prev, quiet = await loop.run_in_executor(None, both), 0
+    stop = req.app["stopping"]  # the server is shutting down: end the stream instead of holding it up
+    try:
+        while not stop.is_set():
+            try:
+                await asyncio.wait_for(stop.wait(), 1)
+                break
+            except asyncio.TimeoutError:
+                pass
+            cur = await loop.run_in_executor(None, both)
+            if cur != prev:
+                d = designs.changes(prev[0], cur[0])
+                if cur[1] != prev[1]:
+                    d["catalog"] = True  # a widget's code changed: only a reload picks it up
+                await resp.write(f"data: {json.dumps(d)}\n\n".encode())
+                prev, quiet = cur, 0
+            elif (quiet := quiet + 1) >= 15:
+                await resp.write(b": still here\n\n")
+                quiet = 0
+    except (ConnectionResetError, ConnectionError, asyncio.CancelledError):
+        pass
+    return resp
+
+
+@routes.delete("/api/designs/{kind}/{did}")
+async def designs_remove(req):
+    s = await designs_admin(req)
+    kind, did = req.match_info["kind"], req.match_info["did"]
+    if not designs.remove(kind, did):
+        raise web.HTTPNotFound(text="no such design of yours")
+    log.info("design %s/%s removed by %s", kind, did, s["user"])
+    return web.json_response({"ok": True})
+
+
+# ---------------- your own widgets ----------------
+@routes.get("/api/widgets")
+async def widgets_list(req):
+    await session(req)
+    return web.json_response({"mine": userwidgets.mine(), "folder": config.USER_WIDGETS_DIR})
+
+
+@routes.post("/api/widgets")
+async def widgets_install(req):
+    """One or more widgets: <id>.js (+ <id>.css, its look), or a .zip of <id>/widget.js
+    (+ <id>/widget.css). A widget is code that runs in the menu: admins only."""
+    s = await designs_admin(req)
+    files = await uploaded_files(req)
+    try:
+        done = await asyncio.get_running_loop().run_in_executor(None, userwidgets.install, files)
+    except userwidgets.WidgetError as e:
+        raise web.HTTPBadRequest(text=str(e))
+    log.info("widgets installed by %s: %s", s["user"], ", ".join(d["id"] for d in done))
+    return web.json_response({"installed": done})
+
+
+@routes.delete("/api/widgets/{wid}")
+async def widgets_remove(req):
+    s = await designs_admin(req)
+    wid = req.match_info["wid"]
+    if not userwidgets.remove(wid):
+        raise web.HTTPNotFound(text="no such widget of yours")
+    log.info("widget %s removed by %s", wid, s["user"])
+    return web.json_response({"ok": True})
+
+
+# ---------------- writing to the author ----------------
+def feedback_cfg(cfg):
+    """`feedback:` in config.yaml, as {enabled, repo}; `feedback: false` turns it off."""
+    fb = cfg.get("feedback")
+    if isinstance(fb, bool):
+        return {"enabled": fb, "repo": ""}
+    fb = fb if isinstance(fb, dict) else {}
+    return {"enabled": fb.get("enabled", True) is not False, "repo": str(fb.get("repo") or "")}
+
+
+async def feedback_known(app):
+    """Names this host knows of, to take out of what is sent: node, users, guests, services."""
+    out = [(app["cfg"]["node"], "<node>"), (app.get("host_ip") or "", "<ip>")]
+    for u in pve_users(app):
+        out += [(u["id"], "<user>"), (u.get("name") or "", "<user>"), (u.get("full") or "", "<user>")]
+    try:
+        out += [(g.get("name") or "", "<guest>") for g in await app["resources"].get()]
+        for svc in await app["services"].get():
+            out += [(svc.get("host") or "", "<host>"), ((svc.get("upstream") or "").split(":")[0], "<ip>")]
+    except Exception as e:  # what is known so far is still taken out; the patterns catch the rest
+        log.warning("feedback: names to remove not all known: %s", e)
+    return [x for x in out if x[0]]
+
+
+@routes.post("/api/feedback")
+async def feedback_compose(req):
+    """The issue as it will be sent, its link and a QR code of the link. Nothing leaves the host:
+    the person opens the link and submits it on GitHub."""
+    s = await session(req)
+    app, cfg = req.app, req.app["cfg"]
+    fb = feedback_cfg(cfg)
+    if not fb["enabled"]:
+        raise web.HTTPNotFound()
+    try:
+        b = await req.json()
+    except ValueError:
+        b = {}
+    if not isinstance(b, dict):
+        b = {}
+    pve = app["pve"]
+    can_journal = await pve.can(s["ticket"], "/", "Sys.Audit") or await pve.can(s["ticket"], "/", "Sys.Modify")
+    known = await feedback_known(app)
+    env = feedback.environment(app["code"], app["pveversion"], b.get("client"), app.get("demo", False)) if b.get("env") else None
+    journal, total = None, 0
+    if b.get("journal") and can_journal:
+        entries = errlog.entries()
+        journal, total = feedback.journal_lines(entries, known), len(entries)
+    repo = update._repo_slug(fb["repo"]) if fb["repo"] else update.settings(cfg)["repo"]
+    out = await asyncio.get_running_loop().run_in_executor(
+        None, feedback.compose, repo, b.get("kind"), b.get("title"), b.get("text"), env, journal, total)
+    out["journal_allowed"] = can_journal
+    return web.json_response(out)
 
 
 @routes.get("/api/login-settings")
@@ -267,7 +600,13 @@ async def clear_logs(req):
 @routes.put("/api/prefs")
 async def put_prefs(req):
     s = await session(req)
-    return web.json_response(prefs.save(s["user"], await req.json()))
+    try:
+        body = await req.json()
+    except ValueError:
+        raise web.HTTPBadRequest(text="JSON expected")
+    if not isinstance(body, dict):
+        raise web.HTTPBadRequest(text="an object expected")
+    return web.json_response(prefs.save(s["user"], body))
 
 
 # ---------------- data for logged-in users ----------------
@@ -280,10 +619,69 @@ async def guests(req):
                                     key=lambda g: (g["type"] != "qemu", g["vmid"])))
 
 
+RRD_TIMEFRAMES = ("hour", "day", "week")
+
+
+def summarize_rrd(rows):
+    """Proxmox rrddata rows -> parallel series for the charts. A guest that was off has no
+    values for those points: they stay None (a gap), not zero."""
+    def col(key, scale=1.0):
+        return [None if r.get(key) is None else round(float(r[key]) * scale, 3) for r in rows]
+    rows = sorted((r for r in rows or [] if r.get("time")), key=lambda r: r["time"])
+    maxmem = next((r["maxmem"] for r in reversed(rows) if r.get("maxmem")), 0)
+    return {"time": [int(r["time"]) for r in rows], "cpu": col("cpu", 100), "mem": col("mem"), "maxmem": maxmem,
+            "netin": col("netin"), "netout": col("netout"), "diskread": col("diskread"), "diskwrite": col("diskwrite")}
+
+
+@routes.get("/api/guests/{type}/{vmid}/rrd")
+async def guest_rrd(req):
+    """A guest's load over the last hour/day/week, with the user's own ticket (Proxmox checks VM.Audit)."""
+    s = await session(req)
+    typ, vmid = req.match_info["type"], vmid_of(req.match_info["vmid"])
+    if typ not in ("qemu", "lxc"):
+        raise web.HTTPBadRequest(text="bad type")
+    tf = req.query.get("timeframe", "hour")
+    if tf not in RRD_TIMEFRAMES:
+        raise web.HTTPBadRequest(text="bad timeframe")
+    node = req.app["cfg"]["node"]
+    rows = await req.app["pve"].get(s["ticket"], f"/nodes/{node}/{typ}/{vmid}/rrddata", timeframe=tf, cf="AVERAGE")
+    return web.json_response({"timeframe": tf, **summarize_rrd(rows)})
+
+
+def summarize_snapshots(rows):
+    """Proxmox's snapshot list without the "current" pseudo-entry, newest first."""
+    out = [{"name": r.get("name", ""), "time": int(r.get("snaptime") or 0),
+            "desc": (r.get("description") or "").strip()[:200], "ram": bool(r.get("vmstate"))}
+           for r in rows or [] if r.get("name") and r.get("name") != "current"]
+    return sorted(out, key=lambda r: -r["time"])
+
+
+@routes.get("/api/guests/{type}/{vmid}/info")
+async def guest_info(req):
+    """For a guest's dialog: its snapshots and its latest backup, each read with the user's own
+    rights; what the user may not see comes back as null rather than an error."""
+    s = await session(req)
+    typ, vmid = req.match_info["type"], vmid_of(req.match_info["vmid"])
+    if typ not in ("qemu", "lxc"):
+        raise web.HTTPBadRequest(text="bad type")
+    pve, node, t = req.app["pve"], req.app["cfg"]["node"], s["ticket"]
+    guests = [g for g in await pve.get(t, "/cluster/resources", type="vm") or [] if g.get("vmid") == vmid]
+    if not guests:
+        raise web.HTTPNotFound(text="no such guest")
+    snaps, bk = await asyncio.gather(pve.get(t, f"/nodes/{node}/{typ}/{vmid}/snapshot"),
+                                     backups_data(req.app, t, 365, guests), return_exceptions=True)
+    backup = None
+    if not isinstance(bk, Exception) and bk["guests"]:
+        g = bk["guests"][0]
+        backup = {"last": g["last"], "count": g["count"], "size": g["size"]}
+    return web.json_response({"snapshots": None if isinstance(snaps, Exception) else summarize_snapshots(snaps),
+                              "backup": backup})
+
+
 @routes.post("/api/guests/{type}/{vmid}/{action}")
 async def guest_action(req):
     s = await session(req)
-    typ, vmid, action = req.match_info["type"], int(req.match_info["vmid"]), req.match_info["action"]
+    typ, vmid, action = req.match_info["type"], vmid_of(req.match_info["vmid"]), req.match_info["action"]
     if typ not in ("qemu", "lxc") or action not in ("start", "shutdown", "stop", "reboot"):
         raise web.HTTPBadRequest(text="bad action")
     node = req.app["cfg"]["node"]
@@ -318,6 +716,269 @@ async def storage(req):
                                "total": r.get("total", 0)} for r in res or [] if r.get("active") and r.get("total")])
 
 
+# A kernel has its version in the name (proxmox-kernel-7.0, proxmox-kernel-7.0.14-26-pve-signed);
+# proxmox-kernel-helper is not one and needs no reboot.
+KERNEL_PKG = re.compile(r"^(proxmox-kernel|pve-kernel|linux-image)-\d")
+HEADLINE_PKG = ("pve-manager", "proxmox-ve", "qemu-server", "pve-qemu-kvm", "pve-container", "proxmox-backup-server")
+CEPH_PKG = re.compile(r"^(ceph|libceph|librados|libradosstriper|librbd|librgw|libsqlite3-mod-ceph|python3-(ceph|rados|rbd|rgw)|radosgw|rbd-)")
+
+
+def _update_rank(p):
+    """What a person looks for first: the kernel, then Proxmox itself, and Ceph's many parts last."""
+    n = p["name"]
+    if p["origin"] != "Proxmox":
+        return 5
+    if KERNEL_PKG.match(n):
+        return 0
+    if n in HEADLINE_PKG:
+        return 1
+    if CEPH_PKG.match(n):
+        return 4
+    return 2 if n.startswith(("pve-", "proxmox-")) else 3
+
+
+def summarize_updates(pkgs, checked=None):
+    """What /nodes/{node}/apt/update lists, reduced to what the widget and the top bar show.
+    `checked`: when the package lists were last refreshed (unix time), if known."""
+    out = [{"name": p.get("Package", ""), "old": p.get("OldVersion", ""), "new": p.get("Version", ""),
+            "origin": p.get("Origin", "")} for p in pkgs or []]
+    out.sort(key=lambda p: (_update_rank(p), HEADLINE_PKG.index(p["name"]) if p["name"] in HEADLINE_PKG else 0, p["name"]))
+    return {"allowed": True, "count": len(out),
+            "proxmox": sum(p["origin"] == "Proxmox" for p in out),
+            "kernel": any(KERNEL_PKG.match(p["name"]) for p in out),
+            "checked": checked,
+            "packages": out[:50]}
+
+
+def last_apt_check(tasks):
+    """When the package lists were last refreshed: the newest successful "aptupdate" task
+    (Proxmox runs one every day by itself, and the Refresh button in its web UI runs another)."""
+    done = [x.get("endtime") or x.get("starttime") or 0 for x in tasks or []
+            if x.get("type") == "aptupdate" and x.get("status") == "OK"]
+    return max(done) if done and max(done) else None
+
+
+async def updates_summary(pve, t, node):
+    pkgs, tasks = await asyncio.gather(pve.get(t, f"/nodes/{node}/apt/update"),
+                                       pve.get(t, f"/nodes/{node}/tasks", typefilter="aptupdate", limit=10),
+                                       return_exceptions=True)
+    if isinstance(pkgs, BaseException):
+        raise pkgs
+    # the task list is a nicety: someone who may not read it still gets the packages
+    return summarize_updates(pkgs, None if isinstance(tasks, BaseException) else last_apt_check(tasks))
+
+
+async def may_update(req, s):
+    pve, node = req.app["pve"], req.app["cfg"]["node"]
+    return await pve.can(s["ticket"], f"/nodes/{node}", "Sys.Modify")
+
+
+@routes.get("/api/node-updates")
+async def node_updates(req):
+    """Package updates waiting on this node, as Proxmox already knows them (its daily apt update);
+    reading the list needs Sys.Modify on the node, like in the Proxmox web UI."""
+    s = await session(req)
+    if not await may_update(req, s):
+        return web.json_response({"allowed": False})
+    return web.json_response(await updates_summary(req.app["pve"], s["ticket"], req.app["cfg"]["node"]))
+
+
+@routes.post("/api/node-updates/refresh")
+async def node_updates_refresh(req):
+    """Refresh the package lists now (apt-get update, run by Proxmox as a task) and answer with
+    what is waiting then. Installing stays in Proxmox itself: Node → Updates → Upgrade."""
+    s = await session(req)
+    if not await may_update(req, s):
+        raise PVEError(403, i18n._("forbidden"))
+    pve, node, lock = req.app["pve"], req.app["cfg"]["node"], req.app["apt_lock"]
+    # Two people pressing at once share one run: apt would refuse the second while the first holds its lock.
+    if not lock.locked():
+        async with lock:
+            upid = await pve.post(s["ticket"], f"/nodes/{node}/apt/update")
+            try:
+                await pve.wait_task(s["ticket"], node, upid, timeout=180)
+            except PVEError as e:
+                raise PVEError(504, i18n._("apt_slow")) if e.status == 504 else \
+                    PVEError(502, i18n._("apt_failed", err=str(e)))
+    else:
+        async with lock:
+            pass
+    return web.json_response(await updates_summary(pve, s["ticket"], node))
+
+
+DISK_OK = {"PASSED", "OK"}
+POOL_OK = {"ONLINE"}
+
+
+def summarize_disks(disks, pools):
+    """Physical disks (SMART health, SSD wearout as Proxmox reports it) and ZFS pools."""
+    d = [{"dev": x.get("devpath", ""), "model": x.get("model") or x.get("vendor") or "", "type": x.get("type", ""),
+          "size": x.get("size", 0), "health": str(x.get("health") or "UNKNOWN").upper(),
+          "wearout": x.get("wearout") if isinstance(x.get("wearout"), (int, float)) else None}
+         for x in disks or []]
+    p = [{"name": x.get("name", ""), "health": str(x.get("health") or "UNKNOWN").upper(),
+          "size": x.get("size", 0), "alloc": x.get("alloc", 0)} for x in pools or []]
+    for x in d:
+        x["ok"] = x["health"] in DISK_OK
+    for x in p:
+        x["ok"] = x["health"] in POOL_OK
+    d.sort(key=lambda x: (x["ok"], x["dev"]))
+    p.sort(key=lambda x: (x["ok"], x["name"]))
+    return {"allowed": True, "disks": d, "pools": p,
+            "problems": sum(not x["ok"] and x["health"] != "UNKNOWN" for x in d) + sum(not x["ok"] for x in p)}
+
+
+async def disks_data(app, ticket):
+    pve, node = app["pve"], app["cfg"]["node"]
+    if not await pve.can(ticket, f"/nodes/{node}", "Sys.Audit"):
+        return {"allowed": False}
+    lst, zfs = await asyncio.gather(pve.get(ticket, f"/nodes/{node}/disks/list"),
+                                    pve.get(ticket, f"/nodes/{node}/disks/zfs"), return_exceptions=True)
+    if isinstance(lst, Exception):
+        raise lst
+    return summarize_disks(lst, [] if isinstance(zfs, Exception) else zfs)
+
+
+@routes.get("/api/disks")
+async def disks(req):
+    """Disk health and ZFS pools of this node; needs Sys.Audit on the node, as in the Proxmox web UI."""
+    s = await session(req)
+    return web.json_response(await disks_data(req.app, s["ticket"]))
+
+
+def summarize_backups(entries, guests, now, days):
+    """Latest backup per guest from backup storage listings; guests with none, or only older
+    than `days`, are "stale" and listed first."""
+    last = {}
+    seen = set()
+    for e in entries or []:
+        vol, vmid = e.get("volid"), e.get("vmid")
+        if not vmid or vol in seen:
+            continue
+        seen.add(vol)
+        r = last.setdefault(int(vmid), {"last": 0, "count": 0, "size": 0})
+        r["count"] += 1
+        r["size"] += e.get("size") or 0
+        r["last"] = max(r["last"], e.get("ctime") or 0)
+    out = []
+    for g in guests or []:
+        if g.get("template"):
+            continue
+        r = last.get(g["vmid"], {"last": 0, "count": 0, "size": 0})
+        out.append({"vmid": g["vmid"], "name": g.get("name") or "", "type": g.get("type"), **r,
+                    "stale": not r["last"] or now - r["last"] > days * 86400})
+    out.sort(key=lambda x: (not x["stale"], x["last"], x["vmid"]))
+    return {"allowed": True, "days": days, "guests": out, "stale": sum(x["stale"] for x in out)}
+
+
+async def backups_data(app, ticket, days, guests=None):
+    pve, node = app["pve"], app["cfg"]["node"]
+    if guests is None:
+        guests = await pve.get(ticket, "/cluster/resources", type="vm")
+    stores = [x["storage"] for x in await pve.get(ticket, f"/nodes/{node}/storage", content="backup") or []
+              if x.get("active")]
+    lists = await asyncio.gather(*(pve.get(ticket, f"/nodes/{node}/storage/{quote(st, safe='')}/content", content="backup")
+                                   for st in stores), return_exceptions=True)
+    entries = [e for lst in lists if not isinstance(lst, Exception) for e in lst or []]
+    return summarize_backups(entries, guests, time.time(), days)
+
+
+@routes.get("/api/backups")
+async def backups(req):
+    """When each guest the user can see was last backed up, from the node's backup storages
+    (local dumps and Proxmox Backup Server alike)."""
+    s = await session(req)
+    try:
+        days = min(365, max(1, int(req.query.get("days", 7))))
+    except ValueError:
+        days = 7
+    return web.json_response(await backups_data(req.app, s["ticket"], days))
+
+
+def build_alerts(limits, host=None, storages=(), disks=None, backups=None, services=()):
+    """What needs a look, worst first. Each alert is {level, kind, ...data}; the menu words it."""
+    out = []
+    for d in (disks or {}).get("disks", []):
+        if not d["ok"] and d["health"] != "UNKNOWN":
+            out.append({"level": "bad", "kind": "disk", "name": d["model"] or d["dev"], "dev": d["dev"], "health": d["health"]})
+    for p in (disks or {}).get("pools", []):
+        if not p["ok"]:
+            out.append({"level": "bad", "kind": "pool", "name": p["name"], "health": p["health"]})
+    for st in storages:
+        pct = round(st["used"] / st["total"] * 100) if st.get("total") else 0
+        if pct >= limits["storage_pct"]:
+            out.append({"level": "bad" if pct >= 98 else "warn", "kind": "storage", "name": st["id"], "pct": pct})
+    temp = (host or {}).get("temp")
+    if temp is not None and temp >= limits["temp_c"]:
+        out.append({"level": "bad" if temp >= limits["temp_c"] + 10 else "warn", "kind": "temp", "temp": temp})
+    if backups and backups.get("stale"):
+        never = sum(1 for g in backups["guests"] if g["stale"] and not g["last"])
+        out.append({"level": "warn", "kind": "backup", "n": backups["stale"], "never": never, "days": backups["days"]})
+    for svc in services:
+        if svc.get("status") and svc["status"] != "running":
+            out.append({"level": "warn", "kind": "service", "name": svc["name"], "guest": (svc.get("guest") or {}).get("name")})
+    out.sort(key=lambda a: a["level"] != "bad")
+    return out
+
+
+@routes.get("/api/alerts")
+async def alerts(req):
+    """Disks, pools, full storages, host temperature, stale backups and services whose guest is down,
+    in one list for the bell in the top bar. Every source is read with the user's own rights."""
+    s = await session(req)
+    t, pve, app = s["ticket"], req.app["pve"], req.app
+    node, limits = app["cfg"]["node"], app["cfg"]["alerts"]
+    guests = await pve.get(t, "/cluster/resources", type="vm") or []
+
+    async def storages():
+        res = await pve.get(t, f"/nodes/{node}/storage")
+        return [{"id": r["storage"], "used": r.get("used", 0), "total": r.get("total", 0)}
+                for r in res or [] if r.get("active") and r.get("total")]
+
+    async def services():
+        visible = {(g["type"], g["vmid"]): g for g in guests}
+        out = []
+        for svc in await app["services"].get():
+            g = svc.get("guest")
+            if g and (g["type"], g["vmid"]) in visible:
+                out.append({**svc, "status": visible[(g["type"], g["vmid"])].get("status")})
+        return out
+
+    st, dk, bk, sv = await asyncio.gather(storages(), disks_data(app, t), backups_data(app, t, limits["backup_days"], guests),
+                                          services(), return_exceptions=True)
+    ok = lambda x, empty: empty if isinstance(x, Exception) else x  # noqa: E731  one source down must not hide the rest
+    items = build_alerts(limits, app["stats"].snapshot(), ok(st, []), ok(dk, None), ok(bk, None), ok(sv, []))
+    return web.json_response({"alerts": items, "bad": sum(a["level"] == "bad" for a in items)})
+
+
+async def can_wake(req, ticket):
+    node = req.app["cfg"]["node"]
+    return await req.app["pve"].can(ticket, f"/nodes/{node}", "Sys.PowerMgmt")
+
+
+@routes.get("/api/wol")
+async def wol_list(req):
+    """Machines that can be woken from here (config.yaml, `wol:`); for users who may power the node."""
+    s = await session(req)
+    if not await can_wake(req, s["ticket"]):
+        return web.json_response({"allowed": False, "targets": []})
+    return web.json_response({"allowed": True, "targets": [{"id": t["id"], "name": t["name"]} for t in wol.targets(req.app["cfg"])]})
+
+
+@routes.post("/api/wol/{id}")
+async def wol_wake(req):
+    s = await session(req)
+    if not await can_wake(req, s["ticket"]):
+        raise PVEError(403, i18n._("forbidden"))
+    tid = req.match_info["id"]
+    target = next((t for t in wol.targets(req.app["cfg"]) if tid.isdigit() and t["id"] == int(tid)), None)
+    if not target:
+        raise web.HTTPNotFound()
+    await asyncio.get_running_loop().run_in_executor(None, wol.send, target)
+    log.info("wake-on-lan %s (%s) by %s", target["name"], target["mac"], s["user"])
+    return web.json_response({"ok": True, "name": target["name"]})
+
+
 @routes.get("/api/gpus")
 async def gpus(req):
     await session(req)
@@ -339,8 +1000,13 @@ async def systems(req):
 @routes.post("/api/launch")
 async def launch(req):
     s = await session(req)
-    body = await req.json()
-    job = await req.app["launcher"].launch(s["ticket"], seat_of(req), int(body["vmid"]), body["gpu"])
+    try:
+        body = await req.json()
+    except ValueError:
+        raise web.HTTPBadRequest(text="JSON expected")
+    if not isinstance(body, dict) or not isinstance(body.get("gpu"), str):
+        raise web.HTTPBadRequest(text="vmid and gpu expected")
+    job = await req.app["launcher"].launch(s["ticket"], seat_of(req), vmid_of(body.get("vmid")), body["gpu"])
     req.app["resources"].invalidate()
     return web.json_response(job.as_dict())
 
@@ -348,7 +1014,8 @@ async def launch(req):
 @routes.get("/api/jobs/{id}")
 async def job(req):
     await session(req)
-    j = req.app["launcher"].jobs.get(int(req.match_info["id"]))
+    jid = req.match_info["id"]
+    j = req.app["launcher"].jobs.get(int(jid)) if jid.isdigit() else None
     if not j:
         raise web.HTTPNotFound()
     return web.json_response(j.as_dict())
@@ -356,13 +1023,17 @@ async def job(req):
 
 @routes.post("/api/console/{vmid}")
 async def console_open(req):
-    """VNC ticket for a VM's screen, issued with the user's own PVE ticket."""
+    """VNC ticket for a guest's screen (a VM's display, a container's terminal), issued with the
+    user's own PVE ticket, so Proxmox checks VM.Console as usual. ?type=lxc for a container."""
     s = await session(req)
-    vmid = int(req.match_info["vmid"])
+    vmid = vmid_of(req.match_info["vmid"])
+    typ = req.query.get("type", "qemu")
+    if typ not in ("qemu", "lxc"):
+        raise web.HTTPBadRequest(text="bad type")
     node = req.app["cfg"]["node"]
-    d = await req.app["pve"].post(s["ticket"], f"/nodes/{node}/qemu/{vmid}/vncproxy", websocket=1)
+    d = await req.app["pve"].post(s["ticket"], f"/nodes/{node}/{typ}/{vmid}/vncproxy", websocket=1)
     token = secrets.token_urlsafe(24)
-    req.app["consoles"][token] = {"ticket": s["ticket"], "vmid": vmid, "port": d["port"],
+    req.app["consoles"][token] = {"ticket": s["ticket"], "vmid": vmid, "type": typ, "port": d["port"],
                                   "vncticket": d["ticket"], "at": time.time()}
     return web.json_response({"token": token, "password": d["ticket"]})
 
@@ -374,7 +1045,7 @@ async def console_ws(req):
     if not c or time.time() - c["at"] > 60:
         raise web.HTTPForbidden(text="console token expired")
     node = req.app["cfg"]["node"]
-    url = (f"wss://127.0.0.1:8006/api2/json/nodes/{node}/qemu/{c['vmid']}/vncwebsocket"
+    url = (f"wss://127.0.0.1:8006/api2/json/nodes/{node}/{c.get('type', 'qemu')}/{c['vmid']}/vncwebsocket"
            f"?port={c['port']}&vncticket={quote(c['vncticket'], safe='')}")
     http = await req.app["pve"].http()
     up = await http.ws_connect(url, protocols=("binary",), max_msg_size=0,
@@ -445,12 +1116,18 @@ async def on_startup(app):
         for i, g in enumerate(await detect_seats()):
             cfg["seats"]["igpu" if g["integrated"] else f"gpu{i}"] = {"title": g["name"], "gpu": g["pci"], "tty": 7 + i, "kiosk": True}
         log.info("auto-detected seats: %s", list(cfg["seats"]))
+    if cfg["web"].get("enabled"):
+        # a browser elsewhere, through the reverse proxy: no monitor, no GPU (see seat_of)
+        cfg["seats"].setdefault("web", {"title": "Browser", "gpu": None, "kiosk": False, "remote": True})
     app["pve"] = PVE()
     app["stats"] = HostStats()
     app["ddc"] = DDC(cfg["monitors"])
     app["sessions"] = {}
     app["consoles"] = {}
     app["host_ip"] = _host_ip()
+    app["allowed_hosts_cache"] = allowed_hosts(app)
+    app["login_fails"] = {}
+    app["apt_lock"] = asyncio.Lock()
     try:
         app["pveversion"] = (await pvesh("/version"))["version"]
     except Exception:
@@ -492,6 +1169,7 @@ async def on_startup(app):
     app["launcher"] = Launcher(app)
     app["tasks"] = [asyncio.create_task(app["stats"].loop()),
                     asyncio.create_task(app["launcher"].watch_loop()),
+                    asyncio.create_task(housekeeping_loop(app)),
                     asyncio.create_task(app["services"].get())]
     await _adopt_running(app)
 
@@ -512,6 +1190,40 @@ async def _adopt_running(app):
                 log.info("watching VM %s on monitor %s", vm, mon)
     except Exception as e:
         log.warning("adopt running VMs: %s", e)
+
+
+SESSION_IDLE = 2 * 3600   # a Proxmox ticket can't be renewed after 2 h anyway
+CONSOLE_TOKEN_TTL = 60
+JOB_TTL = 600
+
+
+def housekeeping(app, now=None):
+    """Forget what nobody can use any more: idle sessions, unused console tokens, old launch
+    jobs and stale login failures."""
+    now = now or time.time()
+    for sid in [k for k, v in app["sessions"].items() if now - v["seen"] > SESSION_IDLE]:
+        del app["sessions"][sid]
+    for tok in [k for k, v in app["consoles"].items() if now - v["at"] > CONSOLE_TOKEN_TTL]:
+        del app["consoles"][tok]
+    jobs = app["launcher"].jobs
+    for jid in [k for k, j in jobs.items() if j.done and now - j.created > JOB_TTL]:
+        del jobs[jid]
+    fails = app["login_fails"]
+    for user in [k for k, v in fails.items() if not v or now - v[-1] > LOGIN_WINDOW]:
+        del fails[user]
+
+
+async def housekeeping_loop(app):
+    while True:
+        await asyncio.sleep(60)
+        try:
+            housekeeping(app)
+        except Exception as e:
+            log.warning("housekeeping: %s", e)
+
+
+async def on_shutdown(app):
+    app["stopping"].set()
 
 
 async def on_cleanup(app):
@@ -537,11 +1249,14 @@ async def _no_stale_code(req, resp):
 
 def make_app():
     errlog.setup()
-    app = web.Application(middlewares=[errors])
+    app = web.Application(middlewares=[gate, errors, guard])
     app.on_response_prepare.append(_no_stale_code)
     app["cfg"] = config.load()
+    app["code"] = {k: update.installed()[k] for k in ("version", "commit")}  # what this process runs
+    app["stopping"] = asyncio.Event()  # set on shutdown: long-lived streams (live reload) end at once
     app.add_routes(routes)
     app.router.add_static("/", config.WEB_DIR, show_index=False, append_version=False)
     app.on_startup.append(on_startup)
+    app.on_shutdown.append(on_shutdown)
     app.on_cleanup.append(on_cleanup)
     return app

@@ -21,8 +21,10 @@ async def run(*args, timeout=30, check=True):
     return out.decode(errors="replace")
 
 
-async def pvesh(path, **params):
-    args = ["pvesh", "get", path, "--output-format", "json"]
+async def pvesh(endpoint, /, **params):
+    """`pvesh get` as root. The endpoint is positional only: Proxmox has a parameter called
+    "path" of its own (/access/permissions), which goes in **params."""
+    args = ["pvesh", "get", endpoint, "--output-format", "json"]
     for k, v in params.items():
         args += [f"--{k}", str(v)]
     return json.loads(await run(*args, timeout=20) or "null")
