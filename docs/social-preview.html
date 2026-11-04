@@ -1,0 +1,45 @@
+<!doctype html>
+<!-- The repository's social preview (GitHub: Settings → General → Social preview), 1280×640.
+     Re-render: google-chrome --headless --hide-scrollbars --window-size=1280,640 \
+       --screenshot=docs/social-preview.png docs/social-preview.html -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+@import url("https://fonts.googleapis.com/css2?family=Onest:wght@400;600;800&display=swap");
+html,body{margin:0;width:1280px;height:640px;overflow:hidden}
+body{font-family:"Onest",system-ui,sans-serif;color:#e8edf3;
+  background:radial-gradient(70em 40em at 85% 130%,#5a2a12 0%,transparent 60%),
+             radial-gradient(50em 30em at 0% -20%,#1d2a44 0%,transparent 70%),#0b0f16;position:relative}
+.left{position:absolute;left:80px;top:0;bottom:0;width:530px;display:flex;flex-direction:column;justify-content:center}
+.mark{display:flex;align-items:center;gap:22px}
+.logo{width:84px;height:84px;border-radius:22px;display:grid;place-items:center;
+  background:linear-gradient(140deg,#ffc15e,#ff8a3d 55%,#e8622a);box-shadow:0 12px 40px rgba(255,138,61,.35)}
+.logo svg{width:56px;height:56px;fill:none;stroke:#1f0e02;stroke-width:2.1;stroke-linecap:round;stroke-linejoin:round}
+h1{margin:0;font-size:62px;white-space:nowrap;font-weight:800;letter-spacing:-.02em;line-height:1}
+h1 span{color:#ffb27a}
+p{margin:34px 0 0;font-size:27px;max-width:500px;line-height:1.38;color:#c3ccd8}
+.chips{display:flex;flex-wrap:wrap;gap:10px;margin-top:34px}
+.chips b{font-weight:600;font-size:17px;color:#ffb27a;background:rgba(255,138,61,.12);border:1px solid rgba(255,138,61,.45);
+  border-radius:20px;padding:6px 14px}
+.shot{position:absolute;left:650px;top:78px;width:820px;border-radius:16px;overflow:hidden;
+  border:1px solid rgba(255,255,255,.14);box-shadow:0 30px 80px rgba(0,0,0,.6),0 0 0 8px rgba(255,255,255,.03)}
+.shot img{display:block;width:100%}
+.shot2{position:absolute;left:735px;top:395px;width:470px;border-radius:12px;overflow:hidden;
+  border:1px solid rgba(255,255,255,.18);box-shadow:0 24px 60px rgba(0,0,0,.7)}
+.shot2 img{display:block;width:100%}
+</style>
+</head>
+<body>
+<div class="left">
+  <div class="mark">
+    <div class="logo"><svg viewBox="0 0 24 24"><rect x="2.5" y="3.5" width="19" height="13" rx="2"/><path d="M8 20.5h8M12 16.5v4"/><path d="m10 8 3.5 2-3.5 2z"/></svg></div>
+    <h1>PVE <span>Homelab</span></h1>
+  </div>
+  <p>A console on the Proxmox host's own screen: launch VMs with their GPU, see what needs a look.</p>
+  <div class="chips"><b>Proxmox VE 8 / 9</b><b>GPU passthrough</b><b>Self-hosted</b></div>
+</div>
+<div class="shot"><img src="screenshots/dashboard.jpg" alt=""></div>
+<div class="shot2"><img src="screenshots/launch.jpg" alt=""></div>
+</body>
+</html>
