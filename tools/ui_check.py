@@ -528,6 +528,9 @@ async def narrow(r):
             await r.open(None)
             st = await p.js(wide)
             r.check(f"{w}px: the sign-in screen fits the width", st == [False, False, []], st)
+            order = await p.js("const y = (s) => document.querySelector(s).getBoundingClientRect().top;"
+                               "return [y('[data-scr=login] .clock') < y('#loginForm'), y('#loginForm') < y('.zone-login')];")
+            r.check(f"{w}px: the time, then signing in, then the widgets", order == [True, True], order)
             await r.open()
             await p.until("return !document.querySelector('#nodeUpd').hidden;", 6)   # the widest the top bar gets
             fs = await p.js("return parseFloat(getComputedStyle(document.querySelector('.A')).fontSize);")
