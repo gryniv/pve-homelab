@@ -169,7 +169,8 @@ html,body{margin:0;height:100%;background:#05080e}
 /* Proxmox updates: the bell's shape in the accent colour, an amber dot when a new kernel is among them */
 .A .bell.pkg{--c:var(--acc-text);background:var(--acc-soft);border-color:var(--acc-line)}
 .A .bell.pkg.kern::after{content:'';position:absolute;bottom:-.1em;left:-.1em;width:.6em;height:.6em;border-radius:50%;background:#ffd38a;box-shadow:0 0 0 .15em rgba(16,21,29,.85)}
-.A .confirm.nodeupd{width:36em}
+.A .confirm.nodeupd{width:38em}
+.A .confirm.nodeupd .mbtns .btn{white-space:nowrap}
 .A .nusum{display:flex;align-items:center;gap:.7em;margin-bottom:.7em}
 .A .nusum b{font-family:var(--font-display,var(--display));font-size:2.2em;line-height:1;color:var(--acc)}
 .A .nusum span{display:flex;flex-direction:column;gap:.15em;line-height:1.3}

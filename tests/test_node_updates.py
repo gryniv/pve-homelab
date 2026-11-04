@@ -81,3 +81,20 @@ def test_the_top_bar_setting_keeps_its_type():
     assert prefs._merge(prefs.DEFAULT, {"top": {"pve_updates": False}})["top"] == {"pve_updates": False}
     assert prefs._merge(prefs.DEFAULT, {"top": {"pve_updates": "no"}})["top"] == {"pve_updates": True}
     assert prefs._merge(prefs.DEFAULT, {"top": "off"})["top"] == {"pve_updates": True}
+
+
+def test_the_list_starts_with_what_matters():
+    names = ["ceph-base", "libpve-common-perl", "proxmox-kernel-helper", "pve-docs", "proxmox-kernel-7.0.14-26-pve-signed",
+             "qemu-server", "librbd1", "pve-manager", "proxmox-kernel-7.0", "python3-rados", "swtpm"]
+    pkgs = [{"Package": n, "Origin": "Proxmox", "Version": "2"} for n in names] + [{"Package": "openssl", "Origin": "Debian"}]
+    got = [p["name"] for p in A.summarize_updates(pkgs)["packages"]]
+    assert got == ["proxmox-kernel-7.0", "proxmox-kernel-7.0.14-26-pve-signed", "pve-manager", "qemu-server",
+                   "proxmox-kernel-helper", "pve-docs", "libpve-common-perl", "swtpm",
+                   "ceph-base", "librbd1", "python3-rados", "openssl"]
+
+
+def test_the_kernel_helper_is_not_a_kernel():
+    helper = [{"Package": "proxmox-kernel-helper", "Origin": "Proxmox"}]
+    assert A.summarize_updates(helper)["kernel"] is False
+    for kernel in ("proxmox-kernel-7.0", "proxmox-kernel-6.8.12-4-pve-signed", "pve-kernel-5.15", "linux-image-6.1.0-26-amd64"):
+        assert A.summarize_updates([{"Package": kernel}])["kernel"] is True, kernel

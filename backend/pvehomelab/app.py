@@ -666,7 +666,25 @@ async def storage(req):
                                "total": r.get("total", 0)} for r in res or [] if r.get("active") and r.get("total")])
 
 
-KERNEL_PKG = re.compile(r"^(proxmox-kernel|pve-kernel|linux-image)-")
+# A kernel has its version in the name (proxmox-kernel-7.0, proxmox-kernel-7.0.14-26-pve-signed);
+# proxmox-kernel-helper is not one and needs no reboot.
+KERNEL_PKG = re.compile(r"^(proxmox-kernel|pve-kernel|linux-image)-\d")
+HEADLINE_PKG = ("pve-manager", "proxmox-ve", "qemu-server", "pve-qemu-kvm", "pve-container", "proxmox-backup-server")
+CEPH_PKG = re.compile(r"^(ceph|libceph|librados|libradosstriper|librbd|librgw|libsqlite3-mod-ceph|python3-(ceph|rados|rbd|rgw)|radosgw|rbd-)")
+
+
+def _update_rank(p):
+    """What a person looks for first: the kernel, then Proxmox itself, and Ceph's many parts last."""
+    n = p["name"]
+    if p["origin"] != "Proxmox":
+        return 5
+    if KERNEL_PKG.match(n):
+        return 0
+    if n in HEADLINE_PKG:
+        return 1
+    if CEPH_PKG.match(n):
+        return 4
+    return 2 if n.startswith(("pve-", "proxmox-")) else 3
 
 
 def summarize_updates(pkgs, checked=None):
@@ -674,7 +692,7 @@ def summarize_updates(pkgs, checked=None):
     `checked`: when the package lists were last refreshed (unix time), if known."""
     out = [{"name": p.get("Package", ""), "old": p.get("OldVersion", ""), "new": p.get("Version", ""),
             "origin": p.get("Origin", "")} for p in pkgs or []]
-    out.sort(key=lambda p: (p["origin"] != "Proxmox", p["name"]))
+    out.sort(key=lambda p: (_update_rank(p), HEADLINE_PKG.index(p["name"]) if p["name"] in HEADLINE_PKG else 0, p["name"]))
     return {"allowed": True, "count": len(out),
             "proxmox": sum(p["origin"] == "Proxmox" for p in out),
             "kernel": any(KERNEL_PKG.match(p["name"]) for p in out),
