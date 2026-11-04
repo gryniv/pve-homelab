@@ -1,5 +1,7 @@
 # Designs
 
+*[Українською](DESIGNS.uk.md)*
+
 How the menu looks lives apart from the program: colours, backgrounds, clocks, fonts and the
 look of each widget. A design is **one file**; drop it in a folder and it shows up in
 *Settings → Look* with a live preview.
