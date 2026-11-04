@@ -96,6 +96,7 @@ class Page:
 class Run:
     def __init__(self, page, base):
         self.p, self.base, self.failed, self.passed = page, base, [], 0
+        self.prefs = None  # the demo user's settings at the start; every check starts from them
 
     def check(self, name, ok, detail=""):
         # an empty list or None as detail is worth seeing too: show anything but the default ""
@@ -123,6 +124,11 @@ class Run:
         else:
             raise RuntimeError("the sign-in screen did not show up")
         await p.js(API + "await q('POST', '/api/demo/reset', {}); await q('POST', '/api/demo/world', {weather: 'partly', update: false});")
+        if self.prefs:
+            # Checks change settings (hidden services, order, layout): put them back, or one check
+            # silently changes what the next one sees.
+            await p.js(API + "await q('POST', '/api/login', {user: 'ihor@pve', password: 'x'}); "
+                       f"await q('PUT', '/api/prefs', {json.dumps(self.prefs)}); await q('POST', '/api/logout');")
         if user:
             await p.js(f"document.querySelector('[data-user=\"{user}\"]').click();", 0.3)
             await p.js("document.querySelector('#pw').value = 'x'; document.querySelector('#loginForm').requestSubmit();")
@@ -354,12 +360,15 @@ CHECKS = {"guests": guests, "logout": logout, "widgets": widgets, "toasts": toas
 # ---------------------------------------------------------------- driver
 
 async def main(a):
-    demo = None
+    demo, demo_state = None, None
     base = a.url
     if a.start_demo:
         port = free_port()
         py = os.path.join(ROOT, ".demo", "venv", "bin", "python")
-        demo = subprocess.Popen([py if os.path.exists(py) else sys.executable, os.path.join(ROOT, "demo.py"), "--no-browser", "--lang", "en", "--port", str(port)],
+        # Its own clean settings: the same start here and in CI, and the usual demo is left alone.
+        demo_state = tempfile.mkdtemp(prefix="pvehomelab-uicheck-state-")
+        demo = subprocess.Popen([py if os.path.exists(py) else sys.executable, os.path.join(ROOT, "demo.py"), "--no-browser",
+                                 "--lang", "en", "--port", str(port), "--state", demo_state],
                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         base = f"http://127.0.0.1:{port}"
     base = base.rstrip("/") + "/?seat=igpu"
@@ -399,7 +408,7 @@ async def main(a):
                     await p.send("Emulation.setCPUThrottlingRate", rate=a.cpu_throttle)
                 r = Run(p, base)
                 await r.open()
-                saved = await p.js(API + "return (await q('GET', '/api/me')).prefs;")
+                saved = r.prefs = await p.js(API + "return (await q('GET', '/api/me')).prefs;")
                 try:
                     for name in a.only or CHECKS:
                         print(name)
@@ -426,6 +435,9 @@ async def main(a):
         shutil.rmtree(prof, ignore_errors=True)
         if demo:
             demo.terminate()
+            demo.wait(10)
+        if demo_state:
+            shutil.rmtree(demo_state, ignore_errors=True)
 
 
 if __name__ == "__main__":
