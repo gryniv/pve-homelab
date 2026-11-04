@@ -98,9 +98,12 @@ rule without it would change every other theme too. The installer refuses such a
 ### A theme as a whole
 
 A theme can stand on its own: name the background and the clock that go with it, and offer a few
-settings of its own, such as its colour, its font or where things sit. Picking it in *Settings →
-Look* brings the background and clock along and resets the fonts to the theme's own; everything can
-still be changed afterwards on its tab. The settings show under the theme tiles.
+settings of its own, such as its colour, its font or where things sit. In *Settings → Look* every
+theme is a folder: opening it puts it on with its background, its clock and the theme's own fonts,
+and inside are its settings, the background, the clock and the fonts. What a person changes there
+the theme remembers: coming back to it brings the same back. *As designed* returns what the theme
+intends. A theme with no `@background` and `@clock` is intended with the live scene and the digital
+clock.
 
 ```css
 /*
@@ -113,7 +116,7 @@ still be changed afterwards on its tab. The settings show under the theme tiles.
  * @option.uk color Люмінофор: бурштиновий | зелений
  */
 .A[data-skin="phosphor"],.A [data-skin="phosphor"]{--acc:#ffb000}
-.A[data-skin="phosphor"][data-o-color="green"]{--acc:#33ff77}
+.A[data-skin="phosphor"][data-o-color="green"],.A [data-skin="phosphor"][data-o-color="green"]{--acc:#33ff77}
 ```
 
 - `@option <key> = <value> | <value> …`: up to 6 settings of 2–8 values each; the first value is
@@ -122,6 +125,9 @@ still be changed afterwards on its tab. The settings show under the theme tiles.
   language, in the same order; a line whose count doesn't match keeps the name and drops the values'.
 - The page carries the chosen value as `data-o-<key>`, so the theme's CSS reads it like any other
   attribute, under its own `[data-skin]`. A value it doesn't know falls back to the default.
+- The previews in the settings carry the same `data-o-<key>` next to their `data-skin`. For them to
+  show the choice too, write the rule twice, like the base one: for the page
+  (`.A[data-skin=…][data-o-…]`) and for a preview inside it (`.A [data-skin=…][data-o-…]`).
 - The settings are kept per person and per theme, and the sign-in screen shows each person's.
 
 ## Background

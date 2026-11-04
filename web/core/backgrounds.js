@@ -57,10 +57,12 @@ export function apply(k) {
 /* ---------------- mini monitor ---------------- */
 
 // A tiny monitor: the background under the sign-in screen (or the dashboard) in the given
-// theme, clock design and fonts. `look` = {skin, bg, clock, fonts: {ui, display}}.
+// theme, clock design and fonts. `look` = {skin, bg, clock, fonts: {ui, display}, opts: {key: value}}:
+// opts are the theme's own settings, carried as data-o-<key> like on the page.
 export function mini(look, fontCss = {}) {
   const style = [fontCss.ui && `--font-ui:${fontCss.ui}`, fontCss.display && `--font-display:${fontCss.display}`].filter(Boolean).join(';');
-  return `<span class="mon"><span class="scrn" data-skin="${esc(look.skin)}" data-mode="login" style="${esc(style)}" data-clock-id="${esc(look.clock || 'digital')}">${layer(look.bg)}
+  const opts = Object.entries(look.opts || {}).map(([k, v]) => ` data-o-${esc(k)}="${esc(v)}"`).join('');
+  return `<span class="mon"><span class="scrn" data-skin="${esc(look.skin)}"${opts} data-mode="login" style="${esc(style)}" data-clock-id="${esc(look.clock || 'digital')}">${layer(look.bg)}
     <span class="pvfx"></span><span class="mock">
     <span class="mk-login"><b class="hl"></b><span class="clock ck"></span><b class="dt"></b><b class="w1"></b><b class="w2"></b>
       <b class="who"></b><b class="u"><b></b><b></b><b></b></b><b class="pw"></b><b class="go"></b></span>

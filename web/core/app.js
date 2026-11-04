@@ -453,6 +453,7 @@ addEventListener('keydown', (e) => {
   addEventListener(ev, () => { st.lastInput = Date.now(); if (st.screen === 'saver') go(st.me ? 'dash' : 'login'); }, { passive: true, capture: true }));
 
 addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && st.screen === 'settings' && S.back()) return;   // out of a design folder first
   if (e.key === 'Escape' && ['settings', 'launch'].includes(st.screen)) go('dash');
 });
 

@@ -19,6 +19,9 @@ DEFAULT = {
     "layout": {"login": ["weather", "host"], "side": ["host", "gpus"]},
     "widget_opts": {},            # {<widget id>: {<option>: value}}, see "options" in web/widgets/<id>/widget.js
     "theme_opts": {},             # {<theme id>: {<option>: value}}, see "@option" in a theme's header
+    # what each design was last worn with, so coming back to it brings that back:
+    # {<theme id>: {"background": id, "clock": id, "fonts": {"ui": id, "display": id}}}
+    "looks": {},
     "weather": {"city": "", "units": ""},   # empty = as in config.yaml
     "launch": {"gpu": "auto", "ask": True, "pass_input": True},
     "saver": {"fx": True, "clock": True},
@@ -113,6 +116,27 @@ def _theme_opts(v):
     return out
 
 
+_ID = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")     # a design's id, as designs.py names them
+
+
+def _looks(v):
+    """{theme: {background, clock, fonts: {ui, display}}} with design ids only; an empty font is the theme's own."""
+    if not isinstance(v, dict):
+        return {}
+    out = {}
+    for theme, look in list(v.items())[:MAX_LIST]:
+        if not (isinstance(theme, str) and _ID.match(theme) and isinstance(look, dict)):
+            continue
+        one = {k: look[k] for k in ("background", "clock") if isinstance(look.get(k), str) and _ID.match(look[k])}
+        f = look.get("fonts")
+        if isinstance(f, dict):
+            one["fonts"] = {k: f[k] for k in ("ui", "display")
+                            if isinstance(f.get(k), str) and (f[k] == "" or _ID.match(f[k]))}
+        if one:
+            out[theme] = one
+    return out
+
+
 def _merge(base, over):
     """Defaults overlaid with `over`: unknown keys are dropped, values of the wrong type keep
     the default, and strings and lists are capped."""
@@ -125,6 +149,8 @@ def _merge(base, over):
         d = base[k]
         if k == "theme_opts":
             out[k] = _theme_opts(v)
+        elif k == "looks":
+            out[k] = _looks(v)
         elif isinstance(d, dict):
             if not isinstance(v, dict):
                 continue

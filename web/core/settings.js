@@ -18,9 +18,11 @@ const SECTIONS = [
   ['look', 'i-palette'], ['login', 'i-lock'], ['dash', 'i-layout'], ['systems', 'i-monitor'],
   ['weather', 'i-cloud'], ['about', 'i-info'],
 ];
-const LOOK_TABS = [['theme', 'set.look.tab_theme'], ['bg', 'set.look.tab_bg'], ['fonts', 'set.look.tab_fonts'], ['clock', 'set.look.tab_clock'], ['mine', 'set.look.tab_mine']];
+// Settings → Look: a grid of designs (grid); one opens like a folder with everything it is worn
+// with (design: the current one); My designs installs and removes them (mine).
+const LOOK_AT = ['grid', 'design', 'mine'];
 
-let app, current = 'look', lookTab = 'theme', saveTimer, loginCfg = null, loginTimer, openW = '', stopPreview = null, logs = null, myDesigns = null, myWidgets = null;
+let app, current = 'look', lookAt = 'grid', saveTimer, loginCfg = null, loginTimer, openW = '', stopPreview = null, logs = null, myDesigns = null, myWidgets = null;
 
 const sw = (id, on) => `<span class="sw"><input type="checkbox" id="${id}" ${on ? 'checked' : ''}><i></i></span>`;
 const tgl = (id, on, title, sub = '') => `<label class="tgl"><span>${esc(t(title))}${sub ? `<small>${esc(t(sub))}</small>` : ''}</span>${sw(id, on)}</label>`;
@@ -119,69 +121,117 @@ function zone(p, z) {
 }
 
 /* ---------------- look: tiles are mini monitors (backgrounds.js) ---------------- */
-const lookOf = (p, over = {}) => ({ skin: p.skin || 'dusk', bg: p.background || 'scene', clock: p.clock || 'digital', fonts: p.fonts || {}, ...over });
+const lookOf = (p, over = {}) => {
+  const look = { skin: p.skin || 'dusk', bg: p.background || 'scene', clock: p.clock || 'digital', fonts: p.fonts || {}, ...over };
+  return { ...look, opts: optsOf(p, look.skin) };
+};
+// A theme's own settings as this person chose them, the defaults for the rest (the page does the same).
+function optsOf(p, skin) {
+  const chosen = p.theme_opts?.[skin] || {};
+  return Object.fromEntries((themeOf(skin)?.options || []).map((o) => [o.key, o.values.includes(chosen[o.key]) ? chosen[o.key] : o.default]));
+}
 const monitor = (look) => BG.mini(look, F.css(look.fonts));
 const tile = (attr, sel, look, name, sub = '') => `
   <button type="button" class="skin${sel ? ' sel' : ''}" ${attr}>${monitor(look)}
     <span>${esc(name)}${sub ? `<small>${esc(sub)}</small>` : ''}</span></button>`;
 
-// A theme may name the background and clock that go with it (@background, @clock in its header):
-// picking it brings them along, with the theme's own fonts, so it lands as a whole.
+// A theme may name the background and clock that go with it (@background, @clock in its header);
+// with them it is worn with its own fonts. A theme that names nothing is the live scene and the
+// digital clock.
 const themeOf = (id) => app.pub().themes.find((th) => th.id === (id || 'dusk'));
 const known = (list, id) => !!id && app.pub()[list].some((d) => d.id === id);
-function themeChanges(id) {
-  const th = themeOf(id) || {};
-  const ch = { skin: id };
-  if (known('backgrounds', th.background)) ch.background = th.background;
-  if (known('clocks', th.clock)) ch.clock = th.clock;
-  if (ch.background || ch.clock) ch.fonts = { ui: '', display: '' };
-  return ch;
+const fontOk = (id) => (id && F.all().some((m) => m.id === id) ? id : '');
+function designedLook(th) {
+  return { background: known('backgrounds', th?.background) ? th.background : 'scene',
+    clock: known('clocks', th?.clock) ? th.clock : 'digital', fonts: { ui: '', display: '' } };
+}
+const wornNow = (p) => ({ background: p.background || 'scene', clock: p.clock || 'digital',
+  fonts: { ui: p.fonts?.ui || '', display: p.fonts?.display || '' } });
+
+// Each design is a folder of its own: putting one on brings what it was last worn with
+// (prefs.looks), else what it was designed with; what a design named but is gone stays as designed.
+function themeChanges(p, id) {
+  const look = designedLook(themeOf(id));
+  const was = p.looks?.[id] || {};
+  if (known('backgrounds', was.background)) look.background = was.background;
+  if (known('clocks', was.clock)) look.clock = was.clock;
+  if (was.fonts) look.fonts = { ui: fontOk(was.fonts.ui), display: fontOk(was.fonts.display) };
+  return { skin: id, ...look };
+}
+// What the tile of a design shows: the current look for the one worn, what it would bring for the rest.
+function lookFor(p, id) {
+  if (id === (p.skin || 'dusk')) return lookOf(p);
+  const ch = themeChanges(p, id);
+  return { skin: id, bg: ch.background, clock: ch.clock, fonts: ch.fonts, opts: optsOf(p, id) };
+}
+// Putting another design on keeps how the current one was worn, for coming back to it.
+function putOn(p, id) {
+  const cur = p.skin || 'dusk';
+  if (id === cur) return;
+  const looks = { ...(p.looks || {}), [cur]: wornNow(p) };
+  save({ ...themeChanges({ ...p, looks }, id), looks });
+}
+// "As designed": the design's own background, clock, fonts and settings again.
+function resetDesign(p) {
+  const id = p.skin || 'dusk';
+  const looks = { ...(p.looks || {}) };
+  const opts = { ...(p.theme_opts || {}) };
+  delete looks[id];
+  delete opts[id];
+  save({ ...designedLook(themeOf(id)), looks, theme_opts: opts });
 }
 
-// The chosen theme's own settings (@option lines) as segmented buttons, and what came with it.
+// The design's own settings (@option lines) as segmented buttons.
 function themeOptions(p, lang) {
   const th = themeOf(p.skin);
-  if (!th) return '';
+  if (!th?.options?.length) return '';
   const mine = p.theme_opts?.[th.id] || {};
-  const rows = (th.options || []).map((o) => `<div class="topt"><span>${esc(pick(o.label, lang) || o.key)}</span>${seg(`to-${o.key}`,
+  return grp('set.look.theme_opts', (th.options || []).map((o) => `<div class="topt"><span>${esc(pick(o.label, lang) || o.key)}</span>${seg(`to-${o.key}`,
     o.values.includes(mine[o.key]) ? mine[o.key] : o.default,
-    o.values.map((v, i) => [v, (o.names?.[lang] || o.names?.en || [])[i] || v]))}</div>`).join('');
-  const bgName = known('backgrounds', th.background) && BG.nameOf(app.pub().backgrounds.find((b) => b.id === th.background), lang);
-  const clockName = known('clocks', th.clock) && pick(app.pub().clocks.find((c) => c.id === th.clock).name, lang);
-  const along = [bgName && t('set.look.with_bg', { name: bgName }), clockName && t('set.look.with_clock', { name: clockName })].filter(Boolean);
-  if (!rows && !along.length) return '';
-  return grp('set.look.theme_opts', `${rows}${along.length ? `<p class="lead tbundle">${esc(t('set.look.bundle', { list: along.join(', ') }))}</p>` : ''}`);
+    o.values.map((v, i) => [v, (o.names?.[lang] || o.names?.en || [])[i] || v]))}</div>`).join(''));
 }
 
+const backBtn = (label) => `<button class="chipbtn" type="button" id="lookBack">${icon('i-arrow', 'i lkback')}${esc(t(label))}</button>`;
+const hoverHint = () => `<p class="lead hint">${icon('i-monitor')}${esc(t('set.look.hover'))}</p>`;
+
 const lookViews = {
-  theme(p, lang) {
-    return grp('set.look.theme', `<div class="skins looks">${app.pub().themes.map((th) =>
-      tile(`data-skinpick="${th.id}"`, p.skin === th.id, lookOf(p, { skin: th.id }), pick(th.name, lang), pick(th.desc, lang))).join('')}</div>`)
-      + themeOptions(p, lang);
+  // Every design as a folder tile, and My designs as the last one.
+  grid(p, lang) {
+    const admin = app.isAdmin();
+    const tiles = app.pub().themes.map((th) => `
+      <button type="button" class="skin lkfold${(p.skin || 'dusk') === th.id ? ' sel' : ''}" data-skinpick="${th.id}">${monitor(lookFor(p, th.id))}
+        <span>${esc(pick(th.name, lang))}<small>${esc(pick(th.desc, lang))}</small></span>
+        <i class="lkopen" aria-hidden="true">${icon('i-chev')}</i></button>`).join('');
+    const mine = `<button type="button" class="skin lkmine" data-lookmine><span class="mon"><span class="lkplus">${icon(admin ? 'i-plus' : 'i-box')}</span></span>
+        <span>${esc(t('set.designs.title'))}<small>${esc(t(admin ? 'set.look.mine_sub' : 'set.look.mine_sub_view'))}</small></span></button>`;
+    return `${hoverHint()}${grp('set.look.designs', `<div class="skins looks">${tiles}${mine}</div>`)}`;
   },
-  bg(p, lang) {
-    const group = (g, title) => grp(title, `<div class="skins looks">${BG.byGroup(g).map((b) =>
-      tile(`data-bgk="${b.id}"`, (p.background || 'scene') === b.id, lookOf(p, { bg: b.id }), BG.nameOf(b, lang))).join('')}</div>`);
-    return group('scape', 'set.look.bg_scapes') + group('flat', 'set.look.bg_simple');
-  },
-  fonts(p, lang) {
+  // Inside one design: its own settings, then the background, the clock and the fonts it is worn with.
+  design(p, lang) {
+    const th = themeOf(p.skin) || {};
+    const by = (named) => (named ? t('set.look.by_design') : '');
+    const bgs = (g, title) => grp(title, `<div class="skins looks">${BG.byGroup(g).map((b) =>
+      tile(`data-bgk="${b.id}"`, (p.background || 'scene') === b.id, lookOf(p, { bg: b.id }), BG.nameOf(b, lang), by(th.background === b.id))).join('')}</div>`);
     const f = p.fonts || {};
-    const list = (slot) => `<div class="fonts">
+    const fonts = (slot) => `<div class="fonts">
       <button type="button" class="ftile${!f[slot] ? ' sel' : ''}" data-font="${slot}|"><span class="fs">Aa Бб 12:34</span><span class="fn">${t('set.look.font_theme')}</span></button>
       ${F.all().map((m) => `<button type="button" class="ftile${f[slot] === m.id ? ' sel' : ''}" data-font="${slot}|${m.id}">
         <span class="fs" style="font-family:${esc(m.family)}">Aa Бб 12:34</span><span class="fn">${esc(pick(m.name, lang))}</span></button>`).join('')}</div>`;
-    return `<div class="lookres">${monitor(lookOf(p))}<p class="lead">${esc(t('set.look.result'))}</p></div>`
-      + grp('set.look.font_display', list('display')) + grp('set.look.font_ui', list('ui'));
-  },
-  clock(p, lang) {
-    return grp('set.look.clock', `<div class="skins looks">${app.pub().clocks.map((c) =>
-      tile(`data-clk="${c.id}"`, (p.clock || 'digital') === c.id, lookOf(p, { clock: c.id }), pick(c.name, lang), pick(c.desc, lang))).join('')}</div>`);
+    return `<div class="lkhead">${backBtn('set.look.all')}
+        <div class="lkname"><b>${esc(pick(th.name, lang) || p.skin)}</b>${th.desc ? `<small>${esc(pick(th.desc, lang))}</small>` : ''}</div>
+        <button class="chipbtn" type="button" id="lookReset" title="${esc(t('set.look.reset_sub'))}">${icon('i-refresh')}${esc(t('set.look.reset'))}</button></div>
+      ${hoverHint()}${themeOptions(p, lang)}
+      ${bgs('scape', 'set.look.bg_scapes')}${bgs('flat', 'set.look.bg_simple')}
+      ${grp('set.look.clock', `<div class="skins looks">${app.pub().clocks.map((c) =>
+        tile(`data-clk="${c.id}"`, (p.clock || 'digital') === c.id, lookOf(p, { clock: c.id }), pick(c.name, lang), by(th.clock === c.id) || pick(c.desc, lang))).join('')}</div>`)}
+      ${grp('set.look.font_display', fonts('display'))}${grp('set.look.font_ui', fonts('ui'))}`;
   },
 };
 
 // Your own designs (Settings → Look → My designs): what is installed, install more, remove.
 const KIND_LABEL = { themes: 'set.look.tab_theme', backgrounds: 'set.look.tab_bg', fonts: 'set.look.tab_fonts', clocks: 'set.look.tab_clock', widgets: 'set.designs.kind_widgets' };
-lookViews.mine = (_p, lang) => {
+lookViews.mine = (_p, lang) => `<div class="lkhead">${backBtn('set.look.all')}</div><div id="lookMine">${myDesignsView(lang)}</div>`;
+function myDesignsView(lang) {
   if (!myDesigns) {
     myDesigns = { pending: true };
     app.api.get('/api/designs').then((r) => { myDesigns = r; render(); })
@@ -202,7 +252,7 @@ lookViews.mine = (_p, lang) => {
       : `<p class="mute">${esc(t('set.designs.none'))}</p>`;
   }
   return grp('set.designs.title', `${lead('set.designs.lead', { folder: myDesigns.folder || '/etc/pve-homelab/designs' })}${install}${list}`);
-};
+}
 
 // Your own widgets (Settings → Dashboard → My widgets). A widget is code that runs in the menu with
 // the signed-in person's rights, so installing one is for admins.
@@ -268,12 +318,10 @@ function journal() {
 const views = {
   look(p) {
     const lang = currentLang();
-    if (lookTab === 'fonts') F.all().forEach((m) => F.load(m.id));
-    return `<h3>${t('set.s.look')}</h3>${lead('set.look.lead')}
-      <div class="lookbar">${seg('lookTabs', lookTab, LOOK_TABS.map(([id, k]) => [id, t(k)]))}
-        <span class="sp"></span>${seg('langSeg', lang, app.pub().languages.map((l) => [l.code, l.name]))}</div>
-      ${lookTab === 'mine' ? '' : `<p class="lead hint">${icon('i-monitor')}${esc(t('set.look.hover'))}</p>`}
-      ${lookViews[lookTab](p, lang)}`;
+    if (lookAt === 'design') F.all().forEach((m) => F.load(m.id));
+    return `<h3>${t('set.s.look')}</h3>
+      ${lookAt === 'grid' ? `<div class="lookbar">${lead('set.look.lead')}<span class="sp"></span>${seg('langSeg', lang, app.pub().languages.map((l) => [l.code, l.name]))}</div>` : ''}
+      ${lookViews[lookAt](p, lang)}`;
   },
   login(p) {
     const L = loginCfg?.settings;
@@ -344,9 +392,11 @@ function bind(p) {
   const segBind = (id, fn) => $$(`#${id} button`).forEach((b) => (b.onclick = () => { fn(b.dataset.v); render(); }));
   const chk = (id, fn) => { const el = $('#' + id); if (el) el.onchange = () => fn(el.checked); };
   // look
-  segBind('lookTabs', (v) => { lookTab = v; if (v === 'mine') myDesigns = null; });
   segBind('langSeg', (v) => { save({ lang: v }); app.useLang(v); });
-  $$('[data-skinpick]', box).forEach((b) => (b.onclick = () => { save(themeChanges(b.dataset.skinpick)); render(); }));
+  $$('[data-skinpick]', box).forEach((b) => (b.onclick = () => { putOn(p, b.dataset.skinpick); lookGo('design'); }));
+  $$('[data-lookmine]', box).forEach((b) => (b.onclick = () => { myDesigns = null; lookGo('mine'); }));
+  $('#lookBack') && ($('#lookBack').onclick = () => lookGo('grid'));
+  $('#lookReset') && ($('#lookReset').onclick = () => { resetDesign(p); render(); });
   const th = themeOf(p.skin);
   (th?.options || []).forEach((o) => segBind(`to-${o.key}`, (v) => {
     save({ theme_opts: { ...(p.theme_opts || {}), [th.id]: { ...(p.theme_opts?.[th.id] || {}), [o.key]: v } } });
@@ -495,6 +545,25 @@ export function render() {
   keepFocus($('#settingsBox'), draw);
 }
 
+// Into a design, into My designs or back to the grid: from the top, with the way back focused.
+// A tile is focused back only for the keyboard: focusing one also starts its preview.
+function lookGo(where) {
+  const from = lookAt;
+  const keys = !!document.activeElement?.matches?.(':focus-visible');
+  lookAt = where;
+  render();
+  $('#settingsBox .scont') && ($('#settingsBox .scont').scrollTop = 0);
+  if (where !== 'grid') $('#lookBack')?.focus({ preventScroll: true });
+  else if (keys) $(from === 'mine' ? '[data-lookmine]' : `[data-skinpick="${CSS.escape(app.prefs().skin || 'dusk')}"]`)?.focus();
+}
+
+// Esc inside a design or My designs goes back to the grid; true if it did.
+export function back() {
+  if (current !== 'look' || lookAt === 'grid') return false;
+  lookGo('grid');
+  return true;
+}
+
 function draw() {
   stopPreview?.();
   stopPreview = null;
@@ -519,9 +588,11 @@ function draw() {
   bind(p);
 }
 
+// tab: grid, design or mine; the old tab names still land where those things now are.
 export function open(section, tab) {
   if (section) current = section;
-  if (tab && LOOK_TABS.some(([id]) => id === tab)) lookTab = tab;
+  const at = { theme: 'grid', bg: 'design', fonts: 'design', clock: 'design' }[tab] || tab;
+  if (at && LOOK_AT.includes(at)) lookAt = at;
   render();
 }
 
