@@ -495,6 +495,15 @@ function bindCopy() {
   });
 }
 
+// The previous or next section (a gamepad's shoulder buttons).
+export function step(dir) {
+  const list = sections();
+  const i = list.findIndex(([id]) => id === current);
+  current = list[(i + dir + list.length) % list.length][0];
+  render();
+  $(`[data-sp="${current}"]`)?.focus();
+}
+
 function bind(p) {
   const box = $('#settingsBox');
   if (current === 'about' && app.isAdmin()) bindCopy();

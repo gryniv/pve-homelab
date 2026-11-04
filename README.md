@@ -381,6 +381,7 @@ By hand: `./update.sh` in the clone, or `PYTHONPATH=/opt/pve-homelab/backend pyt
 | An open service | **Alt+Q** shows the dock (← → pick, Enter, Esc back) |
 | A VM screen inside the menu | **Ctrl+Alt+Q** goes back to the menu (the VM keeps running) |
 | A system on this monitor's GPU | **Ctrl + Ctrl** (both Ctrl keys): to the menu and back, the system keeps running |
+| A gamepad | D-pad or left stick move · **A** opens · **B** closes · **Start** settings · **LB/RB** tabs · **Guide** both Ctrl |
 | Host | Ctrl+Alt+F1 text console · Ctrl+Alt+F7 the menu |
 
 ## Extending it

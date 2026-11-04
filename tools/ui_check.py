@@ -511,6 +511,32 @@ async def input_settings(r):
     r.check("an admin leaves the gamepad out", picked and "1-4" not in picked and "1-3" in picked, picked)
 
 
+async def gamepad(r):
+    """A gamepad drives the menu: the D-pad moves, A opens, B closes, RB switches tabs."""
+    p = r.p
+    await r.open()
+    await p.js("window.__pad = {buttons: Array.from({length: 17}, () => ({pressed: false})), axes: [0, 0]};"
+               "navigator.getGamepads = () => [window.__pad]; window.dispatchEvent(new Event('gamepadconnected'));", 0.3)
+
+    async def tap(i):
+        await p.js(f"window.__pad.buttons[{i}].pressed = true;", 0.35)   # a frame may take a while headless
+        await p.js(f"window.__pad.buttons[{i}].pressed = false;", 0.35)
+    await p.js("document.querySelector('.sys .play').focus();")
+    before = await p.js("return document.activeElement?.dataset.key;")
+    await tap(15)
+    after = await p.js("return document.activeElement?.dataset.key;")
+    r.check("the D-pad moves between systems", before and after and before != after, (before, after))
+    await tap(0)
+    r.check("A opens the launch dialog", await p.until("return document.querySelector('[data-layer=launch]').hidden === false", 3))
+    await tap(1)
+    r.check("B closes it", await p.until("return document.querySelector('[data-layer=launch]').hidden === true", 3))
+    await tap(5)
+    r.check("RB switches to the next tab", await p.js("return document.querySelector('[data-ptab=guests]').getAttribute('aria-selected') === 'true';"))
+    await tap(9)
+    r.check("Start opens the settings", await p.until("return document.querySelector('[data-layer=settings]').hidden === false", 3))
+    await p.js("document.querySelector('#sClose').click();", 0.3)
+
+
 async def console(r):
     p = r.p
     await r.open()
@@ -1188,7 +1214,7 @@ async def misc(r):
     r.check("the weather icon exists", icon and code == 200, f"{icon} {code}")
 
 
-CHECKS = {"guests": guests, "logout": logout, "tfa_signin": tfa_signin, "system_settings": system_settings, "components": components, "interface": interface, "guest_resources": guest_resources, "settings_copy": settings_copy, "away": away, "launch_input": launch_input, "input_settings": input_settings, "widgets": widgets, "toasts": toasts, "offline": offline,
+CHECKS = {"guests": guests, "logout": logout, "tfa_signin": tfa_signin, "system_settings": system_settings, "components": components, "interface": interface, "guest_resources": guest_resources, "settings_copy": settings_copy, "away": away, "launch_input": launch_input, "input_settings": input_settings, "gamepad": gamepad, "widgets": widgets, "toasts": toasts, "offline": offline,
           "aria": dialogs_aria, "alerts": alerts, "update": failed_update, "focus": settings_focus,
           "console": console, "launch": launch, "search": search, "order": reorder, "guests_table": guest_table, "designs": my_designs, "design_pack": design_pack, "widget_strings": widget_strings, "my_widgets": my_widgets, "feedback": write_to_author, "node_updates": node_updates, "narrow": narrow, "layout_hooks": layout_hooks, "layout_theme": layout_theme, "theme_whole": theme_whole, "design_folders": design_folders, "update_check": update_check, "designing": designing, "quiet_faults": quiet_faults, "tabs": service_tabs, "misc": misc}
 

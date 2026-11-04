@@ -589,5 +589,6 @@
   "set.input.in_vm": "VM {vm} has it of its own",
   "set.input.goes": "goes",
   "set.input.stays": "stays",
-  "set.input.hint": "Nothing is written into a VM's config: the devices are lent for the session. {keys} in the system bring them back."
+  "set.input.hint": "Nothing is written into a VM's config: the devices are lent for the session. {keys} in the system bring them back.",
+  "help.k_pad": "A gamepad: A is Enter, B is Esc, Start opens settings, LB/RB switch tabs, Guide is both Ctrl"
 }

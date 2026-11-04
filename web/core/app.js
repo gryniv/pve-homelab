@@ -20,6 +20,7 @@ import * as alerts from './alerts.js';
 import * as updates from './updates.js';
 import * as nodeUpdates from './nodeupdates.js';
 import * as designer from './designer.js';
+import * as gamepad from './gamepad.js';
 import * as showcase from './showcase.js';
 import * as launch from './launch.js';
 import * as guests from './guests.js';
@@ -715,6 +716,19 @@ async function boot() {
   if (sc) showcase.open(sc, st.pub);
   tick(); setInterval(tick, 1000);
   watchSeat();
+  gamepad.init({
+    screen: () => st.screen,
+    seatSwitch: () => bothCtrl(),
+    openSettings: () => (st.me ? go('settings') : null),
+    wake: () => { st.lastInput = Date.now(); if (st.screen === 'saver') go(st.me ? 'dash' : 'login'); },
+    pane: (dir) => {
+      if (st.screen === 'settings') return S.step?.(dir);
+      const tabs = $$('[data-ptab]').filter((b) => getComputedStyle(b).display !== 'none');
+      const i = tabs.findIndex((b) => b.getAttribute('aria-selected') === 'true');
+      const next = tabs[(i + dir + tabs.length) % tabs.length];
+      next?.click(); next?.focus();
+    },
+  });
   weather().catch(() => {});
   setInterval(() => weather(true).catch(() => {}), 900000);
   setInterval(async () => { try { const p = await api.get('/api/public'); st.pub.guests = p.guests; } catch {} }, 30000);
