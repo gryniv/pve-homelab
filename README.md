@@ -289,7 +289,9 @@ newest commit of a branch with `channel: main`. When there is something new:
 
 - an **"Update vX.Y.Z"** badge appears in the top bar, with a reminder after sign-in;
 - anyone with `Sys.Modify` on `/` installs it with one click;
-- `update.auto: true` installs new versions every night at 04:30.
+- *Settings → About → Update by itself* (admins), or `update.auto: true`, installs new versions
+  every night around 04:30, or right after the host is switched on if it was off then. The menu's
+  switch is kept in `/etc/pve-homelab/update-settings.json` and wins over `config.yaml`.
 
 An update can't leave the host with a broken menu:
 

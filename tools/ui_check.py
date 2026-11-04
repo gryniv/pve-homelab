@@ -730,6 +730,16 @@ async def update_check(r):
     await r.open("guest@pve")
     await p.js(open_about, 0.6)
     r.check("someone without Sys.Modify has no Check now", await p.js("return !document.querySelector('#updCheck');"))
+    r.check("…and no switch for automatic updates", await p.js("return !document.querySelector('#pAutoUpd');"))
+    await r.open()
+    await p.js(open_about, 0.6)
+    was = await p.until("const c = document.querySelector('#pAutoUpd'); return c ? [c.checked] : null;", 6)
+    await p.js("document.querySelector('#pAutoUpd').click();", 0.6)
+    on = await p.until(API + "const u = await q('GET', '/api/update'); return u.auto === true && u.auto;", 4)
+    await p.js("document.querySelector('[data-sp=look]').click(); await new Promise(r => setTimeout(r, 300)); document.querySelector('[data-sp=about]').click();", 0.5)
+    kept = await p.js("return document.querySelector('#pAutoUpd').checked;")
+    r.check("an admin switches automatic updates on in About, and it stays on", was == [False] and on is True and kept, [was, on, kept])
+    await p.js(API + "await q('PUT', '/api/update/auto', {auto: false});")
 
 
 async def theme_whole(r):

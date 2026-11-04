@@ -346,7 +346,7 @@ async def demo_weather(city, units="c"):
 
 async def demo_update_status(cfg):
     cur = update.installed()
-    return {"enabled": True, "repo": "example/pve-homelab", "channel": "release", "auto": False, "installed": cur,
+    return {"enabled": True, "repo": "example/pve-homelab", "channel": "release", "auto": update.settings(cfg)["auto"], "installed": cur,
             "available": STATE["update"], "checked": int(time.time()),
             "latest": {"ref": "v9.9.0", "version": "9.9.0", "commit": None, "url": "https://github.com/", "notes": "Demo release"}}
 

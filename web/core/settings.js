@@ -6,7 +6,7 @@ import * as BG from './backgrounds.js';
 import * as F from './fonts.js';
 import { arrange, moved } from './order.js';
 import { current as currentLang } from './i18n.js';
-import { label as updLabel } from './updates.js';
+import { label as updLabel, check as updCheck } from './updates.js';
 import { $, $$, icon, esc, AVATARS, toast, confirmBox, keepFocus, t } from './ui.js';
 
 const ZONES = {
@@ -22,7 +22,7 @@ const SECTIONS = [
 // with (design: the current one); My designs installs and removes them (mine).
 const LOOK_AT = ['grid', 'design', 'mine'];
 
-let app, current = 'look', lookAt = 'grid', saveTimer, loginCfg = null, loginTimer, openW = '', stopPreview = null, logs = null, myDesigns = null, myWidgets = null;
+let app, current = 'look', lookAt = 'grid', updAsked = false, saveTimer, loginCfg = null, loginTimer, openW = '', stopPreview = null, logs = null, myDesigns = null, myWidgets = null;
 
 const sw = (id, on) => `<span class="sw"><input type="checkbox" id="${id}" ${on ? 'checked' : ''}><i></i></span>`;
 const tgl = (id, on, title, sub = '') => `<label class="tgl"><span>${esc(t(title))}${sub ? `<small>${esc(t(sub))}</small>` : ''}</span>${sw(id, on)}</label>`;
@@ -372,6 +372,11 @@ const views = {
   },
   about() {
     const a = app.about(), pub = app.pub(), u = app.updateStatus();
+    // the update status comes 2.5 s after signing in: an admin who is here sooner gets it now, once
+    if (!u && app.isAdmin() && pub.app.repo && !updAsked) {
+      updAsked = true;
+      updCheck().then(() => { if (current === 'about') render(); });
+    }
     const row = (k, v) => `<div class="kv"><span class="mute">${esc(t(k))}</span><b>${v}</b></div>`;
     const repo = a.repo || (pub.app.repo ? `https://github.com/${pub.app.repo}` : '');
     return `<h3>${esc(a.name || 'PVE Homelab')}</h3>${lead('about.lead')}
@@ -383,6 +388,7 @@ const views = {
         ${row('about.license', esc(a.license || t('about.none')))}
         ${row('about.host', `Proxmox VE ${esc(pub.version)} · ${esc(pub.node)}`)}
       </div>
+      ${app.isAdmin() && u?.enabled && u.channel === 'release' ? grp('about.updates', tgl('pAutoUpd', !!u.auto, 'about.auto', 'about.auto_sub')) : ''}
       <div class="grp"><div class="gl">${t('about.credits')}</div>
         <div class="mute credits">noVNC (MPL-2.0) · Meteocons, Bas Milius (MIT) · dashboard-icons, homarr-labs · Open-Meteo · Google Fonts (OFL) · cage · Chromium</div></div>
       <div class="aboutbtns"><button class="btn ghost" type="button" id="showHelp">${icon('i-info')}${t('help.title')}</button>
@@ -459,6 +465,15 @@ function bind(p) {
       toast(u.available ? t('upd.remind', { v: updLabel(u) }) : u.error ? u.error : t('about.update_none'), !!u.error);
     } catch (err) { toast(err.message, true); }
     render();
+  });
+  // installing new releases by night (the pve-homelab-update timer), for admins
+  chk('pAutoUpd', async (v) => {
+    try {
+      await app.api.put('/api/update/auto', { auto: v });
+      const u = app.updateStatus();
+      if (u) u.auto = v;
+      toast(t(v ? 'about.auto_on' : 'about.auto_off'));
+    } catch (err) { toast(err.message, true); render(); }
   });
   $('#writeAuthor') && ($('#writeAuthor').onclick = (e) => app.showFeedback(e.currentTarget));
   // my designs
@@ -590,7 +605,7 @@ function draw() {
       <span class="sp"></span><span class="saved" id="savedNote">${t('set.saved_hint')}</span>
     </nav>
     <div class="scont"><button class="chipbtn sclose" type="button" id="sClose">${icon('i-x')}${t('set.close')}</button>${views[current](p)}</div>`;
-  $$('[data-sp]').forEach((b) => (b.onclick = () => { current = b.dataset.sp; if (current === 'about') logs = null; render(); }));
+  $$('[data-sp]').forEach((b) => (b.onclick = () => { current = b.dataset.sp; if (current === 'about') { logs = null; updAsked = false; } render(); }));
   $('#sClose').onclick = () => app.go('dash');
   bind(p);
 }

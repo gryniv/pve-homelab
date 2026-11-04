@@ -1089,6 +1089,25 @@ async def update_status(req):
 UPDATE_CHECK_GAP = 30   # s: GitHub limits how often a host may ask
 
 
+@routes.put("/api/update/auto")
+async def update_auto(req):
+    """Settings → About: install new releases by night (admins). Kept beside config.yaml, winning over its update.auto."""
+    s = await session(req)
+    if not await req.app["pve"].can(s["ticket"], "/", "Sys.Modify"):
+        raise PVEError(403, i18n._("forbidden"))
+    try:
+        on = (await req.json()).get("auto")
+    except (ValueError, AttributeError):
+        on = None
+    if not isinstance(on, bool):
+        raise web.HTTPBadRequest(text='{"auto": true | false} expected')
+    update.set_auto(on)
+    if req.app["update"].value:   # the held answer says what the switch is: keep it true at once
+        req.app["update"].value = {**req.app["update"].value, "auto": on}
+    log.info("automatic updates turned %s by %s", "on" if on else "off", s["user"])
+    return web.json_response({"auto": on})
+
+
 @routes.post("/api/update/check")
 async def update_check(req):
     """Ask GitHub now instead of waiting for the next check (every update.check_hours), from
