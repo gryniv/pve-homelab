@@ -120,6 +120,19 @@ def kind_of(name, text, folder=None):
 _GROUPS = {"media", "supports", "layer", "container"}
 
 
+def _selectors(prelude):
+    """A selector list split at its own commas, not at those inside :is(), :not() and the like."""
+    out, depth, cur = [], 0, ""
+    for ch in prelude:
+        depth += (ch in "([") - (ch in ")]")
+        if ch == "," and depth == 0:
+            out.append(cur)
+            cur = ""
+        else:
+            cur += ch
+    return out + [cur]
+
+
 def unscoped(css, did):
     """The first selector of a theme that is not under the theme's own [data-skin="<did>"], or None.
     Every theme's stylesheet is loaded at once (the page picks one with data-skin), so a rule
@@ -136,7 +149,7 @@ def unscoped(css, did):
                 name = re.match(r"@([\w-]*)", prelude).group(1).lower()
                 stack.append("group" if name in _GROUPS else "skip")
             else:
-                bad = next((sel.strip() for sel in prelude.split(",") if not own.search(sel)), None)
+                bad = next((sel.strip() for sel in _selectors(prelude) if not own.search(sel)), None)
                 if bad is not None:
                     return bad
                 stack.append("rule")

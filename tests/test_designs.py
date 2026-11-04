@@ -267,6 +267,8 @@ async def test_live_reload_stream_ends_on_shutdown(client):
     ('@import url("https://fonts.googleapis.com/css2?family=VT323");\n@keyframes k{from{opacity:0}to{opacity:1}}'
      '\n.A[data-skin="x"]{animation:k 1s}', None),
     ('.A[data-skin="x"]{--a:1;&:hover{--a:2}}', None),                       # nested rules sit under their parent
+    ('.A[data-skin="x"] :is(.w img,img[data-wx-icon]){filter:none}', None),  # commas inside :is() split nothing
+    ('.A[data-skin="x"] .w,:is(.a,.b){a:b}', ":is(.a,.b)"),
     (":root{--acc:red}", ":root"),
     ('.A[data-skin="dusk"]{--acc:red}', '.A[data-skin="dusk"]'),
     ('.A[data-skin="x"],.top{bottom:0}', ".top"),
