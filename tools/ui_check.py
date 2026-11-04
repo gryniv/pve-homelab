@@ -514,6 +514,46 @@ async def node_updates(r):
     r.check("someone who may not update the node sees neither", st == [True, False], st)
 
 
+async def narrow(r):
+    """Phones and tablets held upright: readable type, nothing wider than the screen, guests as cards."""
+    p = r.p
+    wide = ("const s = [...document.querySelectorAll('.A .scr')].find((e) => !e.hidden);"
+            "const out = [...s.querySelectorAll('*')].filter((e) => { const b = e.getBoundingClientRect();"
+            " return b.width && (b.right > innerWidth + 1 || b.left < -1) && !(e instanceof SVGElement) && !e.closest('.systems,.opentabs,.snav'); })"
+            ".map((e) => (typeof e.className === 'string' && e.className) || e.tagName).slice(0, 5);"
+            "return [document.documentElement.scrollWidth > innerWidth, s.scrollWidth > s.clientWidth, out];")
+    try:
+        for w, h in ((360, 740), (820, 1180)):
+            await p.send("Emulation.setDeviceMetricsOverride", width=w, height=h, deviceScaleFactor=1, mobile=True)
+            await r.open(None)
+            st = await p.js(wide)
+            r.check(f"{w}px: the sign-in screen fits the width", st == [False, False, []], st)
+            await r.open()
+            await p.until("return !document.querySelector('#nodeUpd').hidden;", 6)   # the widest the top bar gets
+            fs = await p.js("return parseFloat(getComputedStyle(document.querySelector('.A')).fontSize);")
+            r.check(f"{w}px: the type is readable", fs >= 13, fs)
+            st = await p.js(wide)
+            r.check(f"{w}px: the dashboard fits the width, top bar included", st == [False, False, []], st)
+            r.check(f"{w}px: sign-out is on screen", await p.js(
+                "const b = document.querySelector('#logoutBtn').getBoundingClientRect(); return b.width > 0 && b.right <= innerWidth;"))
+            await p.js("const s = document.querySelector('.scr-dash'); s.scrollTop = s.scrollHeight;", 0.3)
+            r.check(f"{w}px: the side widgets can be scrolled to", await p.js(
+                "const z = document.querySelector('.zone-side').getBoundingClientRect(); return z.height > 0 && z.top < innerHeight;"))
+            await p.js("document.querySelector('[data-ptab=guests]').click();", 0.4)
+            cards = await p.js("return getComputedStyle(document.querySelector('#guestrows tr')).display;")
+            r.check(f"{w}px: guests are {'cards' if w < 640 else 'a table'}", cards == ("flex" if w < 640 else "table-row"), cards)
+            await p.js("document.querySelector('#nodeUpd').click();", 0.5)
+            st = await p.js("const b = document.querySelector('#nodeUpdLayer .confirm').getBoundingClientRect();"
+                            "return [Math.round(b.left), Math.round(b.right), innerWidth];")
+            r.check(f"{w}px: a dialog stays inside the screen", st[0] >= 0 and st[1] <= st[2], st)
+            await p.key("Escape", 27)
+            await p.js("document.querySelector('.me').click();", 0.6)
+            st = await p.js(wide)
+            r.check(f"{w}px: settings fit the width", st == [False, False, []], st)
+    finally:
+        await p.send("Emulation.setDeviceMetricsOverride", width=1600, height=900, deviceScaleFactor=1, mobile=False)
+
+
 async def widget_strings(r):
     """Every widget's strings come from its i18n/<lang>.json files, in each language."""
     p = r.p
@@ -662,7 +702,7 @@ async def misc(r):
 
 CHECKS = {"guests": guests, "logout": logout, "widgets": widgets, "toasts": toasts, "offline": offline,
           "aria": dialogs_aria, "alerts": alerts, "update": failed_update, "focus": settings_focus,
-          "console": console, "launch": launch, "search": search, "order": reorder, "guests_table": guest_table, "designs": my_designs, "widget_strings": widget_strings, "my_widgets": my_widgets, "feedback": write_to_author, "node_updates": node_updates, "designing": designing, "tabs": service_tabs, "misc": misc}
+          "console": console, "launch": launch, "search": search, "order": reorder, "guests_table": guest_table, "designs": my_designs, "widget_strings": widget_strings, "my_widgets": my_widgets, "feedback": write_to_author, "node_updates": node_updates, "narrow": narrow, "designing": designing, "tabs": service_tabs, "misc": misc}
 
 
 # ---------------------------------------------------------------- driver

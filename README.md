@@ -132,6 +132,10 @@ Arrow keys move like a TV remote: they always pick the nearest thing in the dire
 Tab never escapes an open dialog, and Esc closes it. Press **?** for the full list of keys.
 A mouse works everywhere, but you never need one.
 
+On a narrow screen (under 900 px: a phone, a tablet held upright, a small window) the menu
+becomes one scrolling column with readable type: systems swipe sideways, guests turn into
+cards, and settings and dialogs take the whole width.
+
 ### Runs itself
 - **Updates from GitHub.** A badge in the top bar and a reminder after sign-in. Admins install it with one
   click, and nightly auto-update is optional. No git is needed on the host.

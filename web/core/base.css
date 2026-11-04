@@ -577,4 +577,88 @@ html,body{margin:0;height:100%;background:#05080e}
 .A .drow{display:flex;align-items:center;justify-content:space-between;gap:.5em;background:rgba(255,255,255,.04);border-radius:.5em;padding:.3em .3em .3em .6em}
 .A .drow .chipbtn{padding:.2em .4em}
 
+
+/* ---------- narrow screens: phones, tablets held upright, small windows ----------
+   The kiosk layout is one fixed screen sized by the viewport; here the type gets a readable size,
+   the screens scroll, and columns stack. Dialogs and settings take the whole width. */
+@media (max-width:900px){
+  .A{font-size:clamp(13.5px,1.6vw + 8px,16px)}
+  .A .scr{overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain}
+  .A .overlay,.A .settings{position:fixed}
+  .A .toast{max-width:92%;bottom:1em}
+
+  /* sign-in */
+  .A .scr-login{grid-template-columns:minmax(0,1fr);gap:1.4em;align-items:start;align-content:start;padding:1.4em 1em 1.6em}
+  .A .scr-login .clock{font-size:min(5.2em,22vw)}
+  .A .zone-login{grid-template-columns:repeat(auto-fill,minmax(min(100%,17em),1fr));margin-top:1.2em;max-width:none}
+  .A .who{padding:1.3em}
+  .A .login-about,.A .power{position:static}
+  .A .power{justify-content:flex-start;flex-wrap:wrap}
+
+  /* screensaver */
+  .A .sv{left:1.2em;right:1.2em;bottom:2em;flex-direction:column;align-items:flex-start;gap:1em}
+  .A .sv .clock{font-size:min(7em,26vw)}
+  .A .sv-wx img{width:4.5em;height:4.5em}
+  .A .sv-wx .t{font-size:3em}
+  .A .sv-seat{right:1.2em}
+
+  /* dashboard: the top bar stays, the rest is one scrolling column */
+  .A .top{position:sticky;top:0;z-index:6;gap:.5em;padding:0 .7em;height:3.4em}
+  .A .top .tr{gap:.25em}
+  /* the avatar opens the settings too, so the gear goes; the node name gives way before any button */
+  .A .top .tw:not(.clock-s),.A .top .vsep,.A .me [data-whoami],.A .top .ibtn[data-go="settings"]{display:none}
+  .A .brand{flex:0 1 auto;min-width:0}
+  .A .brand [data-node]{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .A .top .ibtn,.A .top .bell{width:2em;height:2em}
+  .A .top .clock-s{font-size:.85em}
+  .A .updpill span{display:none}
+  .A .updpill{padding:.4em .5em}
+  .A .body{position:static;display:flex;flex-direction:column;gap:1em;padding:.9em .8em 1.4em}
+  .A .main{gap:1em}
+  .A .sidecol{order:2}
+  .A .zone-side{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,18em),1fr));align-items:start;overflow:visible;mask-image:none;padding:0;margin:0}
+  .A .systems,.A .systems.many{grid-auto-columns:min(82%,19em)}
+  .A .rail-btn{display:none}
+  .A .tabp{flex:none;padding:.7em .7em .8em}
+  .A .ptabs{flex-wrap:wrap}
+  .A .ptabs .src{display:none}
+  .A .ptabs button{padding:.45em .55em}
+  .A [data-pane].scroll{overflow:visible;margin:0;padding:0}
+  .A .svcgrid{grid-template-columns:repeat(auto-fill,minmax(7.4em,1fr));gap:.55em}
+  .A .svc{height:6.6em}
+  .A .gtools input{width:100%}
+
+  /* dialogs and settings */
+  .A .overlay{padding:.6em}
+  .A .overlay > .confirm,.A .overlay > .modal,.A .overlay > .demo-panel{width:100%;max-width:100%;max-height:100%;overflow:auto}
+  .A .confirm{padding:1.2em}
+  .A .mbtns{flex-wrap:wrap}
+  .A .settings{padding:0}
+  .A .sbox{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);border-radius:0}
+  .A .snav{flex-direction:row;overflow-x:auto;scrollbar-width:none;border-right:0;border-bottom:1px solid var(--edge);padding:.5em 4.6em .5em .5em;gap:.15em}
+  .A .snav .me2,.A .snav .sp,.A .snav .saved,.A .snav + .about-mini{display:none}
+  .A .snav button{white-space:nowrap;flex:none;padding:.5em .6em}
+  .A .sclose{top:.45em;right:.5em}
+  .A .scont{padding:1.1em .9em 2em}
+  .A .skins{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .A .zones{grid-template-columns:minmax(0,1fr)}
+  .A .gextra{grid-template-columns:minmax(0,1fr)}
+}
+
+/* the guests table becomes cards: name and buttons, then the details in one line; the headers stay as a sort bar */
+@media (max-width:640px){
+  .A [data-pane="guests"] table,.A [data-pane="guests"] thead,.A #guestrows{display:block}
+  .A [data-pane="guests"] thead tr{display:flex;flex-wrap:wrap;gap:.2em .9em;margin-bottom:.3em}
+  .A [data-pane="guests"] th{padding:.2em 0}
+  .A [data-pane="guests"] th:not([data-col]){display:none}
+  .A #guestrows tr{display:flex;flex-wrap:wrap;align-items:center;gap:.3em .7em;padding:.65em .1em;border-top:1px solid var(--edge)}
+  .A #guestrows tr::before{content:"";order:2;flex-basis:100%;height:0}
+  .A #guestrows td{border:0;padding:0;order:3;font-size:.9em;color:var(--mute)}
+  .A #guestrows td.nm{order:0;flex:1 1 0;min-width:0;font-size:1em;color:inherit}
+  .A #guestrows td.nm .gname{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .A #guestrows td:last-child{order:1;flex:none}
+  .A #guestrows td:empty{display:none}
+  .A #guestrows td[colspan]{order:0;flex:1}
+}
+
 @media (prefers-reduced-motion:reduce){.A *{animation:none!important;transition:none!important}}
