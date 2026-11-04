@@ -38,7 +38,8 @@ def check_js():
         return ["node not found: JS syntax not checked"]
     errors = []
     files = [f for f in glob.glob(os.path.join(ROOT, "web", "**", "*.js"), recursive=True)
-             if "/vendor/" not in f] + glob.glob(os.path.join(ROOT, "kiosk", "ext", "*.js"))
+             if "/vendor/" not in f] + glob.glob(os.path.join(ROOT, "designs", "**", "*.js"), recursive=True) \
+        + glob.glob(os.path.join(ROOT, "kiosk", "ext", "*.js"))
     with tempfile.TemporaryDirectory() as tmp:
         for f in sorted(files):
             # .mjs: node reads it as an ES module whatever package.json says

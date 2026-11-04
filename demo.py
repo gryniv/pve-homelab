@@ -32,6 +32,7 @@ def main():
     # Paths must be set before pvehomelab is imported.
     os.environ["PVEHOMELAB_CONFIG"] = os.path.join(ROOT, "etc", "demo.yaml")
     os.environ["PVEHOMELAB_WEB"] = os.path.join(ROOT, "web")
+    os.environ["PVEHOMELAB_DESIGNS"] = os.path.join(ROOT, "designs")
     base = os.path.abspath(a.state) if a.state else os.path.join(ROOT, ".demo")
     os.environ["PVEHOMELAB_STATE"] = os.path.join(base, "state")
     os.environ["PVEHOMELAB_CACHE"] = os.path.join(base, "cache")

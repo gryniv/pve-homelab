@@ -1,7 +1,6 @@
 // Are the web services up? A summary, and which ones are down.
 export default {
   zones: ['side'],
-  css: true,
   source: (ctx) => Promise.resolve(ctx.app.services()),
   every: 10,
   options: [

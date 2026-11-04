@@ -7,6 +7,10 @@ import yaml
 CONFIG_PATH = os.environ.get("PVEHOMELAB_CONFIG", "/etc/pve-homelab/config.yaml")
 STATE_DIR = os.environ.get("PVEHOMELAB_STATE", "/etc/pve-homelab")
 WEB_DIR = os.environ.get("PVEHOMELAB_WEB", "/opt/pve-homelab/web")
+# Looks live apart from the program: the ones that ship with it (replaced by updates) and your own
+# (kept by updates; a design here with the same id as a built-in one wins).
+DESIGNS_DIR = os.environ.get("PVEHOMELAB_DESIGNS", "/opt/pve-homelab/designs")
+USER_DESIGNS_DIR = os.environ.get("PVEHOMELAB_USER_DESIGNS", os.path.join(STATE_DIR, "designs"))
 CACHE_DIR = os.environ.get("PVEHOMELAB_CACHE", "/var/cache/pve-homelab")
 
 DEFAULTS = {

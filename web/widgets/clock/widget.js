@@ -1,9 +1,8 @@
-// A small clock for the dashboard, in any of the clock designs (web/clocks).
+// A small clock for the dashboard, in any of the clock designs (designs/clocks).
 import * as clocks from '/core/clocks.js';
 
 export default {
   zones: ['side'],
-  css: true,
   options: [
     { key: 'design', type: 'select', label: 'opt_design', default: '', choices: (app, lang) => [['', 'same'], ...app.pub().clocks.map((c) => [c.id, c.name[lang] || c.name.en])] },
     { key: 'date', type: 'toggle', label: 'opt_date', default: true },

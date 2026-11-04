@@ -1,11 +1,13 @@
 // Widget loader. A widget is web/widgets/<id>/widget.js exporting:
 //   { zones: ['login','side'], public?: true, source?: '/api/..' | (ctx) => Promise,
-//     every?: seconds, css?: true, render(data, ctx) -> html, after?(el, data, ctx),
+//     every?: seconds, render(data, ctx) -> html, after?(el, data, ctx),
 //     options?: [ { key, type, label, default, ... } ],
 //     i18n: { uk: { title: '…', … }, en: { title: '…', … } } }
 // Inside render, ctx.t('key') reads the widget's own strings first, then the global dictionary,
 // and ctx.opts holds the user's options merged over the defaults.
 // `public` widgets may appear on the login screen (before anyone has logged in).
+// How a widget looks is a design, not part of the widget: designs/widgets/<id>.css (or your own
+// in /etc/pve-homelab/designs/widgets/<id>.css), loaded when it exists.
 //
 // Option types (label/hint/choice labels are keys of the widget's own i18n):
 //   toggle                         → true/false
@@ -29,13 +31,14 @@ const wt = (id) => (key, vars) => {
 const registry = {};
 const timers = {};
 
-export async function load(ids) {
+// `styles`: the widgets that have a look in the designs folders (designs/widgets/<id>.css).
+export async function load(ids, styles = []) {
   await Promise.all(ids.map(async (id) => {
     try {
       const mod = (await import(`/widgets/${id}/widget.js`)).default;
       extend(`w.${id}.`, mod.i18n);
       registry[id] = { id, zones: ['side'], options: [], ...mod, t: wt(id), get title() { return wt(id)('title'); } };
-      if (mod.css) {
+      if (styles.includes(id)) {
         const l = document.createElement('link');
         l.rel = 'stylesheet'; l.href = `/widgets/${id}/widget.css`;
         document.head.appendChild(l);

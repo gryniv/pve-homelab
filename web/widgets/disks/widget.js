@@ -1,7 +1,6 @@
 // Disk health (SMART) and ZFS pools of the node.
 export default {
   zones: ['side'],
-  css: true,
   source: '/api/disks',
   every: 600,
   options: [

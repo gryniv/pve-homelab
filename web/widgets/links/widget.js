@@ -1,7 +1,6 @@
 // Your own bookmarks, opened as tabs next to the menu like the web services.
 export default {
   zones: ['side'],
-  css: true,
   options: [
     { key: 'links', type: 'list', label: 'opt_links', hint: 'opt_links_hint', default: 'Proxmox Docs | https://pve.proxmox.com/pve-docs/', placeholder: 'GitHub | https://github.com' },
   ],

@@ -143,7 +143,7 @@ update:
 
 ## Як розширювати
 
-**Віджет** — це папка `web/widgets/<id>/` з файлом `widget.js` (і за бажанням `widget.css`):
+**Віджет** — це папка `web/widgets/<id>/` з файлом `widget.js` (його вигляд — окремий дизайн, `designs/widgets/<id>.css`):
 
 ```js
 export default {
@@ -161,15 +161,19 @@ export default {
 
 Після `install.sh` віджет з'явиться в меню «Налаштування → Панель» або «Екран входу» → «Додати».
 
-Теми, фони, годинники й шрифти працюють однаково: **один файл = один модуль**. Бекенд сам знаходить файли в теці, а назву й решту метаданих бере з першого коментаря файлу (`@name.uk …`, `@name.en …`, `@desc.uk …`, `@order 10`). Після `install.sh` новий модуль з'являється в «Налаштування → Вигляд» із живим прев'ю.
+**Дизайни** (теми, фони, годинники, шрифти й вигляд віджетів) лежать окремо від програми, у теці `designs/`, і працюють однаково: **один файл = один дизайн**. Бекенд сам знаходить файли, а назву й решту метаданих бере з першого коментаря файлу, по одному `@ключу` на рядок (`@name.uk …`, `@name.en …`, `@desc.uk …`, `@order 10`). Новий дизайн з'являється в «Налаштування → Вигляд» із живим прев'ю.
 
-**Тема**: `web/themes/<id>.css`, лише змінні (`--acc`, `--acc2`, `--glass`, `--solid`, `--display`, `--lf`…) для `.A[data-skin="<id>"],.A [data-skin="<id>"]`.
+Свої дизайни клади в `/etc/pve-homelab/designs/<вид>/` на хості: оновлення цю теку не чіпають, а файл із тим самим id, що й вбудований дизайн, замінює його.
 
-**Фон / заставка**: `web/backgrounds/<id>.css`. `@group scape` — пейзаж (сонце, місяць, зорі, хмари, туман і сніг рушій малює сам), `@group flat` — простий фон (отримує лише погодну вуаль). `@tod night` закріплює певну пору доби. Малюєш сам `.bgx[data-k="<id>"]` і потрібні шари `.l1`…`.l4`, кольори береш із палітри `--sky1 --sky2 --sky3 --far --mid --ink` (вона вже враховує тему й пору доби). Під погоду чи пору доби підлаштовуєшся через `.bgx[data-k="<id>"][data-wx="snow"]` або `[data-tod="night"]`. Приклад: `web/backgrounds/mountains.css`.
+**Тема**: `designs/themes/<id>.css`, лише змінні (`--acc`, `--acc2`, `--glass`, `--solid`, `--display`, `--lf`…) для `.A[data-skin="<id>"],.A [data-skin="<id>"]`.
 
-**Годинник**: `web/clocks/<id>.js`, де `export const css` (стилі для `.clock[data-clockk="<id>"]`) і `export function render(el, t)`. Функція викликається щосекунди з `t = {h, m, s, text, date}` і має змінювати лише те, що змінилось. Приклад: `web/clocks/neon.js`.
+**Фон / заставка**: `designs/backgrounds/<id>.css`. `@group scape` — пейзаж (сонце, місяць, зорі, хмари, туман і сніг рушій малює сам), `@group flat` — простий фон (отримує лише погодну вуаль). `@tod night` закріплює певну пору доби. Малюєш сам `.bgx[data-k="<id>"]` і потрібні шари `.l1`…`.l4`, кольори береш із палітри `--sky1 --sky2 --sky3 --far --mid --ink` (вона вже враховує тему й пору доби). Під погоду чи пору доби підлаштовуєшся через `.bgx[data-k="<id>"][data-wx="snow"]` або `[data-tod="night"]`. Приклад: `designs/backgrounds/mountains.css`.
 
-**Шрифт**: `web/fonts/<id>.css` з `@family "Назва", sans-serif` у заголовку й `@import` вебшрифту. Завантажується лише тоді, коли його вибрано або відкрито прев'ю.
+**Годинник**: `designs/clocks/<id>.js`, де `export const css` (стилі для `.clock[data-clockk="<id>"]`) і `export function render(el, t)`. Функція викликається щосекунди з `t = {h, m, s, text, date}` і має змінювати лише те, що змінилось. Приклад: `designs/clocks/neon.js`.
+
+**Шрифт**: `designs/fonts/<id>.css` з `@family "Назва", sans-serif` у заголовку й `@import` вебшрифту. Завантажується лише тоді, коли його вибрано або відкрито прев'ю.
+
+**Вигляд віджета**: `designs/widgets/<id>.css`, стилі для `.A .w[data-w="<id>"]`. Логіка віджета лишається в `web/widgets/<id>/`.
 
 **Мова** — це один файл `web/i18n/<code>.json` з тими самими ключами, що в `en.json`, і полем `"_name"`. Переклади віджетів лежать у їхніх `i18n`, повідомлення бекенда в `backend/pvehomelab/i18n.py`, панель сервісів у `kiosk/ext/content.js`.
 
@@ -178,7 +182,9 @@ export default {
 ```
 backend/pvehomelab/   aiohttp: API Proxmox (квиток користувача), стан хоста, відеокарти, DDC,
                    Caddy, погода, запуск систем, проксі noVNC
-web/               інтерфейс без збирання: core/, widgets/, themes/, i18n/, vendor/novnc
+web/               інтерфейс без збирання: core/, widgets/, i18n/, vendor/novnc
+designs/           вигляд окремо від програми: themes/, backgrounds/, clocks/, fonts/, widgets/
+                   (стилі віджетів); свої — в /etc/pve-homelab/designs/
 kiosk/             kiosk.sh (cage + Chromium на відеокарті місця), розширення вкладок і панелі,
                    політика Chromium (системний DNS)
 systemd/           pve-homelab.service, pve-homelab-kiosk@.service, pve-homelab-update.{service,timer}

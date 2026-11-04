@@ -11,7 +11,7 @@ from urllib.parse import quote
 import aiohttp
 from aiohttp import web
 
-from . import caddy, config, discover, errlog, gpus as G, i18n, icons, prefs, update, weather, wol
+from . import caddy, config, designs, discover, errlog, gpus as G, i18n, icons, prefs, update, weather, wol
 from .ddc import DDC
 from .host import HostStats
 from .launch import Launcher
@@ -145,30 +145,6 @@ def list_dir_modules(sub, pattern):
                   for p in glob.glob(os.path.join(base, pattern)))
 
 
-def catalog(sub, ext):
-    """Drop-in modules: every web/<sub>/<id>.<ext> is one item. Its metadata lives in the
-    header comment: @name.uk Сутінки / @name.en Dusk / @desc.uk … / @group … / @order 10 …
-    (themes, backgrounds, clocks, fonts all work this way, so adding one is adding a file)."""
-    out = []
-    for path in glob.glob(os.path.join(config.WEB_DIR, sub, "*." + ext)):
-        with open(path, encoding="utf-8") as f:
-            m = re.search(r"/\*(.*?)\*/", f.read(4000), re.S)
-        mid = os.path.splitext(os.path.basename(path))[0]
-        meta = {"id": mid, "name": {}, "desc": {}}
-        for key, code, val in re.findall(r"@(\w+)(?:\.(\w+))?[ \t]+([^\n*]+)", m.group(1) if m else ""):
-            if key in ("name", "desc"):
-                meta[key][code or "en"] = val.strip()
-            else:
-                meta[key] = val.strip()
-        meta["name"] = meta["name"] or {"en": mid}
-        out.append(meta)
-    return sorted(out, key=lambda m: (int(m.get("order", 50)), m["id"]))
-
-
-def themes():
-    return catalog("themes", "css")
-
-
 def languages():
     """Every web/i18n/<code>.json is a language; its "_name" is shown in the picker."""
     out = []
@@ -207,13 +183,42 @@ async def public(req):
         "weather": cfg["weather"],
         "saver_after_min": cfg["saver"]["after_min"],
         "lock_after_min": cfg["lock_after_min"],
-        "themes": themes(),
-        "backgrounds": catalog("backgrounds", "css"),
-        "clocks": catalog("clocks", "js"),
-        "fonts": catalog("fonts", "css"),
+        # looks come from the designs folders (built-in and yours), see designs.py
+        "themes": designs.catalog("themes"),
+        "backgrounds": designs.catalog("backgrounds"),
+        "clocks": designs.catalog("clocks"),
+        "fonts": designs.catalog("fonts"),
+        "widget_styles": [m["id"] for m in designs.catalog("widgets")],
         "login": prefs.load_login(),
         "widgets": list_dir_modules("widgets", "*/widget.js"),
     })
+
+
+# ---------------- design files ----------------
+# Same URLs as when they lived in web/: served from the designs folders, yours first.
+DESIGN_ID = r"{did:[a-z0-9][a-z0-9_-]{0,63}}"
+
+
+async def design_file(kind, did):
+    p = designs.path_of(kind, did)
+    if not p:
+        raise web.HTTPNotFound()
+    return web.FileResponse(p)
+
+
+@routes.get("/{kind:themes|backgrounds|fonts}/" + DESIGN_ID + ".css")
+async def design_css(req):
+    return await design_file(req.match_info["kind"], req.match_info["did"])
+
+
+@routes.get("/clocks/" + DESIGN_ID + ".js")
+async def design_clock(req):
+    return await design_file("clocks", req.match_info["did"])
+
+
+@routes.get("/widgets/" + DESIGN_ID + "/widget.css")
+async def design_widget(req):
+    return await design_file("widgets", req.match_info["did"])
 
 
 @routes.get("/api/weather")

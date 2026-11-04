@@ -2,7 +2,6 @@
 export default {
   zones: ['side', 'login'],
   public: true,
-  css: true,
   every: 600,
   options: [
     { key: 'title', type: 'text', label: 'opt_title', default: '', placeholder: 'ph_title' },

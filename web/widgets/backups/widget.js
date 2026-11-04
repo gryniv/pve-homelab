@@ -1,7 +1,6 @@
 // When each guest was last backed up (local dumps and Proxmox Backup Server).
 export default {
   zones: ['side'],
-  css: true,
   source: (ctx) => ctx.app.api.get(`/api/backups?days=${encodeURIComponent(ctx.opts.days)}`),
   every: 900,
   options: [

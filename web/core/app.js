@@ -471,7 +471,7 @@ async function boot() {
   }
   S.init(app);
   tabs.watch(renderOpenTabs);
-  await W.load(st.pub.widgets);
+  await W.load(st.pub.widgets, st.pub.widget_styles || []);
   await useLang();
   tick(); setInterval(tick, 1000);
   weather().catch(() => {});

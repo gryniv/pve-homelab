@@ -24,7 +24,6 @@ export default {
   public: true,
   source: '/api/host',
   every: 5,
-  css: true,
   options: [
     { key: 'rings', type: 'checks', label: 'opt_rings', default: ['cpu', 'mem', 'temp'], choices: [['cpu', 'r_cpu'], ['mem', 'r_mem'], ['temp', 'r_temp']] },
     { key: 'graph', type: 'toggle', label: 'opt_graph', default: true },

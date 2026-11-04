@@ -3,7 +3,6 @@ export default {
   zones: ['login', 'side'],
   public: true,
   every: 900,
-  css: true,
   i18n: {
     uk: { title: 'Погода', wind: 'вітер {v} {u} · вологість {h}%', ms: 'м/с', mph: 'mph', configure: 'Налаштувати погоду',
       opt_days: 'Прогноз', d_auto: 'на екрані входу 3 дні, на панелі без нього', d_0: 'без прогнозу', d_3: '3 дні', d_4: '4 дні', opt_details: 'Вітер і вологість' },

@@ -293,16 +293,26 @@ By hand: `./update.sh` in the clone, or `PYTHONPATH=/opt/pve-homelab/backend pyt
 ## Extending it
 
 Everything visual is a **drop-in file**. The backend finds it, and its name comes from the file's
-first comment (`@name.en …`, `@name.uk …`, `@order 10`). After `install.sh` it shows up in the
+first comment, one `@key` per line (`@name.en …`, `@name.uk …`, `@order 10`). It shows up in the
 settings, with a live preview.
+
+**Designs** (how it looks) live apart from the program, in `designs/`. Your own go to
+`/etc/pve-homelab/designs/<kind>/` on the host: updates never touch that folder, and a file there
+with the same id as a built-in design replaces it.
+
+| Design | File | Contract |
+|---|---|---|
+| Theme | `designs/themes/<id>.css` | only tokens (`--acc`, `--acc2`, `--glass`, `--solid`, `--display`, `--lf` …) |
+| Background | `designs/backgrounds/<id>.css` | `@group scape\|flat`; paint `.bgx[data-k="<id>"]` and layers `.l1`–`.l4` from the `--sky1..3 --far --mid --ink` palette. The engine adds sun, moon, stars, clouds, fog and weather |
+| Clock | `designs/clocks/<id>.js` | `export const css` + `export function render(el, {h, m, s, text})`, called every second |
+| Font | `designs/fonts/<id>.css` | `@family "Name", sans-serif` in the header + an `@import` of the web font |
+| Widget look | `designs/widgets/<id>.css` | styles for `.A .w[data-w="<id>"]`; the widget's logic stays in `web/widgets/<id>/` |
+
+The program's own extension points:
 
 | Module | File | Contract |
 |---|---|---|
-| Widget | `web/widgets/<id>/widget.js` (+ `widget.css`) | `zones`, `public`, `source`, `every`, `options`, `render(data, ctx)`, `after(el, data, ctx)`, own `i18n` |
-| Theme | `web/themes/<id>.css` | only tokens (`--acc`, `--acc2`, `--glass`, `--solid`, `--display`, `--lf` …) |
-| Background | `web/backgrounds/<id>.css` | `@group scape\|flat`; paint `.bgx[data-k="<id>"]` and layers `.l1`–`.l4` from the `--sky1..3 --far --mid --ink` palette. The engine adds sun, moon, stars, clouds, fog and weather |
-| Clock | `web/clocks/<id>.js` | `export const css` + `export function render(el, {h, m, s, text})`, called every second |
-| Font | `web/fonts/<id>.css` | `@family "Name", sans-serif` in the header + an `@import` of the web font |
+| Widget | `web/widgets/<id>/widget.js` | `zones`, `public`, `source`, `every`, `options`, `render(data, ctx)`, `after(el, data, ctx)`, own `i18n` |
 | Language | `web/i18n/<code>.json` | the same keys as `en.json`, plus `"_name"` |
 
 A widget with settings looks like this:
@@ -326,8 +336,10 @@ export default {
 backend/pvehomelab/  aiohttp on 127.0.0.1:8900: Proxmox API with the user's ticket, host stats,
                      GPUs and DDC/CI, Caddy + port + notes discovery, weather, launcher,
                      noVNC relay, updater, error journal, demo world
-web/                 the UI, plain ES modules with no build step: core/, widgets/, themes/,
-                     backgrounds/, clocks/, fonts/, i18n/, vendor/novnc
+web/                 the UI, plain ES modules with no build step: core/, widgets/, i18n/,
+                     vendor/novnc
+designs/             how it looks, apart from the program: themes/, backgrounds/, clocks/,
+                     fonts/, widgets/ (widget styles); yours in /etc/pve-homelab/designs/
 kiosk/               kiosk.sh (cage + Chromium on the seat's GPU), an MV3 extension for service
                      tabs and the Alt+Q dock, Chromium policy (system DNS)
 systemd/             pve-homelab.service, pve-homelab-kiosk@.service, pve-homelab-update.{service,timer}

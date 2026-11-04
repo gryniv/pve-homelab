@@ -2,7 +2,6 @@
 export default {
   zones: ['side', 'login'],
   public: true,
-  css: true,
   every: 300,
   options: [
     { key: 'weekstart', type: 'select', label: 'opt_week', default: '1', choices: [['1', 'mon'], ['0', 'sun']] },

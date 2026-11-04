@@ -71,13 +71,14 @@ fi
 usermod -aG video,render,input pvehomelab
 
 echo "==> Program files -> /opt/pve-homelab"
-install -d /etc/pve-homelab/users /var/cache/pve-homelab
+# /etc/pve-homelab/designs holds your own looks (themes, backgrounds, clocks, fonts, widget styles): kept by updates.
+install -d /etc/pve-homelab/users /etc/pve-homelab/designs /var/cache/pve-homelab
 # The new version is assembled next to the running one and swapped in with two renames; the old
 # one stays as /opt/pve-homelab.prev so the updater can put it back if the new one doesn't start.
 NEW=/opt/pve-homelab.new
 rm -rf "$NEW"
 install -d "$NEW"
-cp -r backend web kiosk "$NEW"/
+cp -r backend web designs kiosk "$NEW"/
 [ -f VERSION ] && cp VERSION "$NEW"/
 # What is installed and where it came from, for the updater (see backend/pvehomelab/update.py).
 COMMIT="${PVEHOMELAB_COMMIT:-$(git rev-parse HEAD 2>/dev/null || true)}"

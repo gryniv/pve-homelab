@@ -1,7 +1,6 @@
 // Quick host actions. Proxmox itself checks the permission (Sys.PowerMgmt).
 export default {
   zones: ['side'],
-  css: true,
   options: [
     { key: 'buttons', type: 'checks', label: 'opt_buttons', default: ['pve', 'saver', 'reboot', 'shutdown'], choices: [['pve', 'pve'], ['saver', 'saver'], ['reboot', 'reboot'], ['shutdown', 'shutdown']] },
   ],

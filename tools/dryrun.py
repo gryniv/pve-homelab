@@ -16,6 +16,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 # Per-user settings written during a dry run go to /tmp, never to /etc/pve-homelab/users.
 os.environ["PVEHOMELAB_STATE"] = "/tmp/pve-homelab-dryrun"
 os.environ.setdefault("PVEHOMELAB_WEB", os.path.join(HERE, "..", "web"))
+os.environ.setdefault("PVEHOMELAB_DESIGNS", os.path.join(HERE, "..", "designs"))
 for p in (os.path.join(HERE, "..", "backend"), "/opt/pve-homelab/backend"):
     if os.path.isdir(p):
         sys.path.insert(0, p)

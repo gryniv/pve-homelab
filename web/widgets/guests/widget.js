@@ -1,7 +1,6 @@
 // VMs and containers with their state and load.
 export default {
   zones: ['side'],
-  css: true,
   source: '/api/guests',
   every: 10,
   options: [

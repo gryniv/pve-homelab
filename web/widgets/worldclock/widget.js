@@ -2,7 +2,6 @@
 export default {
   zones: ['side', 'login'],
   public: true,
-  css: true,
   every: 15,
   options: [
     { key: 'zones', type: 'list', label: 'opt_zones', hint: 'opt_zones_hint', default: 'Europe/London\nAmerica/New_York\nAsia/Tokyo', placeholder: 'Europe/Warsaw\nЛісабон=Europe/Lisbon' },

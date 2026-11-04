@@ -1,5 +1,5 @@
 // Backgrounds: the SVG landscape scene (index.html .land, built in) plus drop-in CSS ones
-// from web/backgrounds/<id>.css, listed by the backend (/api/public → backgrounds).
+// from designs/backgrounds/<id>.css, listed by the backend (/api/public → backgrounds).
 // layer() is shared by the page and the settings previews ("mini monitors").
 import { esc, t } from './ui.js';
 import * as clocks from './clocks.js';

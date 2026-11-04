@@ -1,7 +1,6 @@
 // Package updates waiting on the Proxmox node (the list Proxmox refreshes daily).
 export default {
   zones: ['side'],
-  css: true,
   source: '/api/node-updates',
   every: 1800,
   options: [

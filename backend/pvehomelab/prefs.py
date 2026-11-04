@@ -12,8 +12,8 @@ DEFAULT = {
     "lang": "",                   # empty = the screen's default language
     "skin": "dusk",
     "background": "scene",        # scene | still | mountains | sea | dunes | city | hills | night | gradient | aurora | dots | grid | solid | black
-    "clock": "digital",           # web/clocks/<id>.js
-    "fonts": {"ui": "", "display": ""},     # web/fonts/<id>.css; empty = the theme's font
+    "clock": "digital",           # designs/clocks/<id>.js
+    "fonts": {"ui": "", "display": ""},     # designs/fonts/<id>.css; empty = the theme's font
     "weather_react": True,
     "sky_by_time": True,
     "layout": {"login": ["weather", "host"], "side": ["host", "gpus"]},
