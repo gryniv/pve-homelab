@@ -254,7 +254,8 @@ async def alerts(r):
     p = r.p
     await r.open()
     n = await p.until("const b = document.querySelector('#alertBell'); return !b.hidden && b.querySelector('.n').textContent;", 6)
-    r.check("the bell counts what needs a look", n == "1", n)
+    # stale backups, and Nextcloud's site: its container is stopped
+    r.check("the bell counts what needs a look", n == "2", n)
     await p.js("const b = document.querySelector('#alertBell'); b.focus(); b.click();", 0.4)
     items = await p.js("return [...document.querySelectorAll('#alertsList li')].map(l => l.textContent);")
     r.check("its dialog lists the stale backups", items and "backup" in items[0], items)

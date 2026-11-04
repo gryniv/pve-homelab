@@ -16,7 +16,7 @@ async function backendLost() {
   if (banner) banner.hidden = false;
   for (;;) {
     await new Promise((r) => setTimeout(r, 3000));
-    try { if ((await fetch('/api/host?seat=' + SEAT, { cache: 'no-store' })).ok) return location.reload(); } catch {}
+    try { if ((await fetch('/api/health', { cache: 'no-store' })).ok) return location.reload(); } catch {}
   }
 }
 

@@ -123,3 +123,51 @@ async def test_only_real_gpus_are_offered_from_a_browser(monkeypatch):
     launcher = L.Launcher({"cfg": {"seats": {}}, "running": running})
     opts = await launcher._remote_options({"vmid": 102, "vga": "std", "gpus": ["0000:02:00.0", "0000:79:00.6"]})
     assert [(o["mode"], o["pci"]) for o in opts] == [("console", "console"), ("remote", "0000:02:00.0")]
+
+
+# ---------- what a browser elsewhere learns before signing in (web.sign_in) ----------
+async def test_sign_in_screen_elsewhere_is_minimal_by_default(client, via):
+    via(PROXY)
+    pub = await (await client.get("/api/public", headers=SITE)).json()
+    assert pub["users"] == [] and pub["host"] is None and pub["guests"] is None
+    assert pub["stats"] is False and pub["version"] == "" and pub["ip"] == "" and pub["node"]
+    assert (await client.get("/api/host", headers=SITE)).status == 401
+
+
+async def test_sign_in_levels(client, via, monkeypatch):
+    via(PROXY)
+    web_cfg = client.server.app["cfg"]["web"]
+    monkeypatch.setitem(web_cfg, "sign_in", "users")
+    pub = await (await client.get("/api/public", headers=SITE)).json()
+    assert pub["users"] and pub["host"] is None and pub["stats"] is False
+    monkeypatch.setitem(web_cfg, "sign_in", "full")
+    pub = await (await client.get("/api/public", headers=SITE)).json()
+    assert pub["users"] and pub["host"] and pub["guests"] and pub["stats"] is True
+    assert (await client.get("/api/host", headers=SITE)).status == 200
+    monkeypatch.setitem(web_cfg, "sign_in", "everything")      # unknown: the safe one
+    assert (await (await client.get("/api/public", headers=SITE)).json())["users"] == []
+
+
+async def test_signed_in_elsewhere_sees_their_own_figures(client, via):
+    via(PROXY)
+    await client.post("/api/login", json={"user": "guest@pve", "password": "x"}, headers=SITE)
+    pub = await (await client.get("/api/public", headers=SITE)).json()
+    assert pub["stats"] is True and pub["users"]
+    assert pub["guests"]["running"] + pub["guests"]["stopped"] == 3     # the three guest@pve may see
+    assert (await client.get("/api/host", headers=SITE)).status == 200
+
+
+async def test_the_screen_on_the_host_shows_everything(client):
+    pub = await (await client.get("/api/public", headers={"X-Seat": "igpu"})).json()
+    assert pub["users"] and pub["host"] and pub["stats"] is True and pub["version"]
+    assert (await client.get("/api/host")).status == 200
+
+
+async def test_weather_for_a_stranger_is_the_configured_city(client, via):
+    via(PROXY)
+    city = client.server.app["cfg"]["weather"]["city"]
+    w = await (await client.get("/api/weather?city=Lisbon", headers=SITE)).json()
+    assert w["city"] == city
+    await client.post("/api/login", json={"user": "ihor@pve", "password": "x"}, headers=SITE)
+    w = await (await client.get("/api/weather?city=Lisbon", headers=SITE)).json()
+    assert w["city"] == "Lisbon"

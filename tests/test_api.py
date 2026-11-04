@@ -158,7 +158,9 @@ def test_summarize_backups_dedupes_volumes():
 async def test_alerts_from_demo(client):
     await login(client)
     a = await (await client.get("/api/alerts")).json()
-    assert [x["kind"] for x in a["alerts"]] == ["backup"]      # some demo guests were never backed up
+    # some demo guests were never backed up; Nextcloud's container is stopped, so its site is down
+    assert [x["kind"] for x in a["alerts"]] == ["backup", "service"]
+    assert {"kind": "service", "name": "Nextcloud", "guest": "nextcloud", "level": "warn"} in a["alerts"]
     # a guest serving a web UI goes down -> its service is reported
     assert (await client.post("/api/guests/lxc/201/shutdown")).status == 200
     a = await (await client.get("/api/alerts")).json()
@@ -297,3 +299,38 @@ async def test_guest_info_hidden_guest_is_404(client):
     await login(client, "guest@pve")
     hidden = next(v for v in demo.WORLD if v not in demo.GUEST_SEES)
     assert (await client.get(f"/api/guests/{demo.WORLD[hidden]['type']}/{hidden}/info")).status == 404
+
+
+# ---------- each person sees their own: services, GPUs, launch jobs ----------
+async def test_services_of_guests_you_cannot_see_are_not_listed(client):
+    await login(client, "guest@pve")
+    svcs = await (await client.get("/api/services")).json()
+    vmids = {s["guest"]["vmid"] for s in svcs if s["guest"] and s["guest"]["type"] != "node"}
+    assert vmids <= demo.GUEST_SEES
+    assert not any(s["name"] == "Nextcloud" for s in svcs)     # CT 203, stopped and not theirs
+    assert any(s["guest"] is None for s in svcs)               # links stay
+    await login(client)
+    assert any(s["name"] == "Nextcloud" for s in await (await client.get("/api/services")).json())
+
+
+async def test_gpus_do_not_name_vms_you_cannot_see(client):
+    demo.WORLD[102]["status"] = "running"
+    client.server.app["resources"].invalidate()
+    await login(client, "guest@pve")
+    rtx = next(g for g in await (await client.get("/api/gpus")).json() if g["pci"] == "0000:01:00.0")
+    assert rtx["running_vm"] == 0 and 102 not in rtx["assigned_vms"]
+    await login(client)
+    rtx = next(g for g in await (await client.get("/api/gpus")).json() if g["pci"] == "0000:01:00.0")
+    assert rtx["running_vm"] == 102
+
+
+async def test_a_launch_job_is_its_starters(client):
+    await login(client)
+    systems = await (await client.get("/api/systems", headers={"X-Seat": "igpu"})).json()
+    vm = next(s for s in systems if s["vmid"] == 100)
+    gpu = next(o["pci"] for o in vm["options"] if o["mode"] == "passthrough")
+    r = await client.post("/api/launch", json={"vmid": 100, "gpu": gpu}, headers={"X-Seat": "igpu"})
+    jid = (await r.json())["id"]
+    assert (await client.get(f"/api/jobs/{jid}")).status == 200
+    await login(client, "guest@pve")
+    assert (await client.get(f"/api/jobs/{jid}")).status == 404

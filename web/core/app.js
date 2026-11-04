@@ -205,6 +205,14 @@ function go(screen) {
 }
 
 /* ---------------- login ---------------- */
+// What /api/public says about the host; a browser elsewhere gets less before signing in.
+function paintPub() {
+  const p = st.pub;
+  $$('[data-hostline]').forEach((x) => (x.textContent = [p.node, p.version && `Proxmox VE ${p.version}`, p.ip].filter(Boolean).join(' · ')));
+  $$('[data-node]').forEach((x) => (x.textContent = p.node));
+  W.setHostFigures(p.stats);
+}
+
 // Per seat; the seat is known once /api/public has answered (setSeat), hence a function.
 const lastKey = () => 'pvehomelab.last.' + SEAT;
 const lastUser = () => { try { return localStorage.getItem(lastKey()) || ''; } catch { return ''; } };
@@ -225,6 +233,8 @@ function renderUsers() {
   if (st.selUser == null && L.remember_last !== false && users.some((u) => u.id === lastUser())) st.selUser = lastUser();
   if (!st.selUser && users.length) st.selUser = users[0].id;
   if (st.selUser === '' && L.other_user === false) st.selUser = users[0]?.id ?? '';
+  // No people listed (a browser elsewhere): the name typed last time is the likely one.
+  if (!users.length && !$('#otherUser').value && L.remember_last !== false) $('#otherUser').value = lastUser();
   $('#users').innerHTML = users.map((u, i) => {
     const av = avatar(u, u.avatar);
     return `<button class="user${u.id === st.selUser ? ' sel' : ''}" style="--i:${i + 4}" type="button" data-user="${esc(u.id)}">
@@ -269,6 +279,8 @@ $('#loginForm').addEventListener('submit', async (e) => {
 });
 
 async function enter(userid, prefs, admin = false) {
+  // Signed in, /api/public tells more (the people, host figures, versions) than before.
+  try { st.pub = await api.get('/api/public'); paintPub(); } catch {}
   const u = st.pub.users.find((x) => x.id === userid) || { id: userid, name: userid.split('@')[0] };
   st.me = { ...u };
   st.prefs = prefs;
@@ -320,7 +332,7 @@ async function logout() {
   guests.reset();
   st.admin = false;
   st.me = null; st.prefs = null;
-  try { st.pub = await api.get('/api/public'); clocks.init(st.pub.clocks); } catch {}
+  try { st.pub = await api.get('/api/public'); clocks.init(st.pub.clocks); paintPub(); } catch {}
   await useLang();
   renderUsers();
   go('login');
@@ -513,8 +525,7 @@ async function boot() {
   setSeat(st.pub.seat.id);
   document.body.classList.toggle('remote', !!st.pub.seat.remote);
   paintSeat();
-  $$('[data-hostline]').forEach((x) => (x.textContent = `${st.pub.node} · Proxmox VE ${st.pub.version} · ${st.pub.ip}`));
-  $$('[data-node]').forEach((x) => (x.textContent = st.pub.node));
+  paintPub();
   try { about = await (await fetch('/about.json', { cache: 'no-cache' })).json(); } catch {}
   if (st.pub.demo) {
     document.body.classList.add('demo');

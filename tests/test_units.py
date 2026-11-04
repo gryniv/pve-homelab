@@ -302,3 +302,18 @@ def test_config_cli_for_the_kiosk(tmp_path, monkeypatch, capsys):
     assert config._cli(["seats"]) == 0
     assert capsys.readouterr().out.split() == ["igpu", "7"]
     assert config._cli(["nonsense"]) == 2
+
+
+# The demo replaces caddy.static_ips once an app is made: keep the real one from collection time.
+REAL_STATIC_IPS = caddy.static_ips
+
+
+def test_static_ips_from_guest_configs():
+    confs = {"/etc/pve/lxc/203.conf": "hostname: cloud\nnet0: name=eth0,bridge=vmbr0,ip=10.0.0.203/24,gw=10.0.0.1\n"
+                                      "[snap1]\nnet0: name=eth0,ip=10.9.9.9/24\n",
+             "/etc/pve/qemu-server/110.conf": "ipconfig0: ip=10.0.0.110/24,gw=10.0.0.1\nnet0: virtio=AA:BB,bridge=vmbr0\n",
+             "/etc/pve/lxc/204.conf": "net0: name=eth0,ip=dhcp\n"}
+    res = [{"type": "lxc", "vmid": 203, "name": "cloud"}, {"type": "qemu", "vmid": 110, "name": "db"},
+           {"type": "lxc", "vmid": 204, "name": "vault"}, {"type": "node", "node": "pve"}]
+    ips = REAL_STATIC_IPS(res, read=lambda p: confs.get(p, ""))
+    assert ips == {"10.0.0.203": ("lxc", 203, "cloud"), "10.0.0.110": ("qemu", 110, "db")}

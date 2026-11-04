@@ -1,7 +1,7 @@
 // Host network: traffic on the default-route interface and load.
 export default {
   zones: ['side', 'login'],
-  public: true,
+  public: 'local',   // host figures: not on a browser elsewhere before sign-in
   options: [
     { key: 'show', type: 'checks', label: 'opt_show', default: ['traffic', 'address', 'load'], choices: [['traffic', 'traffic'], ['address', 'address'], ['load', 'load']] },
   ],

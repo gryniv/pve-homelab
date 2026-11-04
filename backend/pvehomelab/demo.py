@@ -288,6 +288,10 @@ async def demo_routes(cfg):
            [{"key": "pve", "host": "pve.home.example", "upstream": f"{A._host_ip()}:8006"}]
 
 
+def demo_static_ips(res, read=None):
+    return {g["ip"]: (g["type"], vmid, g["name"]) for vmid, g in WORLD.items() if g.get("ip")}
+
+
 async def demo_ips(node, res):
     return {g["ip"]: (g["type"], vmid, g["name"]) for vmid, g in WORLD.items() if g.get("ip") and g["status"] == "running"}
 
@@ -523,6 +527,7 @@ def make_app():
     G.pretty_name = lambda pci, _n=GPUS: asyncio.sleep(0, (_n.get(pci) or {}).get("name", pci))
     caddy.routes = demo_routes
     caddy.guest_ips = demo_ips
+    caddy.static_ips = demo_static_ips
     discover.discover = demo_discover
     L.run = demo_run
     G.pci_mappings = lambda: MAPPINGS

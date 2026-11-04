@@ -1,6 +1,6 @@
 // Widget loader. A widget is web/widgets/<id>/widget.js (yours: /etc/pve-homelab/widgets/<id>/)
 // exporting:
-//   { zones: ['login','side'], public?: true, source?: '/api/..' | (ctx) => Promise,
+//   { zones: ['login','side'], public?: true | 'local', source?: '/api/..' | (ctx) => Promise,
 //     every?: seconds, render(data, ctx) -> html, after?(el, data, ctx),
 //     options?: [ { key, type, label, default, ... } ] }
 // Its strings live next to it, one file per language: <id>/i18n/en.json, <id>/i18n/uk.json …
@@ -8,7 +8,8 @@
 // block in the module still works; the files win.
 // Inside render, ctx.t('key') reads the widget's own strings first, then the global dictionary,
 // and ctx.opts holds the user's options merged over the defaults.
-// `public` widgets may appear on the login screen (before anyone has logged in).
+// `public` widgets may appear on the login screen (before anyone has logged in); 'local' ones
+// only where host figures may be shown before sign-in (see allowed).
 // How a widget looks is a design, not part of the widget: designs/widgets/<id>.css (or your own
 // in /etc/pve-homelab/designs/widgets/<id>.css), loaded when it exists.
 //
@@ -60,8 +61,15 @@ export async function load(ids, styles = []) {
 
 export const all = () => registry;
 
+// public: true  -> may show on the sign-in screen anywhere;
+// public: 'local' -> only where the sign-in screen may show host figures (the screens on the host,
+//                    or web.sign_in: full for a browser elsewhere), which /api/public says as `stats`.
+let hostFigures = true;
+export function setHostFigures(on) { hostFigures = on !== false; }
+
 export function allowed(zone) {
-  return Object.values(registry).filter((w) => w.zones.includes(zone) && (zone !== 'login' || w.public));
+  return Object.values(registry).filter((w) => w.zones.includes(zone)
+    && (zone !== 'login' || w.public === true || (w.public === 'local' && hostFigures)));
 }
 
 // The user's options for widget `id` over its defaults ("list" options become arrays of lines).

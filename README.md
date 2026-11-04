@@ -291,7 +291,10 @@ After installing:
    and proxy a site to it in Caddy (`reverse_proxy 192.168.8.146:8900`). Everyone else beyond
    loopback gets 403. A browser that comes through the proxy is the **web seat**: it never switches
    a monitor or hands over a GPU; a system opens right in the browser (noVNC) or starts on the GPU
-   it already has. `web: {enabled: false}` turns this off.
+   it already has. Before signing in it shows a name field, the weather and clocks: no people, no
+   host figures (`web.sign_in: users` lists the people, `full` shows everything, as on the host).
+   Signed in, everyone sees only the guests, services and GPUs their Proxmox rights allow.
+   `web: {enabled: false}` turns this off.
 5. **Wake-on-LAN.** Machines the *Wake up* widget can switch on go under `wol:`; whoever presses
    the button needs `Sys.PowerMgmt` on the node:
    ```yaml

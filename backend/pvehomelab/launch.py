@@ -96,8 +96,9 @@ def host_uptime():
 
 
 class Job:
-    def __init__(self, steps):
+    def __init__(self, steps, owner=None):
         self.id = next(_job_ids)
+        self.owner = owner
         self.created = time.time()
         self.steps = [{"text": s, "state": "todo"} for s in steps]
         self.error = None
@@ -156,8 +157,19 @@ class Launcher:
 
     _addr = staticmethod(pci_addr)
 
-    async def options(self, seat_id, vm):
-        """GPUs the user could start `vm` on from this seat."""
+    async def options(self, seat_id, vm, seen=None):
+        """GPUs the user could start `vm` on from this seat. `seen`: the VMs this user may see;
+        a GPU busy with any other VM says so without naming it."""
+        opts = await self._options(seat_id, vm)
+        if seen is not None:
+            for o in opts:
+                if o["busy_vm"] and o["busy_vm"] not in seen:
+                    o["busy_vm"] = 0
+                    if o["disabled"]:
+                        o["disabled"] = _("busy_other")
+        return opts
+
+    async def _options(self, seat_id, vm):
         seat = self.cfg["seats"][seat_id]
         if not seat.get("gpu"):
             return await self._remote_options(vm)
@@ -243,8 +255,8 @@ class Launcher:
         return self.start_job(go, steps)
 
     # ---------- actions ----------
-    def start_job(self, coro_fn, steps):
-        job = Job(steps)
+    def start_job(self, coro_fn, steps, owner=None):
+        job = Job(steps, owner)
         self.jobs[job.id] = job
 
         async def runner():
@@ -259,6 +271,12 @@ class Launcher:
         return job
 
     async def launch(self, t, seat_id, vmid, gpu):
+        """Start (or show, or switch to) `vmid` on `gpu`; the job is its starter's alone to follow."""
+        job = await self._launch(t, seat_id, vmid, gpu)
+        job.owner = t.user
+        return job
+
+    async def _launch(self, t, seat_id, vmid, gpu):
         pve, node = self.app["pve"], self.cfg["node"]
         vm = next((s for s in await self.systems(t) if s["vmid"] == vmid), None)
         if not vm:

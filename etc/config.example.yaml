@@ -11,6 +11,8 @@ listen: 127.0.0.1:8900       # 0.0.0.0:8900 only for the reverse proxy below (we
 web:
   enabled: true
   allow_from: []              # e.g. [192.168.8.150] (the Caddy container) or [10.0.0.0/24]
+  sign_in: minimal            # what its sign-in screen shows before anyone signs in: minimal (a name field,
+                              # weather and clocks), users (the people too) or full (host figures, as on the host)
 allowed_hosts: []             # extra Host names for browsers on this machine; "*" turns the check off
 node: ""                      # empty = this host's name
 language: en                  # default UI language (uk, en); every user can pick their own

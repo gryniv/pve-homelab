@@ -22,7 +22,7 @@ DEFAULTS = {
     # The menu in a browser elsewhere, through a reverse proxy (e.g. Caddy on home.example.com).
     # Only loopback and these addresses or networks may talk to the backend; whatever does not
     # come from loopback is the "web" seat, which never touches a monitor or a GPU.
-    "web": {"enabled": True, "allow_from": []},
+    "web": {"enabled": True, "allow_from": [], "sign_in": "minimal"},
     "node": "",
     "language": "en",
     "systems_tag": "seat",

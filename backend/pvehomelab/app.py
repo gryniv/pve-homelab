@@ -89,6 +89,39 @@ async def session(req):
     return s
 
 
+async def maybe_session(req):
+    """The session if this browser is signed in, else None (for pages that work either way)."""
+    try:
+        return await session(req)
+    except web.HTTPUnauthorized:
+        return None
+
+
+async def require(req, s, priv, path="/"):
+    """The signed-in user holds `priv` on `path` in Proxmox, or the request ends with 403."""
+    if not await req.app["pve"].can(s["ticket"], path, priv):
+        raise PVEError(403, i18n._("forbidden"))
+
+
+SIGN_IN_LEVELS = ("minimal", "users", "full")
+
+
+def sign_in_level(req):
+    """How much the sign-in screen tells a browser that hasn't signed in. The screens plugged into
+    the host show everything; a browser elsewhere gets web.sign_in: "minimal" (no people, no host
+    figures), "users" (the people too) or "full" (all of it, as on the host)."""
+    if not is_remote(req):
+        return "full"
+    level = (req.app["cfg"].get("web") or {}).get("sign_in", "minimal")
+    return level if level in SIGN_IN_LEVELS else "minimal"
+
+
+async def visible_guests(req, s):
+    """{(type, vmid): resource row} of the guests this user may see."""
+    rows = await req.app["pve"].get(s["ticket"], "/cluster/resources", type="vm") or []
+    return {(g["type"], g["vmid"]): g for g in rows}
+
+
 LOOPBACK = {"127.0.0.1", "localhost", "::1"}
 
 
@@ -214,20 +247,26 @@ def languages():
 async def public(req):
     app, cfg = req.app, req.app["cfg"]
     seat = seat_of(req)
-    res = await app["resources"].get()
-    guests = [g for g in res if not g.get("template")]
+    s = await maybe_session(req)
+    level = "full" if s else sign_in_level(req)
+    full = level == "full"
+    if s:   # signed in: the guests this person may see
+        guests = [g for g in (await visible_guests(req, s)).values() if not g.get("template")]
+    else:   # the screen plugged into the host (or web.sign_in: full): all of them
+        guests = [g for g in await app["resources"].get() if not g.get("template")] if full else []
     return web.json_response({
         "node": cfg["node"],
         "demo": app.get("demo", False),
         "app": {"version": update.installed()["version"], "repo": update.settings(cfg)["repo"]},
-        "version": app["pveversion"],
-        "ip": app["host_ip"],
+        "version": app["pveversion"] if full else "",
+        "ip": app["host_ip"] if full else "",
         "seat": {"id": seat, **cfg["seats"][seat],
                  "gpu_name": await G.pretty_name(cfg["seats"][seat]["gpu"]) if cfg["seats"][seat].get("gpu") else ""},
-        "host": app["stats"].snapshot(),
+        "stats": full,   # host figures before sign-in: the host and network widgets may show
+        "host": app["stats"].snapshot() if full else None,
         "guests": {"running": sum(g.get("status") == "running" for g in guests),
-                   "stopped": sum(g.get("status") != "running" for g in guests)},
-        "users": pve_users(app),
+                   "stopped": sum(g.get("status") != "running" for g in guests)} if full else None,
+        "users": pve_users(app) if level != "minimal" else [],
         "language": cfg["language"],
         "languages": languages(),
         "systems_tag": cfg["systems_tag"],
@@ -296,6 +335,8 @@ async def get_weather(req):
     cfg = req.app["cfg"]["weather"]
     city = (req.query.get("city") or cfg["city"])[:100]
     units = req.query.get("units") or cfg["units"]
+    if is_remote(req) and not await maybe_session(req):
+        city, units = cfg["city"], cfg["units"]   # a stranger's browser can't make us ask about any city
     if units not in ("c", "f"):
         units = "c"
     try:
@@ -313,6 +354,8 @@ async def health(req):
 
 @routes.get("/api/host")
 async def host(req):
+    if sign_in_level(req) != "full":
+        await session(req)
     return web.json_response(req.app["stats"].snapshot())
 
 
@@ -708,15 +751,18 @@ async def guest_action(req):
 async def services(req):
     s = await session(req)
     data = await req.app["services"].get()
-    visible = {(g["type"], g["vmid"]): g for g in await req.app["pve"].get(s["ticket"], "/cluster/resources", type="vm") or []}
+    visible = await visible_guests(req, s)
     out = []
     for svc in data:
         g = svc["guest"]
-        st = None
         if g and g["type"] == "node":
             st = "running"
-        elif g and (g["type"], g["vmid"]) in visible:
+        elif g:
+            if (g["type"], g["vmid"]) not in visible:
+                continue   # a service of a guest this person may not see is not theirs to see either
             st = visible[(g["type"], g["vmid"])].get("status")
+        else:
+            st = None      # a link, or something beyond this host
         out.append({**svc, "status": st})
     return web.json_response(out)
 
@@ -995,9 +1041,14 @@ async def wol_wake(req):
 
 @routes.get("/api/gpus")
 async def gpus(req):
-    await session(req)
+    s = await session(req)
     running = await req.app["running"]()
-    return web.json_response(await G.list_gpus(running))
+    seen = {vmid for (typ, vmid) in await visible_guests(req, s) if typ == "qemu"}
+    out = []
+    for g in await G.list_gpus(running):
+        out.append({**g, "assigned_vms": [v for v in g["assigned_vms"] if v in seen],
+                    "running_vm": g["running_vm"] if g["running_vm"] in seen else (0 if g["running_vm"] else None)})
+    return web.json_response(out)
 
 
 @routes.get("/api/systems")
@@ -1006,8 +1057,9 @@ async def systems(req):
     seat = seat_of(req)
     L = req.app["launcher"]
     out = []
+    seen = {vmid for (typ, vmid) in await visible_guests(req, s) if typ == "qemu"}
     for vm in await L.systems(s["ticket"]):
-        out.append({**vm, "options": await L.options(seat, vm)})
+        out.append({**vm, "options": await L.options(seat, vm, seen)})
     return web.json_response(out)
 
 
@@ -1027,10 +1079,10 @@ async def launch(req):
 
 @routes.get("/api/jobs/{id}")
 async def job(req):
-    await session(req)
+    s = await session(req)
     jid = req.match_info["id"]
     j = req.app["launcher"].jobs.get(int(jid)) if jid.isdigit() else None
-    if not j:
+    if not j or (j.owner and j.owner != s["user"]):
         raise web.HTTPNotFound()
     return web.json_response(j.as_dict())
 
@@ -1203,9 +1255,15 @@ async def on_startup(app):
     # Probing every guest takes a few seconds: refresh in the background every 5 minutes.
     app["discovered"] = Cached(find_services, 300, stale=True)
 
+    app["known_ips"] = {}
+
     async def build_services():
         res = await app["resources"].get()
-        ips = await caddy.guest_ips(cfg["node"], res)
+        live = await caddy.guest_ips(cfg["node"], res)
+        # A stopped guest has no live address, and its Caddy site would belong to nobody (and be
+        # shown to everyone): the address it last had, or a static one in its config, still says whose.
+        app["known_ips"].update(live)
+        ips = {**caddy.static_ips(res), **app["known_ips"], **live}
         listed = caddy.build(cfg, await caddy.routes(cfg), ips, app["host_ip"])
         try:
             found = await app["discovered"].get()
