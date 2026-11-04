@@ -34,6 +34,9 @@ DEFAULTS = {
     "seats": {},
     "monitors": {},
     "launch": {"assign_gpu": True, "allow_igpu": False, "return_to_menu": True, "follow_start": "boot"},
+    # The keyboard, mouse and gamepads of a screen on the host go into a system with its monitor:
+    # mode evdev (keyboard and mouse; both Ctrl give them back) or off; devices: [] = all of them.
+    "input": {"mode": "evdev", "hotkey": "ctrl-ctrl", "devices": [], "gamepads": "usb"},
     "caddy": {"ct": None, "admin": "http://localhost:2019", "prefer_suffix": "", "hide": []},
     "discovery": {"ports": True, "vms": True, "notes": True, "ignore": []},
     "services": {},

@@ -45,6 +45,14 @@ launch:
   follow_start: boot          # a VM on a monitor's GPU that starts without the menu (onboot, Proxmox UI) gets
                               # the monitor: boot = only while the host is booting, always, never
 
+# The keyboard, mouse and gamepads of a screen on the host go into a system together with the monitor
+# (for the session only; the VM's config is not touched, and what the VM already has stays its own).
+input:
+  mode: evdev                 # evdev: keyboard and mouse, given back by the hotkey below; off
+  hotkey: ctrl-ctrl           # QEMU's grab-toggle: ctrl-ctrl, alt-alt, shift-shift, meta-meta, scrolllock, ctrl-scrolllock
+  gamepads: usb               # gamepads plugged into the VM as USB devices for the session; off
+  devices: []                 # ids from Settings → Systems (1-3 for a USB port); empty = all of them
+
 caddy:
   ct: null                    # container running Caddy (its admin API must listen on localhost:2019)
   admin: http://localhost:2019

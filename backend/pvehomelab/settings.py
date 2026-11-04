@@ -84,6 +84,10 @@ REGISTRY = [
     S("launch.allow_igpu", "bool", "launch"),
     S("launch.return_to_menu", "bool", "launch"),
     S("launch.follow_start", "choice", "launch", choices=("boot", "always", "never")),
+    S("input.mode", "choice", "launch", choices=("evdev", "off")),
+    S("input.hotkey", "choice", "launch", choices=("ctrl-ctrl", "alt-alt", "shift-shift", "meta-meta", "scrolllock", "ctrl-scrolllock")),
+    S("input.gamepads", "choice", "launch", choices=("usb", "off")),
+    S("input.devices", "list", "launch", item="word"),
     # web services
     S("caddy.ct", "int", "services", lo=100, hi=999999999, null=True),
     S("caddy.admin", "str", "services", pattern=URL.pattern),

@@ -30,6 +30,14 @@ async def pvesh(endpoint, /, **params):
     return json.loads(await run(*args, timeout=20) or "null")
 
 
+async def pvesh_create(endpoint, /, **params):
+    """`pvesh create` as root (POST), e.g. a command to a VM's QEMU monitor."""
+    args = ["pvesh", "create", endpoint, "--output-format", "json"]
+    for k, v in params.items():
+        args += [f"--{k}", str(v)]
+    return json.loads(await run(*args, timeout=20) or "null")
+
+
 class Cached:
     """Async value refreshed at most every `ttl` seconds; failures keep the old value.
     With stale=True an expired value is returned at once and refreshed in the background."""

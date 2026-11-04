@@ -368,6 +368,71 @@ async def demo_discover(cfg, res, ips, host_ip=None):
     return out
 
 
+# The input devices of the demo host (/proc/bus/input/devices): a wireless receiver with a keyboard
+# and a mouse, an Xbox pad, a Bluetooth keyboard, and the keyboard VM 102 has of its own (usb0).
+INPUT_DEVICES = """I: Bus=0003 Vendor=046d Product=c52b Version=0111
+N: Name="Logitech USB Receiver"
+P: Phys=usb-0000:00:14.0-3/input0
+S: Sysfs=/devices/pci0000:00/0000:00:14.0/usb1/1-3/1-3:1.0/0003:046D:C52B.0001/input/input5
+H: Handlers=sysrq kbd leds event5
+B: EV=120013
+
+I: Bus=0003 Vendor=046d Product=c52b Version=0111
+N: Name="Logitech USB Receiver Mouse"
+P: Phys=usb-0000:00:14.0-3/input1
+S: Sysfs=/devices/pci0000:00/0000:00:14.0/usb1/1-3/1-3:1.1/0003:046D:C52B.0002/input/input6
+H: Handlers=mouse0 event6
+B: EV=17
+
+I: Bus=0003 Vendor=045e Product=0b12 Version=0509
+N: Name="Microsoft Xbox Controller"
+P: Phys=usb-0000:00:14.0-4/input0
+S: Sysfs=/devices/pci0000:00/0000:00:14.0/usb1/1-4/1-4:1.0/input/input7
+H: Handlers=event7 js0
+B: EV=20000b
+
+I: Bus=0005 Vendor=05ac Product=024f Version=0011
+N: Name="Keychron K2"
+P: Phys=
+S: Sysfs=/devices/virtual/misc/uhid/0005:05AC:024F.0004/input/input9
+H: Handlers=sysrq kbd leds event9
+B: EV=120013
+
+I: Bus=0003 Vendor=046d Product=c534 Version=0111
+N: Name="Logitech K270"
+P: Phys=usb-0000:00:14.0-5/input0
+S: Sysfs=/devices/pci0000:00/0000:00:14.0/usb1/1-5/1-5:1.0/0003:046D:C534.0005/input/input11
+H: Handlers=sysrq kbd leds event11
+B: EV=120013
+
+I: Bus=0019 Vendor=0000 Product=0001 Version=0000
+N: Name="Power Button"
+P: Phys=PNP0C0C/button/input0
+S: Sysfs=/devices/LNXSYSTM:00/input/input0
+H: Handlers=kbd event0
+B: EV=3
+"""
+INPUT_LINKS = {"event5": "/dev/input/by-id/usb-Logitech_USB_Receiver-event-kbd",
+               "event6": "/dev/input/by-id/usb-Logitech_USB_Receiver-if01-event-mouse",
+               "event7": "/dev/input/by-id/usb-Microsoft_Controller-event-joystick"}
+QEMU_LOG = []      # (vmid, command) sent to QEMU's monitor
+GRABBED = set()    # evdev nodes QEMU holds
+
+
+def demo_units(node):
+    from . import inputs
+    return inputs.units(inputs.parse_devices(INPUT_DEVICES), INPUT_LINKS, {102: "usb0: host=046d:c534\n"}, NODE, {})
+
+
+async def demo_monitor(node, vmid, command):
+    QEMU_LOG.append((vmid, command))
+    if command.startswith("object_add input-linux") and "grab-toggle" in command:
+        GRABBED.add(command.split("evdev=", 1)[1].split(",")[0])
+    if command.startswith("object_del"):
+        GRABBED.clear()
+    return ""
+
+
 WOKEN = []
 
 
@@ -502,6 +567,13 @@ async def demo_state(req):
                               "os": list(OS_TYPES), "apps": sorted(APP_PORTS)})
 
 
+@A.routes.post("/api/demo/input-release")
+async def demo_input_release(req):
+    """As if both Ctrl were pressed inside the system: QEMU lets the keyboard go."""
+    GRABBED.clear()
+    return web.json_response({"ok": True})
+
+
 @A.routes.post("/api/demo/vm")
 async def demo_add_vm(req):
     b = await _json(req)
@@ -570,6 +642,13 @@ async def demo_reset(req):
     ROUTES[:] = copy.deepcopy(routes)
     DISCOVERED[:] = copy.deepcopy(found)
     STATE.update(weather="", update=True, added=[], fail=None, apt_checked=APT_CHECKED)
+    QEMU_LOG.clear()
+    GRABBED.clear()
+    for vmid in list(A_app["app"]["input"].given) if "app" in A_app else []:
+        A_app["app"]["input"].forget(vmid)
+    if "app" in A_app:
+        for sid in A_app["app"]["seats"].kiosk_seats():
+            A_app["app"]["seats"].set(sid, shows="menu")
     await _refresh()
     return web.json_response({"ok": True})
 
@@ -590,6 +669,10 @@ def make_app():
     caddy.static_ips = demo_static_ips
     discover.discover = demo_discover
     L.run = demo_run
+    from . import inputs
+    inputs.host_units = demo_units
+    inputs.monitor = demo_monitor
+    inputs.Passer.grabbed = staticmethod(lambda path: path in GRABBED)
     G.pci_mappings = lambda: MAPPINGS
     G.local_node = lambda: NODE
     DDC.switch_to_gpu = switch_input
@@ -602,6 +685,7 @@ def make_app():
     async def remember(app):
         for k in ("resources", "services", "discovered", "update", "cfg"):
             A_app[k] = app[k]
+        A_app["app"] = app
     app.on_startup.append(remember)
     global _initial
     _initial = _snapshot()

@@ -79,6 +79,13 @@ signed in, so each person sees and controls exactly what PVE allows them to.
 - GPUs given to VMs as Proxmox **resource mappings** (`hostpci0: mapping=…`, PVE 8+) are understood
   like plain PCI addresses. A VM that names a mapping keeps naming one when it gets another GPU, and
   writing a mapping needs `Mapping.Use` on it, as in Proxmox.
+- **Keyboard and mouse go with the monitor.** Starting a system on this screen's monitor lends it
+  the host's keyboards and mice (evdev, QEMU's `input-linux`) and gamepads (USB, for the session);
+  **both Ctrl** pressed in the system give them back, and the monitor with them. Nothing is written
+  into the VM's config, and devices the VM has of its own (`usbN`, by id, port or mapping) are left
+  alone. A tick in the launch dialog, a default in *Settings → Systems*, the devices and the hotkey in
+  *Settings → System*. It takes `VM.Console` on the VM. `tools/input_probe.py` lists the host's
+  devices and tries lending them to a VM for a few seconds.
 - **The page stands aside** while its monitor shows a system: no widgets, no effects, keys act on
   nothing. **Both Ctrl keys** bring the monitor back to the menu (the system keeps running), and from
   the menu take it to the system running on a GPU wired to this monitor.

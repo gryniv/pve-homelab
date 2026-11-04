@@ -12,11 +12,12 @@ from urllib.parse import quote
 import aiohttp
 from aiohttp import web
 
-from . import backup, caddy, config, designs, discover, errlog, feedback, gpus as G, i18n, icons, prefs, settings, update, userwidgets, weather, wol
+from . import backup, caddy, config, designs, discover, inputs, errlog, feedback, gpus as G, i18n, icons, prefs, settings, update, userwidgets, weather, wol
 from .ddc import DDC
 from .host import HostStats
 from .launch import Launcher
 from .seats import Seats
+from .inputs import Passer
 from .pve import PVE, TFA_KINDS, PVEError, TfaChallenge
 from .util import Cached, log, pvesh, run
 
@@ -326,6 +327,7 @@ async def public(req):
         "designer": designer_mode(app),
         "feedback": feedback_cfg(cfg)["enabled"],
         "features": {f: feature_on(app, f) for f in settings.FEATURES},
+        "input": {"mode": (cfg.get("input") or {}).get("mode", "evdev"), "hotkey": (cfg.get("input") or {}).get("hotkey", "ctrl-ctrl")},
         "login": prefs.load_login(),
         "widgets": userwidgets.all_ids(),
     })
@@ -1373,7 +1375,23 @@ async def seat_focus(req):
     vmid = vmid_of(to)
     await require(req, s, "VM.Console", f"/vms/{vmid}")
     await L.focus(sid, vmid)
+    if prefs.load(s["user"])["launch"]["pass_input"] and (req.app["cfg"].get("input") or {}).get("mode", "evdev") != "off" \
+            and vmid not in req.app["input"].given:
+        await L.give_input(sid, vmid)
     return web.json_response(req.app["seats"].get(sid))
+
+
+@routes.get("/api/input")
+async def input_devices(req):
+    """The keyboards, mice and gamepads of this host: which go into systems, which a VM has already."""
+    await session(req)
+    loop = asyncio.get_running_loop()
+    units = await loop.run_in_executor(None, inputs.host_units, req.app["cfg"]["node"])
+    given = {vmid: g["seat"] for vmid, g in req.app["input"].given.items()}
+    cfg = req.app["cfg"].get("input") or {}
+    chosen = cfg.get("devices") or []
+    return web.json_response({"mode": cfg.get("mode", "evdev"), "hotkey": cfg.get("hotkey", "ctrl-ctrl"),
+                              "units": [{**u, "chosen": not chosen or u["id"] in chosen} for u in units], "given": given})
 
 
 @routes.post("/api/launch")
@@ -1393,7 +1411,12 @@ async def launch(req):
         if isinstance(v, bool) or not isinstance(v, int) or not lo <= v <= hi:
             raise web.HTTPBadRequest(text=f"{k}: {lo}…{hi}")
         resources[k] = v
-    job = await req.app["launcher"].launch(s["ticket"], seat_of(req), vmid_of(body.get("vmid")), body["gpu"], resources)
+    seat = seat_of(req)
+    want_input = body.get("input")
+    if want_input is None:
+        want_input = prefs.load(s["user"])["launch"]["pass_input"]
+    want_input = bool(want_input) and not is_remote(req)
+    job = await req.app["launcher"].launch(s["ticket"], seat, vmid_of(body.get("vmid")), body["gpu"], resources, want_input)
     req.app["resources"].invalidate()
     return web.json_response(job.as_dict())
 
@@ -1729,6 +1752,7 @@ async def on_startup(app):
     app["update"] = Cached(check_update, max(1, float(update.settings(cfg)["check_hours"])) * 3600, stale=True)
 
     app["seats"] = Seats(cfg)
+    app["input"] = Passer(app)
     app["launcher"] = Launcher(app)
     app["tasks"] = [asyncio.create_task(app["stats"].loop()),
                     asyncio.create_task(app["launcher"].watch_loop()),

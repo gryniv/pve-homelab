@@ -379,6 +379,7 @@ const views = {
     return `<h3>${t('set.s.systems')}</h3>${lead('set.systems.lead', { tag: '«' + (app.pub().systems_tag || 'seat') + '»' })}
       ${grp('set.systems.launch', `${seg('gpuSeg', p.launch.gpu, [['auto', t('set.launch.gpu_auto')], ['igpu', t('set.launch.gpu_igpu')]])}
         <p class="lead" style="margin:.6em 0 0">${esc(t('set.launch.lead'))}</p>${tgl('pAsk', p.launch.ask, 'set.launch.ask', 'set.launch.ask_sub')}`)}
+      ${app.pub().input?.mode !== 'off' && !app.pub().seat.remote ? grp('set.input.title', `${tgl('pInput', p.launch.pass_input, 'set.input.pass', 'set.input.pass_sub')}${inputList()}`) : ''}
       ${orderEditor('systems', app.systems(), p, (p.hidden_systems || []).map(String),
         (x) => `<span class="nm">${esc(x.name)}<small>VM ${x.vmid} · ${esc(t(x.status === 'running' ? 'guest.running' : 'guest.stopped'))}</small></span>`)}`;
   },
@@ -420,6 +421,25 @@ const views = {
       <div style="margin-top:1.6em">${journal()}</div>`;
   },
 };
+
+// The keyboards, mice and gamepads of this host: which go into systems, which a VM has of its own.
+let inputs = null;
+function inputList() {
+  if (!inputs) {
+    inputs = { pending: true };
+    app.api.get('/api/input').then((r) => { inputs = r; if (current === 'systems') render(); }).catch(() => { inputs = { units: [] }; });
+    return `<p class="mute">…</p>`;
+  }
+  if (inputs.pending) return `<p class="mute">…</p>`;
+  const admin = app.isAdmin();
+  const kinds = (u) => u.kinds.map((k) => t('set.input.kind_' + k)).join(' + ');
+  return `<ul class="inlist">${inputs.units.map((u) => `<li>
+      <span class="nm">${esc(u.name)}<small>${esc(kinds(u))} · <code>${esc(u.id)}</code>${u.usb ? '' : ` · ${esc(t('set.input.no_usb'))}`}</small></span>
+      ${u.in_vm ? `<span class="pill dim">${esc(t('set.input.in_vm', { vm: u.in_vm }))}</span>`
+        : admin ? `<span class="sw"><input type="checkbox" data-inunit="${esc(u.id)}" ${u.chosen ? 'checked' : ''} aria-label="${esc(u.name)}"><i></i></span>`
+        : `<span class="pill ${u.chosen ? 'here' : 'dim'}">${esc(t(u.chosen ? 'set.input.goes' : 'set.input.stays'))}</span>`}</li>`).join('')}</ul>
+    <p class="lead hint">${icon('i-info')}${esc(t('set.input.hint', { keys: t('launch.hotkey_' + (inputs.hotkey || 'ctrl-ctrl')) }))}</p>`;
+}
 
 // A copy of the menu's settings: download one, or choose one and put back the parts you tick.
 const COPY_PARTS = ['users', 'looks', 'host', 'config'];
@@ -482,6 +502,17 @@ function bind(p) {
   const setUi = (ch) => save({ ui: { ...p.ui, ...ch } });
   const segBind = (id, fn) => $$(`#${id} button`).forEach((b) => (b.onclick = () => { fn(b.dataset.v); render(); }));
   const chk = (id, fn) => { const el = $('#' + id); if (el) el.onchange = () => fn(el.checked); };
+  // keyboard and mouse for systems
+  chk('pInput', (on) => save({ launch: { ...p.launch, pass_input: on } }));
+  $$('[data-inunit]').forEach((c) => (c.onchange = async () => {
+    const all = $$('[data-inunit]');
+    const picked = all.filter((x) => x.checked).map((x) => x.dataset.inunit);
+    try {
+      await app.api.put('/api/system/settings', { set: { 'input.devices': picked.length === all.length ? [] : picked } });
+      inputs = null;
+      render();
+    } catch (e) { toast(e.message, true); }
+  }));
   // interface
   segBind('uiScale', (v) => setUi({ scale: Number(v) }));
   segBind('uiClock', (v) => setUi({ clock: v }));

@@ -339,6 +339,10 @@ html,body{margin:0;height:100%;background:#05080e}
 .A .gextra{display:grid;grid-template-columns:1fr 1.4fr;gap:1em;font-size:.88em}
 .A .gextra:empty{display:none}
 /* a guest's resources and options, in its dialog */
+.A .minput{max-width:none;margin:.3em 0}
+.A .inlist{list-style:none;margin:.4em 0 0;padding:0;max-width:44em}
+.A .inlist li{display:flex;align-items:center;justify-content:space-between;gap:1em;padding:.5em 0;border-top:1px solid var(--edge)}
+.A .inlist .nm small{display:block;color:var(--mute);font-size:.8em}
 .A .mres{display:flex;flex-wrap:wrap;align-items:center;gap:.6em 1em;font-size:.88em;margin:.4em 0}
 .A .mres label{display:flex;align-items:center;gap:.4em;color:var(--mute)}
 .A .mres input{width:5em;background:rgba(0,0,0,.25);border:1px solid var(--edge);border-radius:.45em;padding:.35em .5em;color:#e8edf3;font:inherit;user-select:text}
