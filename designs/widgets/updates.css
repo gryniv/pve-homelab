@@ -8,4 +8,5 @@
 .A .w[data-w="updates"] .pk .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .A .w[data-w="updates"] .pk .nm.pve{color:var(--acc-text)}
 .A .w[data-w="updates"] .pk small{font-size:.8em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.A .w[data-w="updates"] .more{font-size:.78em;margin-top:.2em}
+.A .w[data-w="updates"] .more{font-size:.78em;margin-top:.3em}
+.A .w[data-w="updates"] .when{font-size:.75em;margin-top:.25em}

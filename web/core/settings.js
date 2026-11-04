@@ -265,6 +265,7 @@ const views = {
   dash(p) {
     return `<h3>${t('set.s.dash')}</h3>${lead('set.dash.lead')}
       <div class="zones one">${zone(p, 'side')}</div>
+      ${app.nodeUpdatesAllowed() ? grp('set.dash.top', tgl('pPveUpd', p.top?.pve_updates !== false, 'set.dash.pve_updates', 'set.dash.pve_updates_sub')) : ''}
       ${widgetsMine()}
       <h4 class="subh">${t('set.dash.services')}</h4>${lead('set.services.lead')}
       ${orderEditor('services', app.services(), p, p.hidden_services,
@@ -353,6 +354,7 @@ function bind(p) {
   chk('pSky', (v) => save({ sky_by_time: v }));
   chk('pFx', (v) => save({ saver: { ...p.saver, fx: v } }));
   chk('pClock', (v) => save({ saver: { ...p.saver, clock: v } }));
+  chk('pPveUpd', (v) => save({ top: { ...p.top, pve_updates: v } }));
   $('#showSaver') && ($('#showSaver').onclick = () => app.go('saver'));
   $('#wxForm') && ($('#wxForm').onsubmit = async (e) => {
     e.preventDefault();

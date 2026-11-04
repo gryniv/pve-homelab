@@ -14,8 +14,8 @@ function visible(el) {
 
 // The layer that currently owns the keyboard: topmost open overlay, else the visible screen.
 export function activeLayer() {
-  // Stand-alone dialogs (confirm, feedback, help, alerts, guest history, demo panel) sit above the screen's own layers.
-  const top = ['#confirmLayer', '#feedbackLayer', '#helpLayer', '#alertsLayer', '#guestLayer', '#demoLayer'].map((s) => document.querySelector(s)).find((l) => l && !l.hidden);
+  // Stand-alone dialogs (confirm, feedback, help, alerts, node updates, guest history, demo panel) sit above the screen's own layers.
+  const top = ['#confirmLayer', '#feedbackLayer', '#helpLayer', '#alertsLayer', '#nodeUpdLayer', '#guestLayer', '#demoLayer'].map((s) => document.querySelector(s)).find((l) => l && !l.hidden);
   if (top) return top;
   const layers = [...document.querySelectorAll('[data-layer]')].filter((l) => !l.hidden);
   if (layers.length) return layers[layers.length - 1];

@@ -181,6 +181,10 @@ class DemoPVE(PVE):
             return POOLS
         if endpoint == f"/nodes/{NODE}/apt/update":
             return APT_UPDATES
+        if endpoint == f"/nodes/{NODE}/tasks":
+            end = int(STATE["apt_checked"])
+            return [{"type": "aptupdate", "status": "OK", "user": "root@pam", "starttime": end - 9, "endtime": end}
+                    ] if params.get("typefilter") in (None, "aptupdate") else []
         if endpoint == "/access/permissions":
             path = params["path"]
             return {path: {p: 1 for p in self._privs(t.user, path)}}
@@ -216,10 +220,17 @@ class DemoPVE(PVE):
             return f"UPID:{NODE}:{next(_upid)}"
         if endpoint.endswith("/vncproxy"):
             raise PVEError(501, i18n._("demo_console"))
+        if endpoint == f"/nodes/{NODE}/apt/update":   # the package lists, refreshed by hand
+            if "Sys.Modify" not in self._privs(t.user, f"/nodes/{NODE}"):
+                raise PVEError(403, i18n._("forbidden"))
+            STATE["apt_checked"] = time.time() + 1.2
+            return f"UPID:{NODE}:{next(_upid)}:aptupdate"
         raise PVEError(501, i18n._("demo_action"))
 
-    async def wait_task(self, *a, **k):
+    async def wait_task(self, t, node, upid, timeout=120):
         await asyncio.sleep(1.2)
+        if "aptupdate" in upid and STATE.get("fail") == "apt":   # tests: a repository that answers 401
+            raise PVEError(500, "command 'apt-get update' failed: exit code 100")
 
     async def can(self, t, path, priv):
         return priv in self._privs(t.user, path)
@@ -362,7 +373,8 @@ A_app = {}
 # ---------------------------------------------------------------- demo panel
 # The menu's demo panel adds systems and services to the in-memory world, changes the
 # weather and pretends an update exists. Everything added is marked so it can be removed.
-STATE = {"weather": "", "update": True, "added": []}
+APT_CHECKED = T0 - 5 * 3600   # Proxmox's own daily refresh of the package lists, a few hours ago
+STATE = {"weather": "", "update": True, "added": [], "apt_checked": APT_CHECKED}
 _initial = None
 OS_TYPES = {"windows": ("win11", "Windows"), "ubuntu": ("l26", "Ubuntu"), "fedora": ("l26", "Fedora"),
             "debian": ("l26", "Debian"), "macos": ("other", "macOS"), "linux": ("l26", "Linux")}
@@ -473,7 +485,7 @@ async def demo_reset(req):
     WORLD.clear(); WORLD.update(copy.deepcopy(world))
     ROUTES[:] = copy.deepcopy(routes)
     DISCOVERED[:] = copy.deepcopy(found)
-    STATE.update(weather="", update=True, added=[], fail=None)
+    STATE.update(weather="", update=True, added=[], fail=None, apt_checked=APT_CHECKED)
     await _refresh()
     return web.json_response({"ok": True})
 

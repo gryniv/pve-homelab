@@ -114,6 +114,7 @@ settings form (⚙) and a live preview:
 | Services | how many services are up, and which are down | list style |
 | Network | traffic, address, load | fields |
 | Storage | how full each storage is | which storages, used or free |
+| Proxmox updates | packages waiting on the node, a new kernel, when the lists were checked | packages to list |
 | Links | your own bookmarks, opened as tabs | links |
 | Note | your text | heading, text |
 | Quick actions | PVE web UI, screensaver, reboot, shut down | buttons |
@@ -134,6 +135,10 @@ A mouse works everywhere, but you never need one.
 ### Runs itself
 - **Updates from GitHub.** A badge in the top bar and a reminder after sign-in. Admins install it with one
   click, and nightly auto-update is optional. No git is needed on the host.
+- **Proxmox updates.** For those who may update the node, a button in the top bar counts the
+  packages waiting; an amber dot means a new kernel is among them. Its dialog lists them, says when
+  the package lists were last checked, checks again on request, and opens Proxmox, where they are
+  installed (*Node → Updates → Upgrade*). It can be turned off in *Settings → Dashboard*.
 - **Error journal.** Backend warnings and the screens' own errors (JavaScript, failed widgets,
   server errors) are collected in *Settings → About*, and also in `/var/log/pve-homelab/errors.log`.
 - **Write to the author.** *Settings → About → Write to the author* composes a GitHub issue: a bug,

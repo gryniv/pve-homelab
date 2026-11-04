@@ -213,7 +213,7 @@ async def offline(r):
 async def dialogs_aria(r):
     p = r.p
     await r.open(None)
-    ok = await p.js("return ['#confirmLayer .confirm', '#helpLayer .confirm', '#alertsLayer .confirm', '[data-layer=launch] .modal']"
+    ok = await p.js("return ['#confirmLayer .confirm', '#helpLayer .confirm', '#alertsLayer .confirm', '#nodeUpdLayer .confirm', '[data-layer=launch] .modal']"
                     ".every(s => document.querySelector(s).getAttribute('aria-modal') === 'true')"
                     " && document.querySelector('#toast').getAttribute('aria-live') === 'polite';")
     r.check("dialogs are modal for assistive tech, toasts are announced", ok)
@@ -437,6 +437,72 @@ async def write_to_author(r):
     r.check("someone without Sys.Audit can't add the journal", await p.js("return document.querySelector('#fbJournalRow').hidden;"))
 
 
+async def node_updates(r):
+    """The top bar's Proxmox updates: the button, its dialog, Check now, the setting, the widget's way in."""
+    p = r.p
+    await r.open(None)
+    # the widget on the side column too, to see that both show one answer
+    await p.js(API + "await q('POST', '/api/login', {user: 'ihor@pve', password: 'x'});"
+               "const pr = (await q('GET', '/api/me')).prefs; pr.layout.side = ['updates'];"
+               "await q('PUT', '/api/prefs', pr); await q('POST', '/api/logout');")
+    await p.js("document.querySelector('[data-user=\"ihor@pve\"]').click();", 0.3)
+    await p.js("document.querySelector('#pw').value = 'x'; document.querySelector('#loginForm').requestSubmit();")
+    n = await p.until("const b = document.querySelector('#nodeUpd'); return !b.hidden && b.querySelector('.n').textContent;", 8)
+    r.check("the top bar counts the packages waiting", n == "6", n)
+    st = await p.js("const b = document.querySelector('#nodeUpd'); return [b.classList.contains('kern'), b.getAttribute('aria-label')];")
+    r.check("…marks the new kernel among them and says so", st[0] and "6 Proxmox updates" in st[1] and "kernel" in st[1], st)
+    await p.js("const b = document.querySelector('#nodeUpd'); b.focus(); b.click();", 0.4)
+    d = await p.js("return [!document.querySelector('#nodeUpdLayer').hidden, document.querySelectorAll('#nodeUpdBody .pkglist li:not(.more)').length,"
+                   " !!document.querySelector('#nodeUpdBody .nukern'), document.querySelector('#nodeUpdBody .nusum small')?.textContent,"
+                   " document.activeElement?.id];")
+    r.check("its dialog lists every package and the kernel note", d[:3] == [True, 6, True], d)
+    r.check("…says when the lists were checked, focus on Close", "checked 5 h" in (d[3] or "") and d[4] == "nuClose", d)
+    await p.js("document.querySelector('#nuCheck').click();", 0.1)
+    busy = await p.js("const c = document.querySelector('#nuCheck'); return [c.disabled, c.textContent.trim()];")
+    r.check("Check now waits for Proxmox", busy == [True, "Checking…"], busy)
+    toast = await p.until("const t = document.querySelector('#toast'); return !t.hidden && t.textContent.startsWith('Checked') && t.textContent;", 8)
+    r.check("…and tells what it found", toast == "Checked: 6 updates waiting", toast)
+    after = await p.js("return [document.querySelector('#nuCheck').disabled, document.querySelector('#nodeUpdBody .nusum small').textContent,"
+                       " document.querySelector('.w[data-w=updates] .sum span').textContent];")
+    r.check("…the dialog and the widget both show the fresh check", after[0] is False and "checked 1 min" in after[1] and "checked 1 min" in after[2], after)
+    await p.js("window.__rf = window.__rf || window.fetch; window.fetch = (u, o) => /node-updates\\/refresh/.test(String(u))"
+               " ? Promise.resolve(new Response(JSON.stringify({error: 'Could not check for updates: exit code 100'}), {status: 502}))"
+               " : window.__rf(u, o);"
+               "document.querySelector('#nuCheck').click();")
+    bad = await p.until("const t = document.querySelector('#toast'); return !t.hidden && t.classList.contains('bad') && t.textContent;", 6)
+    r.check("a failed check says why and the button comes back", (bad or "").startswith("Could not check")
+            and await p.js("return !document.querySelector('#nuCheck').disabled;"), bad)
+    await p.js("window.fetch = window.__rf;")
+    for key, code in (("Tab", 9), ("ArrowDown", 40)):
+        await p.key(key, code)
+        await asyncio.sleep(0.2)
+        r.check(f"{key} keeps focus inside the dialog", await p.js("return !!document.activeElement?.closest('#nodeUpdLayer');"))
+    await p.key("Escape", 27)
+    await asyncio.sleep(0.3)
+    st = await p.js("return [document.querySelector('#nodeUpdLayer').hidden, document.activeElement?.id];")
+    r.check("Esc closes it and focus goes back to the button", st == [True, "nodeUpd"], st)
+    await p.js("document.querySelector('.w[data-w=updates] [data-nu]').click();", 0.4)
+    r.check("the widget's 'and N more' opens the same dialog", await p.js("return !document.querySelector('#nodeUpdLayer').hidden;"))
+    await p.js("window.__opened = null; window.open = (u) => { window.__opened = u; return null; };"
+               "document.querySelector('#nuOpen').click();", 0.3)
+    st = await p.js("return [document.querySelector('#nodeUpdLayer').hidden, window.__opened];")
+    r.check("Open Proxmox opens its web UI", st[0] and (st[1] or "").startswith("https://"), st)
+    await p.js("document.querySelector('.top [data-go=settings]').click();"
+               "await new Promise(r => setTimeout(r, 500)); document.querySelector('[data-sp=dash]').click();")
+    have = await p.until("return !!document.querySelector('#pPveUpd');", 5)
+    r.check("Settings → Dashboard has the top bar switch", bool(have))
+    await p.js("document.querySelector('#pPveUpd').click();", 0.3)
+    r.check("…turned off, the button goes", await p.js("return document.querySelector('#nodeUpd').hidden;"))
+    await p.js("document.querySelector('#pPveUpd').click();", 0.3)
+    r.check("…and back on, it returns", await p.js("return !document.querySelector('#nodeUpd').hidden;"))
+    await r.open("guest@pve")
+    await asyncio.sleep(4.5)   # the first check runs a few seconds after sign-in
+    await p.js("document.querySelector('.top [data-go=settings]').click();"
+               "await new Promise(r => setTimeout(r, 500)); document.querySelector('[data-sp=dash]').click();", 0.3)
+    st = await p.js("return [document.querySelector('#nodeUpd').hidden, !!document.querySelector('#pPveUpd')];")
+    r.check("someone who may not update the node sees neither", st == [True, False], st)
+
+
 async def widget_strings(r):
     """Every widget's strings come from its i18n/<lang>.json files, in each language."""
     p = r.p
@@ -585,7 +651,7 @@ async def misc(r):
 
 CHECKS = {"guests": guests, "logout": logout, "widgets": widgets, "toasts": toasts, "offline": offline,
           "aria": dialogs_aria, "alerts": alerts, "update": failed_update, "focus": settings_focus,
-          "console": console, "launch": launch, "search": search, "order": reorder, "guests_table": guest_table, "designs": my_designs, "widget_strings": widget_strings, "my_widgets": my_widgets, "feedback": write_to_author, "designing": designing, "tabs": service_tabs, "misc": misc}
+          "console": console, "launch": launch, "search": search, "order": reorder, "guests_table": guest_table, "designs": my_designs, "widget_strings": widget_strings, "my_widgets": my_widgets, "feedback": write_to_author, "node_updates": node_updates, "designing": designing, "tabs": service_tabs, "misc": misc}
 
 
 # ---------------------------------------------------------------- driver

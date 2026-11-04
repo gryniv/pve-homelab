@@ -21,6 +21,7 @@ DEFAULT = {
     "weather": {"city": "", "units": ""},   # empty = as in config.yaml
     "launch": {"gpu": "auto", "ask": True, "pass_input": True},
     "saver": {"fx": True, "clock": True},
+    "top": {"pve_updates": True},  # the top bar's Proxmox updates button (shown only to those who may update)
     "hidden_services": [],
     "hidden_systems": [],
     # manual = the user's own order (drag on the dashboard or ↑↓ in settings), name, status = running first

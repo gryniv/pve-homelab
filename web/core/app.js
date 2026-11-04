@@ -18,6 +18,7 @@ import * as help from './help.js';
 import * as feedback from './feedback.js';
 import * as alerts from './alerts.js';
 import * as updates from './updates.js';
+import * as nodeUpdates from './nodeupdates.js';
 import * as designer from './designer.js';
 import * as showcase from './showcase.js';
 import * as launch from './launch.js';
@@ -39,6 +40,8 @@ const app = {
   services: () => st.services,
   systems: () => st.systems,
   updateStatus: () => updates.status(),
+  nodeUpdatesAllowed: () => nodeUpdates.allowed(),
+  showNodeUpdates: (from) => nodeUpdates.show(from),
   showHelp: () => help.show(),
   showFeedback: (from) => feedback.show(from),
   isNight: scene.isNight,
@@ -71,7 +74,7 @@ async function useLang(code = wantedLang()) {
 // Everything that holds translated text is rebuilt from state.
 function rerender() {
   tick(); paintWeather(); renderLoginLang(); paintAbout();
-  updates.paint();
+  updates.paint(); nodeUpdates.paint();
   if (st.me) {
     W.renderZone('side', st.prefs.layout.side || [], { app, opts: st.prefs.widget_opts });
     const body = $('.scr-dash .body');
@@ -135,6 +138,7 @@ function applyPrefs({ relayout = false } = {}) {
   scene.configure({ react: p.weather_react, byTime: p.sky_by_time, fx: p.saver.fx });
   $('.scr-saver').classList.toggle('sv-clockless', !p.saver.clock);
   paintMe();
+  nodeUpdates.paint();
   if (relayout) W.renderZone('side', p.layout.side || [], { app, opts: p.widget_opts });
   const body = $('.scr-dash .body');
   keepFocus(body, renderServices);
@@ -265,8 +269,10 @@ async function enter(userid, prefs, admin = false) {
   updates.resetReminder();
   setTimeout(updates.check, 2500);
   setTimeout(alerts.check, 1500);
+  setTimeout(nodeUpdates.check, 3500);
   st.timers.push(setInterval(alerts.check, 60000));
   st.timers.push(setInterval(updates.check, 30 * 60000));
+  st.timers.push(setInterval(nodeUpdates.check, 30 * 60000));
 }
 
 // Installing or removing a design reloads the page (new stylesheets, new lists); it asks to come
@@ -289,6 +295,7 @@ async function logout() {
   if (st.filter) search.setFilter('');
   renderSystems(); renderServices(); guests.render();
   alerts.reset();
+  nodeUpdates.reset();
   guests.reset();
   st.admin = false;
   st.me = null; st.prefs = null;
@@ -452,6 +459,7 @@ help.init(() => st.screen);
 feedback.init();
 alerts.init();
 updates.init();
+nodeUpdates.init(app);
 
 /* ---------------- about ---------------- */
 let about = {};

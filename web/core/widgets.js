@@ -77,7 +77,15 @@ export function optionsOf(id, stored = {}) {
 
 // Several widgets may read the same endpoint (host and network both read /api/host):
 // requests made close together share one answer instead of each hitting the backend.
+// The top bar reads some of them too (/api/node-updates): `source` and `prime` below.
 const shared = new Map(); // path -> { at, value } | { pending }
+const readers = new Map(); // path -> Set of refresh functions of the widgets mounted on it
+export function source(path, maxAgeMs) { return fetchShared(path, maxAgeMs); }
+// A fresher answer for `path` came from elsewhere (the top bar's "Check now"): the widgets that read it show it now.
+export function prime(path, value) {
+  shared.set(path, { at: Date.now(), value });
+  readers.get(path)?.forEach((r) => r());
+}
 function fetchShared(path, maxAgeMs) {
   const e = shared.get(path);
   if (e?.pending) return e.pending;
@@ -120,7 +128,9 @@ export function mount(box, id, zone, ctx) {
   };
   refresh();
   const timer = every ? setInterval(() => refresh(true), every * 1000) : null;
-  return () => clearInterval(timer);
+  const path = typeof w.source === 'string' ? w.source : null;
+  if (path) { if (!readers.has(path)) readers.set(path, new Set()); readers.get(path).add(refresh); }
+  return () => { clearInterval(timer); if (path) readers.get(path).delete(refresh); };
 }
 
 export function renderZone(zone, ids, ctx) {

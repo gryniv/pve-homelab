@@ -99,7 +99,8 @@ async def test_node_updates_need_sys_modify(client):
 
 def test_summarize_updates_empty():
     from pvehomelab.app import summarize_updates
-    assert summarize_updates([]) == {"allowed": True, "count": 0, "proxmox": 0, "kernel": False, "packages": []}
+    assert summarize_updates([]) == {"allowed": True, "count": 0, "proxmox": 0, "kernel": False, "checked": None,
+                                     "packages": []}
 
 
 async def test_disks_summary(client):

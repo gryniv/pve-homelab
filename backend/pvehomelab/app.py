@@ -669,15 +669,40 @@ async def storage(req):
 KERNEL_PKG = re.compile(r"^(proxmox-kernel|pve-kernel|linux-image)-")
 
 
-def summarize_updates(pkgs):
-    """What /nodes/{node}/apt/update lists, reduced to what the widget shows."""
+def summarize_updates(pkgs, checked=None):
+    """What /nodes/{node}/apt/update lists, reduced to what the widget and the top bar show.
+    `checked`: when the package lists were last refreshed (unix time), if known."""
     out = [{"name": p.get("Package", ""), "old": p.get("OldVersion", ""), "new": p.get("Version", ""),
             "origin": p.get("Origin", "")} for p in pkgs or []]
     out.sort(key=lambda p: (p["origin"] != "Proxmox", p["name"]))
     return {"allowed": True, "count": len(out),
             "proxmox": sum(p["origin"] == "Proxmox" for p in out),
             "kernel": any(KERNEL_PKG.match(p["name"]) for p in out),
+            "checked": checked,
             "packages": out[:50]}
+
+
+def last_apt_check(tasks):
+    """When the package lists were last refreshed: the newest successful "aptupdate" task
+    (Proxmox runs one every day by itself, and the Refresh button in its web UI runs another)."""
+    done = [x.get("endtime") or x.get("starttime") or 0 for x in tasks or []
+            if x.get("type") == "aptupdate" and x.get("status") == "OK"]
+    return max(done) if done and max(done) else None
+
+
+async def updates_summary(pve, t, node):
+    pkgs, tasks = await asyncio.gather(pve.get(t, f"/nodes/{node}/apt/update"),
+                                       pve.get(t, f"/nodes/{node}/tasks", typefilter="aptupdate", limit=10),
+                                       return_exceptions=True)
+    if isinstance(pkgs, BaseException):
+        raise pkgs
+    # the task list is a nicety: someone who may not read it still gets the packages
+    return summarize_updates(pkgs, None if isinstance(tasks, BaseException) else last_apt_check(tasks))
+
+
+async def may_update(req, s):
+    pve, node = req.app["pve"], req.app["cfg"]["node"]
+    return await pve.can(s["ticket"], f"/nodes/{node}", "Sys.Modify")
 
 
 @routes.get("/api/node-updates")
@@ -685,10 +710,32 @@ async def node_updates(req):
     """Package updates waiting on this node, as Proxmox already knows them (its daily apt update);
     reading the list needs Sys.Modify on the node, like in the Proxmox web UI."""
     s = await session(req)
-    pve, node = req.app["pve"], req.app["cfg"]["node"]
-    if not await pve.can(s["ticket"], f"/nodes/{node}", "Sys.Modify"):
+    if not await may_update(req, s):
         return web.json_response({"allowed": False})
-    return web.json_response(summarize_updates(await pve.get(s["ticket"], f"/nodes/{node}/apt/update")))
+    return web.json_response(await updates_summary(req.app["pve"], s["ticket"], req.app["cfg"]["node"]))
+
+
+@routes.post("/api/node-updates/refresh")
+async def node_updates_refresh(req):
+    """Refresh the package lists now (apt-get update, run by Proxmox as a task) and answer with
+    what is waiting then. Installing stays in Proxmox itself: Node → Updates → Upgrade."""
+    s = await session(req)
+    if not await may_update(req, s):
+        raise PVEError(403, i18n._("forbidden"))
+    pve, node, lock = req.app["pve"], req.app["cfg"]["node"], req.app["apt_lock"]
+    # Two people pressing at once share one run: apt would refuse the second while the first holds its lock.
+    if not lock.locked():
+        async with lock:
+            upid = await pve.post(s["ticket"], f"/nodes/{node}/apt/update")
+            try:
+                await pve.wait_task(s["ticket"], node, upid, timeout=180)
+            except PVEError as e:
+                raise PVEError(504, i18n._("apt_slow")) if e.status == 504 else \
+                    PVEError(502, i18n._("apt_failed", err=str(e)))
+    else:
+        async with lock:
+            pass
+    return web.json_response(await updates_summary(pve, s["ticket"], node))
 
 
 DISK_OK = {"PASSED", "OK"}
@@ -1009,6 +1056,7 @@ async def on_startup(app):
     app["host_ip"] = _host_ip()
     app["allowed_hosts_cache"] = allowed_hosts(app)
     app["login_fails"] = {}
+    app["apt_lock"] = asyncio.Lock()
     try:
         app["pveversion"] = (await pvesh("/version"))["version"]
     except Exception:
