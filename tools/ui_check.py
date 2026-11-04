@@ -98,7 +98,8 @@ class Run:
         self.p, self.base, self.failed, self.passed = page, base, [], 0
 
     def check(self, name, ok, detail=""):
-        print(f"  {'PASS' if ok else 'FAIL'} {name}{f'  ({detail})' if detail and not ok else ''}")
+        # an empty list or None as detail is worth seeing too: show anything but the default ""
+        print(f"  {'PASS' if ok else 'FAIL'} {name}{f'  ({detail!r})' if detail != '' and not ok else ''}")
         if ok:
             self.passed += 1
         else:
@@ -288,12 +289,14 @@ async def launch(r):
 async def search(r):
     p = r.p
     await r.open()
+    # the services arrive after the systems: type only once they are on screen
+    await p.until("return document.querySelectorAll('#svcgrid .svc').length > 5", 15)
     await p.js("document.querySelector('#svcgrid .svc').focus();")
     for ch in "jelly":
         await p.key(ch, 0, ch)
-    await asyncio.sleep(0.4)
-    names = await p.js("return [...document.querySelectorAll('#svcgrid .svc .n')].map(n => n.textContent);")
-    r.check("typing on the dashboard narrows the services", names == ["Jellyfin"], names)
+    names = await p.until("const n = [...document.querySelectorAll('#svcgrid .svc .n')].map(n => n.textContent); return n.length === 1 && n;", 3)
+    seen = await p.js("return [document.querySelector('#svcSearch').value, [...document.querySelectorAll('#svcgrid .svc .n')].map(n => n.textContent)];")
+    r.check("typing on the dashboard narrows the services", names == ["Jellyfin"], repr(seen))
     await p.key("Escape", 27)
     await asyncio.sleep(0.3)
     n = await p.js("return [document.querySelectorAll('#svcgrid .svc').length, document.querySelector('#svcSearch').hidden];")
@@ -392,6 +395,8 @@ async def main(a):
                 reader = asyncio.ensure_future(p.reader())
                 await p.send("Runtime.enable")
                 await p.send("Emulation.setDeviceMetricsOverride", width=1600, height=900, deviceScaleFactor=1, mobile=False)
+                if a.cpu_throttle > 1:  # behave like a slow CI runner
+                    await p.send("Emulation.setCPUThrottlingRate", rate=a.cpu_throttle)
                 r = Run(p, base)
                 await r.open()
                 saved = await p.js(API + "return (await q('GET', '/api/me')).prefs;")
@@ -431,6 +436,7 @@ if __name__ == "__main__":
     ap.add_argument("--no-sandbox", action="store_true", help="run Chrome without its sandbox (CI only)")
     ap.add_argument("--only", type=lambda s: [x for x in s.split(",") if x], help=f"comma-separated: {','.join(CHECKS)}")
     ap.add_argument("--shot", help="save a screenshot of the last page to this PNG")
+    ap.add_argument("--cpu-throttle", type=float, default=1, help="slow the page's CPU down N times, like a slow CI runner")
     args = ap.parse_args()
     if args.only and set(args.only) - set(CHECKS):
         sys.exit(f"unknown checks: {set(args.only) - set(CHECKS)}")
