@@ -70,6 +70,8 @@ Every design starts with a comment, **one `@key` per line**:
 | `@group` | backgrounds: `scape` (a landscape: the engine adds sun, moon, stars, clouds, fog, weather) or `flat` |
 | `@tod` | backgrounds: always this time of day (`night`, `dawn`, `day`, `dusk`) |
 | `@family` | fonts: the CSS font-family value, e.g. `"Onest", sans-serif` |
+| `@background`, `@clock` | themes: the background and clock that come with it ([a theme as a whole](#a-theme-as-a-whole)) |
+| `@option`, `@option.<lang>` | themes: a setting of its own, and what a language calls it and its values |
 
 ## Theme
 
@@ -92,6 +94,35 @@ rule without it would change every other theme too. The installer refuses such a
   --lf:saturate(1);         /* a filter on the built-in SVG landscape */
 }
 ```
+
+### A theme as a whole
+
+A theme can stand on its own: name the background and the clock that go with it, and offer a few
+settings of its own, such as its colour, its font or where things sit. Picking it in *Settings →
+Look* brings the background and clock along and resets the fonts to the theme's own; everything can
+still be changed afterwards on its tab. The settings show under the theme tiles.
+
+```css
+/*
+ * @kind theme
+ * @name.en Phosphor
+ * @background vector
+ * @clock tty
+ * @option color = amber | green
+ * @option.en color Phosphor: amber | green
+ * @option.uk color Люмінофор: бурштиновий | зелений
+ */
+.A[data-skin="phosphor"],.A [data-skin="phosphor"]{--acc:#ffb000}
+.A[data-skin="phosphor"][data-o-color="green"]{--acc:#33ff77}
+```
+
+- `@option <key> = <value> | <value> …`: up to 6 settings of 2–8 values each; the first value is
+  the default. Keys and values are lower-case letters, digits and `-`.
+- `@option.<lang> <key> <Name>: <name> | <name> …` names the setting and its values in that
+  language, in the same order; a line whose count doesn't match keeps the name and drops the values'.
+- The page carries the chosen value as `data-o-<key>`, so the theme's CSS reads it like any other
+  attribute, under its own `[data-skin]`. A value it doesn't know falls back to the default.
+- The settings are kept per person and per theme, and the sign-in screen shows each person's.
 
 ## Background
 

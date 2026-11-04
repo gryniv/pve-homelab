@@ -40,20 +40,58 @@ def path_of(kind, did):
     return None
 
 
+# A theme's own settings (DESIGNS.md, "A theme as a whole"):
+#   @option color = amber | green              the values; the first is the default
+#   @option.uk color Люмінофор: бурштин | зелений   what a language calls the option and its values
+# The page gets data-o-color="green", which the theme's CSS reads under its own [data-skin].
+OPT_KEY = re.compile(r"^[a-z][a-z0-9-]{0,23}$")
+OPT_VAL = re.compile(r"^[a-z0-9][a-z0-9-]{0,23}$")
+MAX_OPTIONS, MAX_VALUES = 6, 8
+
+
+def _options(lines):
+    """[{key, values, default, label: {lang}, names: {lang: [...]}}] from @option lines; bad ones are skipped."""
+    found, words = {}, {}
+    for code, val in lines:
+        if not code:
+            m = re.match(r"([a-z][a-z0-9-]*)\s*=\s*(.+)$", val)
+            if not m or not OPT_KEY.match(m.group(1)) or m.group(1) in found or len(found) >= MAX_OPTIONS:
+                continue
+            values = [v.strip() for v in m.group(2).split("|")]
+            if 2 <= len(values) <= MAX_VALUES and len(set(values)) == len(values) and all(OPT_VAL.match(v) for v in values):
+                found[m.group(1)] = values
+        else:
+            m = re.match(r"([a-z][a-z0-9-]*)\s+([^:|]{1,40}):\s*(.+)$", val)
+            if m:
+                words.setdefault(m.group(1), {})[code] = (m.group(2).strip(), [n.strip()[:40] for n in m.group(3).split("|")])
+    out = []
+    for key, values in found.items():
+        said = words.get(key, {})
+        out.append({"key": key, "values": values, "default": values[0],
+                    "label": {code: label for code, (label, _) in said.items()} or {"en": key},
+                    "names": {code: names for code, (_, names) in said.items() if len(names) == len(values)}})
+    return out
+
+
 def meta_of(path, did):
-    """The header comment's @keys: name/desc per language, anything else as is."""
+    """The header comment's @keys: name/desc per language, a theme's @option lines, anything else as is."""
     try:
         with open(path, encoding="utf-8") as f:
-            head = f.read(4000)
+            head = f.read(6000)
     except OSError:
         head = ""
     m = re.search(r"/\*(.*?)\*/", head, re.S)
     meta = {"id": did, "name": {}, "desc": {}}
-    for key, code, val in re.findall(r"@(\w+)(?:\.(\w+))?[ \t]+([^\n*]+)", m.group(1) if m else ""):
+    options = []
+    for key, code, val in re.findall(r"@([\w-]+)(?:\.(\w+))?[ \t]+([^\n*]+)", m.group(1) if m else ""):
         if key in ("name", "desc"):
             meta[key][code or "en"] = val.strip()
+        elif key == "option":
+            options.append((code, val.strip()))
         else:
             meta[key] = val.strip()
+    if options:
+        meta["options"] = _options(options)
     meta["name"] = meta["name"] or {"en": did}
     return meta
 

@@ -125,10 +125,39 @@ const tile = (attr, sel, look, name, sub = '') => `
   <button type="button" class="skin${sel ? ' sel' : ''}" ${attr}>${monitor(look)}
     <span>${esc(name)}${sub ? `<small>${esc(sub)}</small>` : ''}</span></button>`;
 
+// A theme may name the background and clock that go with it (@background, @clock in its header):
+// picking it brings them along, with the theme's own fonts, so it lands as a whole.
+const themeOf = (id) => app.pub().themes.find((th) => th.id === (id || 'dusk'));
+const known = (list, id) => !!id && app.pub()[list].some((d) => d.id === id);
+function themeChanges(id) {
+  const th = themeOf(id) || {};
+  const ch = { skin: id };
+  if (known('backgrounds', th.background)) ch.background = th.background;
+  if (known('clocks', th.clock)) ch.clock = th.clock;
+  if (ch.background || ch.clock) ch.fonts = { ui: '', display: '' };
+  return ch;
+}
+
+// The chosen theme's own settings (@option lines) as segmented buttons, and what came with it.
+function themeOptions(p, lang) {
+  const th = themeOf(p.skin);
+  if (!th) return '';
+  const mine = p.theme_opts?.[th.id] || {};
+  const rows = (th.options || []).map((o) => `<div class="topt"><span>${esc(pick(o.label, lang) || o.key)}</span>${seg(`to-${o.key}`,
+    o.values.includes(mine[o.key]) ? mine[o.key] : o.default,
+    o.values.map((v, i) => [v, (o.names?.[lang] || o.names?.en || [])[i] || v]))}</div>`).join('');
+  const bgName = known('backgrounds', th.background) && BG.nameOf(app.pub().backgrounds.find((b) => b.id === th.background), lang);
+  const clockName = known('clocks', th.clock) && pick(app.pub().clocks.find((c) => c.id === th.clock).name, lang);
+  const along = [bgName && t('set.look.with_bg', { name: bgName }), clockName && t('set.look.with_clock', { name: clockName })].filter(Boolean);
+  if (!rows && !along.length) return '';
+  return grp('set.look.theme_opts', `${rows}${along.length ? `<p class="lead tbundle">${esc(t('set.look.bundle', { list: along.join(', ') }))}</p>` : ''}`);
+}
+
 const lookViews = {
   theme(p, lang) {
     return grp('set.look.theme', `<div class="skins looks">${app.pub().themes.map((th) =>
-      tile(`data-skinpick="${th.id}"`, p.skin === th.id, lookOf(p, { skin: th.id }), pick(th.name, lang), pick(th.desc, lang))).join('')}</div>`);
+      tile(`data-skinpick="${th.id}"`, p.skin === th.id, lookOf(p, { skin: th.id }), pick(th.name, lang), pick(th.desc, lang))).join('')}</div>`)
+      + themeOptions(p, lang);
   },
   bg(p, lang) {
     const group = (g, title) => grp(title, `<div class="skins looks">${BG.byGroup(g).map((b) =>
@@ -295,7 +324,8 @@ const views = {
     const repo = a.repo || (pub.app.repo ? `https://github.com/${pub.app.repo}` : '');
     return `<h3>${esc(a.name || 'PVE Homelab')}</h3>${lead('about.lead')}
       <div class="grp about-box">
-        ${row('about.version', `v${esc(pub.app.version)}${u?.available ? ` · <span class="acc-text">${esc(t('about.update_new', { v: updLabel(u) }))}</span>` : u?.enabled ? ` · ${esc(t('about.update_ok'))}` : ''}`)}
+        ${row('about.version', `v${esc(pub.app.version)}${u?.available ? ` · <span class="acc-text">${esc(t('about.update_new', { v: updLabel(u) }))}</span>` : u?.enabled ? ` · ${esc(t('about.update_ok'))}` : ''}${app.isAdmin() && (u ? u.enabled : !!pub.app.repo)
+          ? ` · <button class="lnk" type="button" id="updCheck">${icon('i-refresh')}<span>${esc(t('about.update_check'))}</span></button>` : ''}`)}
         ${a.author ? row('about.author', a.author_url ? `<a href="${esc(a.author_url)}" target="_blank" rel="noopener">${esc(a.author)}</a>` : esc(a.author)) : ''}
         ${row('about.repo', repo ? `<a href="${esc(repo)}" target="_blank" rel="noopener">${esc(repo.replace(/^https?:\/\//, ''))}</a>` : esc(t('about.none')))}
         ${row('about.license', esc(a.license || t('about.none')))}
@@ -316,7 +346,11 @@ function bind(p) {
   // look
   segBind('lookTabs', (v) => { lookTab = v; if (v === 'mine') myDesigns = null; });
   segBind('langSeg', (v) => { save({ lang: v }); app.useLang(v); });
-  $$('[data-skinpick]', box).forEach((b) => (b.onclick = () => { save({ skin: b.dataset.skinpick }); render(); }));
+  $$('[data-skinpick]', box).forEach((b) => (b.onclick = () => { save(themeChanges(b.dataset.skinpick)); render(); }));
+  const th = themeOf(p.skin);
+  (th?.options || []).forEach((o) => segBind(`to-${o.key}`, (v) => {
+    save({ theme_opts: { ...(p.theme_opts || {}), [th.id]: { ...(p.theme_opts?.[th.id] || {}), [o.key]: v } } });
+  }));
   $$('[data-bgk]', box).forEach((b) => (b.onclick = () => { save({ background: b.dataset.bgk }); render(); }));
   $$('[data-clk]', box).forEach((b) => (b.onclick = () => { save({ clock: b.dataset.clk }); render(); }));
   $$('[data-font]', box).forEach((b) => (b.onclick = () => {
@@ -362,6 +396,16 @@ function bind(p) {
     try { await app.weather(true); toast(t('set.weather.updated')); app.applyPrefs({ relayout: true }); } catch (err) { toast(err.message, true); }
   });
   $('#showHelp') && ($('#showHelp').onclick = () => app.showHelp());
+  $('#updCheck') && ($('#updCheck').onclick = async (e) => {
+    const b = e.currentTarget;
+    b.disabled = true;
+    b.querySelector('span').textContent = t('about.update_checking');
+    try {
+      const u = await app.checkUpdate();
+      toast(u.available ? t('upd.remind', { v: updLabel(u) }) : u.error ? u.error : t('about.update_none'), !!u.error);
+    } catch (err) { toast(err.message, true); }
+    render();
+  });
   $('#writeAuthor') && ($('#writeAuthor').onclick = (e) => app.showFeedback(e.currentTarget));
   // my designs
   $('#designPick') && ($('#designPick').onclick = () => $('#designFiles').click());

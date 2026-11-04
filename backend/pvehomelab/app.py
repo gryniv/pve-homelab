@@ -1079,6 +1079,26 @@ async def update_status(req):
     return web.json_response(st)
 
 
+UPDATE_CHECK_GAP = 30   # s: GitHub limits how often a host may ask
+
+
+@routes.post("/api/update/check")
+async def update_check(req):
+    """Ask GitHub now instead of waiting for the next check (every update.check_hours), from
+    Settings → About. Admins only; a check made less than 30 s ago is answered as it is."""
+    s = await session(req)
+    if not await req.app["pve"].can(s["ticket"], "/", "Sys.Modify"):
+        raise PVEError(403, i18n._("forbidden"))
+    cache, held = req.app["update"], req.app["update"].value
+    try:
+        recent = held and time.time() - held.get("checked", 0) < UPDATE_CHECK_GAP
+        st = dict(held if recent else await cache.fresh())
+    except Exception as e:
+        return web.json_response({"enabled": False, "error": str(e)})
+    st["can_apply"] = True
+    return web.json_response(st)
+
+
 @routes.post("/api/update/apply")
 async def update_apply(req):
     s = await session(req)

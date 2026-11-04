@@ -18,6 +18,13 @@ export async function check() {
   if (upd?.available && !reminded) { reminded = true; toast(t('upd.remind', { v: label(upd) })); }
 }
 
+// Settings → About, admins: ask GitHub now instead of waiting for the next check (every few hours).
+export async function checkNow() {
+  upd = await api.post('/api/update/check');
+  paint();
+  return upd;
+}
+
 // The pill's text follows the language.
 export function paint() {
   const pill = $('#updPill');

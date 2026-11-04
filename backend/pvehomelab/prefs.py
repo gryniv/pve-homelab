@@ -18,6 +18,7 @@ DEFAULT = {
     "sky_by_time": True,
     "layout": {"login": ["weather", "host"], "side": ["host", "gpus"]},
     "widget_opts": {},            # {<widget id>: {<option>: value}}, see "options" in web/widgets/<id>/widget.js
+    "theme_opts": {},             # {<theme id>: {<option>: value}}, see "@option" in a theme's header
     "weather": {"city": "", "units": ""},   # empty = as in config.yaml
     "launch": {"gpu": "auto", "ask": True, "pass_input": True},
     "saver": {"fx": True, "clock": True},
@@ -37,6 +38,8 @@ DEFAULT = {
 def public(pr):
     return {"avatar": pr["avatar"], "skin": pr["skin"], "background": pr["background"], "clock": pr["clock"],
             "fonts": pr["fonts"], "login": pr["layout"].get("login", []), "lang": pr["lang"],
+            # the chosen theme's own settings, so the sign-in screen looks the way this person set it
+            "theme_opts": {pr["skin"]: pr["theme_opts"].get(pr["skin"], {})},
             # options of the sign-in screen widgets only (the rest stays private)
             "widget_opts": {k: v for k, v in pr["widget_opts"].items() if k in pr["layout"].get("login", [])}}
 
@@ -95,6 +98,21 @@ def _same_kind(default, v):
     return True
 
 
+_OPT = re.compile(r"^[a-z0-9][a-z0-9-]{0,23}$")
+
+
+def _theme_opts(v):
+    """{theme: {option: value}} with nothing but short plain names in it (the sign-in screen reads it)."""
+    if not isinstance(v, dict):
+        return {}
+    out = {}
+    for theme, opts in list(v.items())[:MAX_LIST]:
+        if isinstance(theme, str) and _OPT.match(theme) and isinstance(opts, dict):
+            out[theme] = {k: val for k, val in list(opts.items())[:8]
+                          if isinstance(k, str) and isinstance(val, str) and _OPT.match(k) and _OPT.match(val)}
+    return out
+
+
 def _merge(base, over):
     """Defaults overlaid with `over`: unknown keys are dropped, values of the wrong type keep
     the default, and strings and lists are capped."""
@@ -105,7 +123,9 @@ def _merge(base, over):
         if k not in base:
             continue
         d = base[k]
-        if isinstance(d, dict):
+        if k == "theme_opts":
+            out[k] = _theme_opts(v)
+        elif isinstance(d, dict):
             if not isinstance(v, dict):
                 continue
             # an empty default dict is free-form (widget_opts): keep whatever is stored

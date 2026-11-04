@@ -40,6 +40,7 @@ const app = {
   services: () => st.services,
   systems: () => st.systems,
   updateStatus: () => updates.status(),
+  checkUpdate: () => updates.checkNow(),
   nodeUpdatesAllowed: () => nodeUpdates.allowed(),
   showNodeUpdates: (from) => nodeUpdates.show(from),
   showHelp: () => help.show(),
@@ -127,8 +128,19 @@ function paintWeather() {
 // A look = theme, background, clock design and fonts: the signed-in user's, or on the
 // sign-in screen the selected user's.
 let clockId = 'digital';
+
+// A theme's own settings (its @option lines) land on the page as data-o-<key>; its CSS reads them
+// under its own [data-skin]. Unset or unknown values fall back to the theme's default.
+function applyThemeOpts(skin, chosen = {}) {
+  const b = document.body;
+  [...b.attributes].filter((a) => a.name.startsWith('data-o-')).forEach((a) => b.removeAttribute(a.name));
+  const th = st.pub?.themes?.find((x) => x.id === skin);
+  (th?.options || []).forEach((o) => b.setAttribute(`data-o-${o.key}`, o.values.includes(chosen[o.key]) ? chosen[o.key] : o.default));
+}
+
 function applyLook(look = {}) {
   document.body.dataset.skin = look.skin || 'dusk';
+  applyThemeOpts(look.skin || 'dusk', look.theme_opts?.[look.skin || 'dusk']);
   document.body.dataset.bg = look.background || 'scene';
   bg.apply(look.background || 'scene');
   fonts.apply(look.fonts);

@@ -630,6 +630,77 @@ async def layout_theme(r):
         os.remove(path)
 
 
+WHOLE = """/*
+ * @kind theme
+ * @name.en UI check whole
+ * @background night
+ * @clock flip
+ * @option color = red | green
+ * @option.en color Colour: red | green
+ * @option.uk color Колір: червоний | зелений
+ */
+.A[data-skin="uicheck-whole"],.A [data-skin="uicheck-whole"]{--acc:#ff0000}
+.A[data-skin="uicheck-whole"][data-o-color="green"]{--acc:#00ff00}
+"""
+
+
+async def update_check(r):
+    """Settings → About → Check now: GitHub is asked at once, not hours later."""
+    p = r.p
+    open_about = ("document.querySelector('.top [data-go=settings]').click();"
+                  "await new Promise(r => setTimeout(r, 500)); document.querySelector('[data-sp=about]').click();")
+    await r.open()
+    await p.js(open_about)
+    r.check("an admin has Check now next to the version", bool(await p.until("return !!document.querySelector('#updCheck');", 5)))
+    await p.js("document.querySelector('#toast').hidden = true; document.querySelector('#updCheck').click();")
+    got = await p.until("const t = document.querySelector('#toast'); return !t.hidden && t.textContent;", 6)
+    r.check("…and says this is the latest version", got == "This is the latest version", got)
+    # a release appears meanwhile (the demo drops its held answer, as a real one would be out of date)
+    await p.js(API + "await q('POST', '/api/demo/world', {update: true});", 0.2)
+    await p.js("document.querySelector('#toast').hidden = true; document.querySelector('#updCheck').click();")
+    got = await p.until("const t = document.querySelector('#toast'); return !t.hidden && t.textContent;", 6)
+    pill = await p.js("return !document.querySelector('#updPill').hidden;")
+    r.check("…and finds a new one without waiting hours, the top bar too", (got or "").startswith("A new PVE Homelab version") and pill, [got, pill])
+    await r.open("guest@pve")
+    await p.js(open_about, 0.6)
+    r.check("someone without Sys.Modify has no Check now", await p.js("return !document.querySelector('#updCheck');"))
+
+
+async def theme_whole(r):
+    """A theme as a whole: picking it brings its background and clock; its own setting changes the page."""
+    p = r.p
+    if not r.designs_dir:
+        print("  (skipped: needs --start-demo, which owns the designs folder)")
+        return
+    path = os.path.join(r.designs_dir, "themes", "uicheck-whole.css")
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(WHOLE)
+    acc = "return getComputedStyle(document.body).getPropertyValue('--acc').trim();"
+    try:
+        await r.open()
+        await p.js("document.querySelector('.top [data-go=settings]').click();", 0.6)
+        await p.js("document.querySelector('[data-skinpick=\"uicheck-whole\"]').click();", 1.4)
+        st = await p.js("return [document.body.dataset.skin, document.body.dataset.bg, document.querySelector('[data-clock]').dataset.clockk,"
+                        " document.body.getAttribute('data-o-color')];")
+        r.check("picking the theme brings its background and clock", st == ["uicheck-whole", "night", "flip", "red"], st)
+        r.check("…its setting shows under the tiles, named in the person's language",
+                await p.js("return document.querySelector('.topt')?.textContent.includes('Colour') && !!document.querySelector('#to-color [data-v=green]');"))
+        r.check("…and the default value paints the page", await p.js(acc) == "#ff0000", await p.js(acc))
+        await p.js("document.querySelector('#to-color [data-v=green]').click();", 0.8)
+        st = await p.js("return [document.body.getAttribute('data-o-color'), getComputedStyle(document.body).getPropertyValue('--acc').trim()];")
+        r.check("another value changes the page", st == ["green", "#00ff00"], st)
+        saved = await p.until(API + "const o = (await q('GET', '/api/me')).prefs.theme_opts; return o['uicheck-whole']?.color;", 4)
+        r.check("…and is kept", saved == "green", saved)
+        await p.js("document.querySelector('#settingsBox .sclose, [data-go=dash]')?.click();", 0.3)
+        await p.js("document.querySelector('#logoutBtn').click();", 1.2)
+        await p.js("document.querySelector('[data-user=\"ihor@pve\"]').click();", 0.8)
+        st = await p.js("return [document.body.dataset.skin, document.body.getAttribute('data-o-color')];")
+        r.check("the sign-in screen shows the person's theme with their setting", st == ["uicheck-whole", "green"], st)
+    finally:
+        os.remove(path)
+
+
 async def widget_strings(r):
     """Every widget's strings come from its i18n/<lang>.json files, in each language."""
     p = r.p
@@ -778,7 +849,7 @@ async def misc(r):
 
 CHECKS = {"guests": guests, "logout": logout, "widgets": widgets, "toasts": toasts, "offline": offline,
           "aria": dialogs_aria, "alerts": alerts, "update": failed_update, "focus": settings_focus,
-          "console": console, "launch": launch, "search": search, "order": reorder, "guests_table": guest_table, "designs": my_designs, "widget_strings": widget_strings, "my_widgets": my_widgets, "feedback": write_to_author, "node_updates": node_updates, "narrow": narrow, "layout_hooks": layout_hooks, "layout_theme": layout_theme, "designing": designing, "tabs": service_tabs, "misc": misc}
+          "console": console, "launch": launch, "search": search, "order": reorder, "guests_table": guest_table, "designs": my_designs, "widget_strings": widget_strings, "my_widgets": my_widgets, "feedback": write_to_author, "node_updates": node_updates, "narrow": narrow, "layout_hooks": layout_hooks, "layout_theme": layout_theme, "theme_whole": theme_whole, "update_check": update_check, "designing": designing, "tabs": service_tabs, "misc": misc}
 
 
 # ---------------------------------------------------------------- driver

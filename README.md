@@ -8,7 +8,7 @@ Plug a monitor into your Proxmox VE host and get a beautiful sign-in screen, a l
 of your homelab, your web services one click away, and a launcher that boots your desktop VMs
 straight onto the GPU that monitor is wired to.
 
-![version](https://img.shields.io/badge/version-0.5.1-ff8a3d)
+![version](https://img.shields.io/badge/version-0.6.0-ff8a3d)
 ![Proxmox VE](https://img.shields.io/badge/Proxmox%20VE-8%20%7C%209-e57000)
 ![python](https://img.shields.io/badge/python-3.10%2B-3776ab)
 ![no build step](https://img.shields.io/badge/frontend-no%20build%20step-4cc9f0)
@@ -138,7 +138,8 @@ cards, and settings and dialogs take the whole width.
 
 ### Runs itself
 - **Updates from GitHub.** A badge in the top bar and a reminder after sign-in. Admins install it with one
-  click, and nightly auto-update is optional. No git is needed on the host.
+  click, and nightly auto-update is optional. *Settings → About → Check now* asks GitHub at once
+  instead of waiting for the next check. No git is needed on the host.
 - **Proxmox updates.** For those who may update the node, a button in the top bar counts the
   packages waiting; an amber dot means a new kernel is among them. Its dialog lists them, says when
   the package lists were last checked, checks again on request, and opens Proxmox, where they are
@@ -328,6 +329,9 @@ settings, with a live preview.
 **Designs** (how it looks) live apart from the program, in `designs/`. Your own go to
 `/etc/pve-homelab/designs/<kind>/` on the host: updates never touch that folder, and a file there
 with the same id as a built-in design replaces it.
+
+A theme can come as a whole: picking it brings its own background and clock, and its own settings
+(say, its colour, font or layout) show under the theme tiles, kept for each person.
 
 **Making designs** — scaffolding, live reload in the demo, the showcase page and every contract: [DESIGNS.md](DESIGNS.md).
 
