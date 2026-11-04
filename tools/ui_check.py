@@ -419,6 +419,36 @@ async def guest_resources(r):
     r.check("without the rights the fields are read-only", dis)
 
 
+async def settings_copy(r):
+    """Settings → About: a copy of the settings, downloaded and put back by parts."""
+    p = r.p
+    await r.open()
+    await p.js("document.querySelector('.top [data-go=settings]').click();", 0.8)
+    await p.js("document.querySelector('[data-sp=about]').click();", 0.8)
+    href = await p.js("return document.querySelector('#copyGet')?.getAttribute('href');")
+    r.check("an admin can download a copy", href and href.startswith("/api/backup/export"), href)
+    await p.js(API + "await q('PUT', '/api/prefs', {skin: 'forest'});")
+    await p.js("window.__copy = await (await fetch(document.querySelector('#copyGet').href)).blob();"
+               + API + "await q('PUT', '/api/prefs', {skin: 'graphite'});")
+    await p.js("const dt = new DataTransfer(); dt.items.add(new File([window.__copy], 'copy.tar.gz', {type: 'application/gzip'}));"
+               "const i = document.querySelector('#copyFile'); i.files = dt.files; i.dispatchEvent(new Event('change'));")
+    parts = await p.until("return [...document.querySelectorAll('[data-copy-part]')].map(c => c.dataset.copyPart + ':' + c.checked);", 5)
+    r.check("choosing a copy shows its parts, ticked", parts and "users:true" in parts, parts)
+    await p.js("document.querySelector('#copyApply').click();", 0.5)
+    await p.js("document.querySelector('#confirmLayer .btn:not(.ghost)')?.click() || document.querySelector('#confirmYes')?.click();", 0.3)
+    skin = None
+    for _ in range(20):
+        await asyncio.sleep(0.4)
+        try:
+            skin = await p.js(API + "return (await q('GET', '/api/me')).prefs.skin;")
+        except RuntimeError:
+            continue
+        if skin == "forest":
+            break
+    r.check("putting it back brings the settings back", skin == "forest", skin)
+    await p.until("return document.readyState === 'complete' && !!document.querySelector('[data-scr]')", 8)
+
+
 async def console(r):
     p = r.p
     await r.open()
@@ -1093,7 +1123,7 @@ async def misc(r):
     r.check("the weather icon exists", icon and code == 200, f"{icon} {code}")
 
 
-CHECKS = {"guests": guests, "logout": logout, "tfa_signin": tfa_signin, "system_settings": system_settings, "components": components, "interface": interface, "guest_resources": guest_resources, "widgets": widgets, "toasts": toasts, "offline": offline,
+CHECKS = {"guests": guests, "logout": logout, "tfa_signin": tfa_signin, "system_settings": system_settings, "components": components, "interface": interface, "guest_resources": guest_resources, "settings_copy": settings_copy, "widgets": widgets, "toasts": toasts, "offline": offline,
           "aria": dialogs_aria, "alerts": alerts, "update": failed_update, "focus": settings_focus,
           "console": console, "launch": launch, "search": search, "order": reorder, "guests_table": guest_table, "designs": my_designs, "design_pack": design_pack, "widget_strings": widget_strings, "my_widgets": my_widgets, "feedback": write_to_author, "node_updates": node_updates, "narrow": narrow, "layout_hooks": layout_hooks, "layout_theme": layout_theme, "theme_whole": theme_whole, "design_folders": design_folders, "update_check": update_check, "designing": designing, "quiet_faults": quiet_faults, "tabs": service_tabs, "misc": misc}
 

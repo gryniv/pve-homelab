@@ -12,7 +12,7 @@ from urllib.parse import quote
 import aiohttp
 from aiohttp import web
 
-from . import caddy, config, designs, discover, errlog, feedback, gpus as G, i18n, icons, prefs, settings, update, userwidgets, weather, wol
+from . import backup, caddy, config, designs, discover, errlog, feedback, gpus as G, i18n, icons, prefs, settings, update, userwidgets, weather, wol
 from .ddc import DDC
 from .host import HostStats
 from .launch import Launcher
@@ -1400,6 +1400,61 @@ async def update_status(req):
 
 
 UPDATE_CHECK_GAP = 30   # s: GitHub limits how often a host may ask
+
+
+# ---------------- a copy of the menu's settings (Settings → About), and putting one back ----------------
+BACKUP_TTL = 600   # s an inspected copy waits to be put back
+
+
+@routes.get("/api/backup/export")
+async def backup_export(req):
+    s = await session(req)
+    await require(req, s, "Sys.Modify")
+    blob = backup.export(version=update.installed()["version"])
+    name = time.strftime(f"pve-homelab-{req.app['cfg']['node']}-%Y%m%d-%H%M.tar.gz")
+    log.info("settings copy taken by %s", s["user"])
+    return web.Response(body=blob, content_type="application/gzip",
+                        headers={"Content-Disposition": f'attachment; filename="{name}"', "Cache-Control": "no-store"})
+
+
+@routes.post("/api/backup/inspect")
+async def backup_inspect(req):
+    """A copy, uploaded: what putting it back would change, part by part. Nothing is written yet."""
+    s = await session(req)
+    await require(req, s, "Sys.Modify")
+    files = await uploaded_files(req)
+    if len(files) != 1:
+        raise web.HTTPBadRequest(text="one file expected")
+    try:
+        found = backup.plan(files[0][1])
+    except backup.BadCopy as e:
+        raise PVEError(400, i18n._("backup_bad", why=str(e)))
+    held = req.app["runtime"].setdefault("copies", {})
+    for k in [k for k, v in held.items() if v["until"] < time.time()]:
+        del held[k]
+    token = secrets.token_urlsafe(16)
+    held[token] = {"blob": files[0][1], "user": s["user"], "until": time.time() + BACKUP_TTL}
+    return web.json_response({**found, "token": token})
+
+
+@routes.post("/api/backup/apply")
+async def backup_apply(req):
+    s = await session(req)
+    await require(req, s, "Sys.Modify")
+    body = await req.json()
+    if not isinstance(body, dict) or not isinstance(body.get("parts"), list):
+        raise web.HTTPBadRequest(text='{"token", "parts": [...]} expected')
+    c = req.app["runtime"].get("copies", {}).pop(str(body.get("token", "")), None)
+    if not c or c["user"] != s["user"] or c["until"] < time.time():
+        raise PVEError(410, i18n._("backup_gone"))
+    parts = [p for p in body["parts"] if p in backup.PARTS]
+    if not parts:
+        raise web.HTTPBadRequest(text="no parts")
+    snap, written = backup.apply(c["blob"], parts)
+    if {"config", "host"} & set(parts):
+        req.app["runtime"]["restart"] = "all"
+    log.info("settings copy put back by %s: %s (%d files; before: %s)", s["user"], ", ".join(parts), len(written), snap)
+    return web.json_response({"written": len(written), "snapshot": os.path.basename(snap), "restart": req.app["runtime"].get("restart")})
 
 
 # ---------------- Settings → System: the host's settings, changed in the menu ----------------

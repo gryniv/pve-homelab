@@ -177,6 +177,12 @@ cards, and settings and dialogs take the whole width.
 - **Alerts.** A bell in the top bar counts what needs a look, worst first: a failing disk or ZFS
   pool, a storage nearly full, a hot host, guests without a recent backup, a service whose guest is
   down. The limits are under `alerts:` in `config.yaml`.
+- **A copy of the settings.** *Settings → About* (admins) downloads everyone's settings, installed
+  designs and widgets, the sign-in screen, what was changed in System and `config.yaml` as one file,
+  and puts a copy back by parts after showing what each would change. What was there before is saved
+  first (`/etc/pve-homelab/backups`, the last five). Nothing that looks like a secret goes in a copy.
+  Also from a shell: `python3 -m pvehomelab.backup export|inspect|import`. Neither vzdump nor PBS
+  takes `/etc/pve-homelab` on their own, so keep a copy somewhere.
 - **Error journal.** Backend warnings and the screens' own errors (JavaScript, failed widgets,
   server errors) are collected in *Settings → About*, and also in `/var/log/pve-homelab/errors.log`.
 - **Write to the author.** *Settings → About → Write to the author* composes a GitHub issue: a bug,

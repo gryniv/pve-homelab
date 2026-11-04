@@ -25,6 +25,7 @@ const sections = () => SECTIONS.filter(([, , , who]) => who !== 'admin' || app.i
 // with (design: the current one); My designs installs and removes them (mine).
 const LOOK_AT = ['grid', 'design', 'mine'];
 
+let copyPlan = null;   // Settings → About: a settings copy chosen to put back, and what it would change
 let app, current = 'look', lookAt = 'grid', updAsked = false, saveTimer, loginCfg = null, loginTimer, openW = '', stopPreview = null, logs = null, myDesigns = null, myWidgets = null;
 
 const sw = (id, on) => `<span class="sw"><input type="checkbox" id="${id}" ${on ? 'checked' : ''}><i></i></span>`;
@@ -411,6 +412,7 @@ const views = {
         ${row('about.host', `Proxmox VE ${esc(pub.version)} · ${esc(pub.node)}`)}
       </div>
       ${app.isAdmin() && u?.enabled && u.channel === 'release' ? grp('about.updates', tgl('pAutoUpd', !!u.auto, 'about.auto', 'about.auto_sub')) : ''}
+      ${app.isAdmin() ? grp('copy.title', copyView()) : ''}
       <div class="grp"><div class="gl">${t('about.credits')}</div>
         <div class="mute credits">noVNC (MPL-2.0) · Meteocons, Bas Milius (MIT) · dashboard-icons, homarr-labs · Open-Meteo · Google Fonts (OFL) · cage · Chromium</div></div>
       <div class="aboutbtns"><button class="btn ghost" type="button" id="showHelp">${icon('i-info')}${t('help.title')}</button>
@@ -419,8 +421,63 @@ const views = {
   },
 };
 
+// A copy of the menu's settings: download one, or choose one and put back the parts you tick.
+const COPY_PARTS = ['users', 'looks', 'host', 'config'];
+function copyView() {
+  if (!copyPlan) {
+    return `<p class="lead">${esc(t('copy.lead'))}</p><div class="aboutbtns">
+      <a class="btn ghost" id="copyGet" href="/api/backup/export" download>${icon('i-dl')}${esc(t('copy.download'))}</a>
+      <label class="btn ghost" for="copyFile">${icon('i-refresh')}${esc(t('copy.restore'))}</label>
+      <input type="file" id="copyFile" accept=".tar.gz,.tgz,application/gzip" hidden></div>`;
+  }
+  const m = copyPlan.manifest || {};
+  const when = m.created ? new Date(m.created * 1000).toLocaleString(currentLang()) : '';
+  const rows = COPY_PARTS.filter((k) => copyPlan.parts[k]).map((k) => {
+    const n = copyPlan.parts[k];
+    const on = k !== 'config' || !copyPlan.other_node;
+    return `<label class="tgl"><span>${esc(t('copy.part_' + k))}<small>${esc(t('copy.counts', { n: n.new, c: n.changed, s: n.same }))}</small></span>
+      <span class="sw"><input type="checkbox" data-copy-part="${k}" ${on ? 'checked' : ''}><i></i></span></label>`;
+  }).join('');
+  return `<p class="lead">${esc(t('copy.from', { node: m.node || '?', when, v: m.version || '?' }))}</p>
+    ${copyPlan.other_node ? `<p class="lead hint">${icon('i-info')}${esc(t('copy.other_node'))}</p>` : ''}
+    ${rows || `<p class="mute">${esc(t('copy.empty'))}</p>`}
+    <div class="aboutbtns"><button class="btn" type="button" id="copyApply">${esc(t('copy.apply'))}</button>
+      <button class="btn ghost" type="button" id="copyCancel">${esc(t('copy.cancel'))}</button></div>`;
+}
+
+function bindCopy() {
+  const get = $('#copyGet');
+  if (get) get.href = '/api/backup/export?seat=' + encodeURIComponent(app.pub().seat.id);
+  const file = $('#copyFile');
+  if (file) {
+    file.onchange = async () => {
+      const f = file.files[0];
+      if (!f) return;
+      const fd = new FormData();
+      fd.append('file', f, f.name);
+      try { copyPlan = await app.api.post('/api/backup/inspect', fd); } catch (e) { toast(e.message, true); }
+      render();
+    };
+  }
+  $('#copyCancel') && ($('#copyCancel').onclick = () => { copyPlan = null; render(); });
+  $('#copyApply') && ($('#copyApply').onclick = async () => {
+    const parts = $$('[data-copy-part]').filter((c) => c.checked).map((c) => c.dataset.copyPart);
+    if (!parts.length) return;
+    const ok = await confirmBox(t('copy.confirm'), t('copy.confirm_text', { parts: parts.map((k) => t('copy.part_' + k)).join(', ') }), t('copy.apply'));
+    if (!ok) return;
+    try {
+      const r = await app.api.post('/api/backup/apply', { token: copyPlan.token, parts });
+      copyPlan = null;
+      toast(t('copy.done', { n: r.written, snap: r.snapshot }));
+      if (r.restart) toast(t('copy.restart'));
+      setTimeout(() => location.reload(), 1800);
+    } catch (e) { copyPlan = null; toast(e.message, true); render(); }
+  });
+}
+
 function bind(p) {
   const box = $('#settingsBox');
+  if (current === 'about' && app.isAdmin()) bindCopy();
   if (current === 'system') SYS.bind(app, render);
   const setUi = (ch) => save({ ui: { ...p.ui, ...ch } });
   const segBind = (id, fn) => $$(`#${id} button`).forEach((b) => (b.onclick = () => { fn(b.dataset.v); render(); }));
