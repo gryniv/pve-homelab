@@ -222,6 +222,19 @@ def _guest_port(s):
     return (g["type"], g["vmid"], int(port)) if g and port and str(port).isdigit() else None
 
 
+def decorate(found, meta):
+    """`services:` in config.yaml names found UIs too, by their key (ct<id>-<port>, vm<id>-<port>,
+    ct<id>-note<n>): name, icon and description, as it does for Caddy's subdomains."""
+    out = []
+    for s in found:
+        m = (meta or {}).get(s.get("key")) or {}
+        if not isinstance(m, dict) or not m:
+            out.append(s)
+            continue
+        out.append({**s, **{k: str(m[k]) for k in ("name", "icon", "desc") if k in m and m[k] is not None}})
+    return out
+
+
 def merge(caddy_list, found):
     """Caddy entries first; a discovered UI is dropped if Caddy already proxies that guest's port
     (a guest may have several IPs) or the same URL."""

@@ -195,14 +195,12 @@ def _install(src, env):
 
 def _healthy(cfg, want, timeout=60, interval=3):
     """The menu answers again, running the commit just installed (as /api/health reports it)."""
-    host, port = cfg["listen"].rsplit(":", 1)
-    host = host.strip("[]")
-    host = "127.0.0.1" if host in ("0.0.0.0", "::", "") else host
+    port = cfg["listen"].rsplit(":", 1)[1]
     end = time.monotonic() + timeout
     while time.monotonic() < end:
         time.sleep(interval)
         try:
-            req = urllib.request.Request(f"http://{host}:{port}/api/health", headers={"Host": f"127.0.0.1:{port}"})
+            req = urllib.request.Request(config.menu_url(cfg) + "api/health", headers={"Host": f"127.0.0.1:{port}"})
             with urllib.request.urlopen(req, timeout=5) as r:
                 if (json.load(r).get("commit") or "")[:7] == want[:7]:
                     return True

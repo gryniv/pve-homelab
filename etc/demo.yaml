@@ -28,6 +28,7 @@ services:
   vault:    {name: Vaultwarden, icon: vaultwarden}
   home:     {name: Home Assistant, icon: home-assistant}
   pve:      {name: Proxmox, icon: proxmox}
+  ct206-3000: {name: AdGuard, desc: DNS filter}   # a UI found on a container's port, named here
 
 links:
   - {name: Router, url: "http://192.168.1.1", icon: openwrt}

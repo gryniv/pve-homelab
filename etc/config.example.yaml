@@ -4,6 +4,7 @@
 # After editing: systemctl restart pve-homelab 'pve-homelab-kiosk@*'
 
 listen: 127.0.0.1:8900       # 0.0.0.0:8900 only for the reverse proxy below (web.allow_from)
+                             # the kiosk follows the port; the address must include loopback (127.0.0.1 or 0.0.0.0)
 # The menu in a browser elsewhere, through a reverse proxy with TLS (e.g. Caddy on home.example.com).
 # Only loopback and these addresses or networks may talk to the backend; a browser that comes through
 # the proxy is the "web" seat: it never switches a monitor or hands over a GPU.

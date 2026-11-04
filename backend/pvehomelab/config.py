@@ -1,6 +1,7 @@
 import copy
 import os
 import socket
+import sys
 
 import yaml
 
@@ -68,3 +69,55 @@ def load():
     for mon in cfg["monitors"].values():
         mon["inputs"] = {str(k): int(v) for k, v in (mon.get("inputs") or {}).items()}
     return cfg
+
+
+LOOPBACK = ("127.0.0.1", "::1", "localhost", "0.0.0.0", "::", "")
+
+
+def menu_host(cfg):
+    """host:port where the menu answers on this machine (the kiosk, the updater's health check,
+    Proxmox's notification webhook). `listen` on every address means loopback too."""
+    host, port = cfg["listen"].rsplit(":", 1)
+    host = host.strip("[]")
+    if host in ("0.0.0.0", "", "localhost"):
+        host = "127.0.0.1"
+    elif host == "::":
+        host = "::1"
+    return f"[{host}]:{port}" if ":" in host else f"{host}:{port}"
+
+
+def menu_url(cfg, seat=None):
+    return f"http://{menu_host(cfg)}/" + (f"?seat={seat}" if seat else "")
+
+
+def listens_on_loopback(cfg):
+    host = cfg["listen"].rsplit(":", 1)[0].strip("[]")
+    return host in LOOPBACK or host.startswith("127.")
+
+
+def _cli(argv):
+    """For the shell scripts, so they read config.yaml the way the backend does:
+         python3 -m pvehomelab.config kiosk <seat>   ->  <gpu> <debug port> <menu url>
+         python3 -m pvehomelab.config seats          ->  <seat> <tty>, one per kiosk seat
+         python3 -m pvehomelab.config url            ->  the menu's own address"""
+    cfg = load()
+    if argv[:1] == ["kiosk"] and len(argv) == 2:
+        seat = cfg["seats"][argv[1]]
+        if not listens_on_loopback(cfg):
+            print(f"listen: {cfg['listen']} leaves out loopback: the kiosk would count as a browser elsewhere; "
+                  "use 0.0.0.0:<port> or 127.0.0.1:<port>", file=sys.stderr)
+        print(seat["gpu"], int((cfg.get("kiosk") or {}).get("debug_port") or 0), menu_url(cfg, argv[1]))
+    elif argv == ["seats"]:
+        for sid, s in cfg["seats"].items():
+            if s.get("kiosk"):
+                print(sid, s.get("tty", 7))
+    elif argv == ["url"]:
+        print(menu_url(cfg))
+    else:
+        print(_cli.__doc__, file=sys.stderr)
+        return 2
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(_cli(sys.argv[1:]))

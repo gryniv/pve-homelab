@@ -67,6 +67,17 @@ async def test_the_login_names_the_person_behind_the_proxy(client, via, caplog):
     assert any("on seat web from 203.0.113.7" in m for m in caplog.messages), caplog.messages
 
 
+async def test_the_session_cookie_is_secure_behind_https(client, via):
+    via(PROXY)
+    r = await client.post("/api/login", json={"user": "ihor@pve", "password": "x"}, headers={**SITE, "X-Forwarded-Proto": "https"})
+    assert "Secure" in r.headers["Set-Cookie"]
+    r = await client.post("/api/login", json={"user": "ihor@pve", "password": "x"}, headers=SITE)   # a plain-HTTP proxy
+    assert "Secure" not in r.headers["Set-Cookie"]
+    via("127.0.0.1")   # the kiosk on the host: plain HTTP, and a forged header changes nothing
+    r = await client.post("/api/login", json={"user": "ihor@pve", "password": "x"}, headers={"X-Forwarded-Proto": "https"})
+    assert "Secure" not in r.headers["Set-Cookie"]
+
+
 async def test_from_a_browser_a_system_opens_here_or_on_its_own_gpu(client, via):
     via(PROXY)
     await client.post("/api/login", json={"user": "ihor@pve", "password": "x"}, headers=SITE)

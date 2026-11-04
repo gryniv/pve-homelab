@@ -56,6 +56,13 @@ def client_ip(req):
     return req.headers.get("X-Forwarded-For", "").split(",")[0].strip() or peer(req)
 
 
+def over_https(req):
+    """The browser reached us over HTTPS: directly, or through the proxy, which says so."""
+    if req.secure:
+        return True
+    return is_remote(req) and req.headers.get("X-Forwarded-Proto", "").split(",")[0].strip().lower() == "https"
+
+
 def seat_of(req):
     seats = req.app["cfg"]["seats"]
     # A browser elsewhere is always the "web" seat, whatever it asks for: only the screens
@@ -342,7 +349,7 @@ async def login(req):
     req.app["sessions"][sid] = {"ticket": t, "seat": seat, "user": t.user, "seen": time.time()}
     admin = await req.app["pve"].can(t, "/", "Sys.Modify")
     resp = web.json_response({"user": t.user, "prefs": prefs.load(t.user), "admin": admin})
-    resp.set_cookie(COOKIE, sid, httponly=True, samesite="Strict", path="/")
+    resp.set_cookie(COOKIE, sid, httponly=True, samesite="Strict", path="/", secure=over_https(req))
     log.info("login %s on seat %s from %s", t.user, seat, client_ip(req))
     return resp
 
@@ -1205,7 +1212,7 @@ async def on_startup(app):
         except Exception as e:
             log.warning("discovery failed: %s", e)
             found = []
-        return discover.merge(listed, found)
+        return discover.merge(listed, discover.decorate(found, cfg.get("services")))
     app["services"] = Cached(build_services, 60, stale=True)
 
     async def check_update():

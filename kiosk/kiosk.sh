@@ -3,13 +3,11 @@
 # Usage: kiosk.sh <seat-id>   (run by pve-homelab-kiosk@<seat-id>.service)
 set -eu
 SEAT="$1"
-URL="http://127.0.0.1:8900/?seat=$SEAT"
-read -r GPU DEBUG_PORT <<EOF
-$(python3 -c "
-import yaml, sys
-c = yaml.safe_load(open('/etc/pve-homelab/config.yaml'))
-print(c['seats'][sys.argv[1]]['gpu'], int((c.get('kiosk') or {}).get('debug_port') or 0))" "$SEAT")
+# The seat's GPU, the debug port and the menu's address (from `listen`), read as the backend reads them.
+read -r GPU DEBUG_PORT URL <<EOF
+$(cd /opt/pve-homelab/backend && python3 -m pvehomelab.config kiosk "$SEAT")
 EOF
+MENU="${URL%%\?*}"
 DEBUG_ARGS=""
 [ "$DEBUG_PORT" -gt 0 ] && DEBUG_ARGS="--remote-debugging-address=127.0.0.1 --remote-debugging-port=$DEBUG_PORT"
 
@@ -25,6 +23,12 @@ while ! python3 -c "import urllib.request;urllib.request.urlopen('$URL',timeout=
   i=$((i+1)); [ $i -gt 60 ] && break; sleep 1
 done
 
+# The extension needs the menu's address: a copy of it with menu.js written for this config.
+EXT="$HOME/ext"
+rm -rf "$EXT"
+cp -r /opt/pve-homelab/kiosk/ext "$EXT"
+printf "self.PVEHOMELAB_MENU = '%s';\n" "$MENU" > "$EXT/menu.js"
+
 PROFILE="$HOME/chromium/$SEAT"
 mkdir -p "$PROFILE"
 # A crash must not leave the "restore pages?" bubble on screen.
@@ -37,7 +41,7 @@ exec cage -s -- chromium \
   --ozone-platform=wayland \
   --kiosk "$URL" \
   --user-data-dir="$PROFILE" \
-  --load-extension=/opt/pve-homelab/kiosk/ext \
+  --load-extension="$EXT" \
   --no-first-run --noerrdialogs --disable-infobars --disable-session-crashed-bubble \
   --password-store=basic \
   --disable-features=Translate,MediaRouter,HardwareMediaKeyHandling,DisableLoadExtensionCommandLineSwitch \

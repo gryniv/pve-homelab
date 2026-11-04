@@ -3,7 +3,7 @@
 //  2. In every service page: a dock ("⌂ Menu", open services, reload, close) reachable by mouse, Tab or Alt+Q.
 (() => {
   if (window.top !== window) return;
-  const MENU = 'http://127.0.0.1:8900/';
+  const MENU = self.PVEHOMELAB_MENU || 'http://127.0.0.1:8900/';   // from menu.js, loaded first
   const send = (msg) => chrome.runtime.sendMessage(msg);
 
   if (location.href.startsWith(MENU)) {
