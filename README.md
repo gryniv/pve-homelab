@@ -282,7 +282,8 @@ Your config and user settings are never overwritten by a re-install or an update
 
 The text console stays on **Ctrl+Alt+F1** and the menu is on **Ctrl+Alt+F7**. `./uninstall.sh`
 removes it, the kiosk's browser profiles (with the services' cookies) included; your settings in
-`/etc/pve-homelab`, the packages and the `pvehomelab` user stay.
+`/etc/pve-homelab`, the packages and the `pvehomelab` user stay. `./uninstall.sh --purge` first saves
+a copy of the settings to `/root`, then removes them and the user too.
 
 > **Upgrading from PVE Seat 0.3** (the old name) is automatic: `install.sh` moves
 > `/etc/pve-seat` to `/etc/pve-homelab`, keeps a copy as `/etc/pve-seat.migrated`, and replaces
