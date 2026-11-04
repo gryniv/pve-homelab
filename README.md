@@ -8,7 +8,7 @@ Plug a monitor into your Proxmox VE host and get a beautiful sign-in screen, a l
 of your homelab, your web services one click away, and a launcher that boots your desktop VMs
 straight onto the GPU that monitor is wired to.
 
-![version](https://img.shields.io/badge/version-0.5.0-ff8a3d)
+![version](https://img.shields.io/badge/version-0.5.1-ff8a3d)
 ![Proxmox VE](https://img.shields.io/badge/Proxmox%20VE-8%20%7C%209-e57000)
 ![python](https://img.shields.io/badge/python-3.10%2B-3776ab)
 ![no build step](https://img.shields.io/badge/frontend-no%20build%20step-4cc9f0)

@@ -73,7 +73,10 @@ Every design starts with a comment, **one `@key` per line**:
 
 ## Theme
 
-Only custom properties, set on the theme's selector. Everything else derives from them.
+Custom properties, set on the theme's selector; everything else derives from them. A theme may
+also restyle widgets or [move things around](#moving-things-around), as long as **every rule stays
+under its own `[data-skin="<id>"]`**: all themes are loaded at once and the page picks one, so a
+rule without it would change every other theme too. The installer refuses such a theme.
 
 ```css
 .A[data-skin="neon-night"],.A [data-skin="neon-night"]{
@@ -149,6 +152,44 @@ It is loaded only when someone picks it or opens its preview.
 Styles for `.A .w[data-w="<id>"]`, where `<id>` is the widget's id. A widget's own classes are
 its own; the quickest start is a copy of the built-in look:
 `python3 tools/new_design.py widget host`.
+
+## Moving things around
+
+A theme can rearrange the screens, not only colour them: the sign-in form on the left, the top bar
+at the bottom like a terminal's status line, the side column on the right. Hook onto these parts
+only. They keep their names and what they hold across updates (where they sit in the markup may
+change); any other class of the menu is its own business and may change without notice.
+
+| Hook | Screen | What it holds |
+|---|---|---|
+| `[data-scr="saver"]`, `[data-scr="login"]`, `[data-scr="dash"]` | | the screens themselves |
+| `[data-part="saver-time"]`, `[data-part="saver-weather"]` | screensaver | the clock and date; the weather |
+| `[data-part="login-intro"]` | sign-in | the host line, title, clock and date, and the widgets |
+| `[data-part="login-widgets"]` | sign-in | the widget column (inside `login-intro`) |
+| `[data-part="login-form"]` | sign-in | who is signing in, the password |
+| `[data-part="login-about"]`, `[data-part="login-power"]` | sign-in | the version line; the language and screensaver buttons |
+| `[data-part="topbar"]` | dashboard | the bar: `brand`, `open-tabs`, `topbar-tools` |
+| `[data-part="dash-body"]` | dashboard | all below the bar: `sidecol` and `dash-main` |
+| `[data-part="sidecol"]` | dashboard | the side widget column |
+| `[data-part="dash-main"]` | dashboard | `systems` and `services` |
+| `[data-part="systems"]`, `[data-part="services"]` | dashboard | the systems row; the web services and guests tabs |
+
+```css
+/* the top bar at the bottom, the sign-in form on the left */
+@media (min-width: 901px) {
+  .A[data-skin="tmux"] [data-part="topbar"]{position:absolute;left:0;right:0;bottom:0;border-top:1px solid var(--edge);border-bottom:0}
+  .A[data-skin="tmux"] [data-part="dash-body"]{top:0;bottom:3.6em}
+  .A[data-skin="tmux"] [data-scr="login"]{grid-template-columns:28em 1fr}
+  .A[data-skin="tmux"] [data-part="login-form"]{order:-1}
+}
+```
+
+- **Keep it in `@media (min-width: 901px)`.** Under 900 px the menu has its own one-column layout
+  for phones and upright tablets.
+- **Scope to the page, `.A[data-skin="<id>"]`** (no space before the bracket), so the small
+  previews in *Settings → Look* stay as they are.
+- **The keyboard:** arrows go by what is on screen, so they follow you; Tab goes by the markup,
+  so it jumps when parts move far. Try both in the showcase and the demo.
 
 ## Your own widgets
 

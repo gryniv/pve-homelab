@@ -557,6 +557,79 @@ async def narrow(r):
         await p.send("Emulation.setDeviceMetricsOverride", width=1600, height=900, deviceScaleFactor=1, mobile=False)
 
 
+PARTS = {"saver": ["saver-time", "saver-weather"],
+         "login": ["login-intro", "login-widgets", "login-form", "login-about", "login-power"],
+         "dash": ["topbar", "brand", "open-tabs", "topbar-tools", "dash-body", "sidecol", "dash-main", "systems", "services"]}
+
+
+async def layout_hooks(r):
+    """The parts a theme may move (DESIGNS.md, "Moving things around") are all there, once each:
+    renaming one breaks this check, not someone's design."""
+    p = r.p
+    count = "return Object.fromEntries(%s.map((n) => [n, document.querySelectorAll(`[data-scr=%s] [data-part=\"${n}\"]`).length]));"
+    await r.open(None)
+    for scr in ("login", "saver"):
+        if scr == "saver":
+            await p.js("document.querySelector('[data-part=login-power] [data-go=saver]').click();", 0.5)
+        got = await p.js(count % (json.dumps(PARTS[scr]), scr))
+        r.check(f"{scr}: every layout hook once", all(v == 1 for v in got.values()), got)
+    await r.open()
+    got = await p.js(count % (json.dumps(PARTS["dash"]), "dash"))
+    r.check("dash: every layout hook once", all(v == 1 for v in got.values()), got)
+
+
+TMUX = """/*
+ * @kind theme
+ * @name.en UI check tmux
+ */
+.A[data-skin="uicheck-tmux"],.A [data-skin="uicheck-tmux"]{--acc:#33ff77}
+@media (min-width: 901px) {
+  .A[data-skin="uicheck-tmux"] [data-part="topbar"]{position:absolute;left:0;right:0;bottom:0;border-top:1px solid var(--edge);border-bottom:0}
+  .A[data-skin="uicheck-tmux"] [data-part="dash-body"]{top:0;bottom:3.6em}
+  .A[data-skin="uicheck-tmux"] [data-scr="login"]{grid-template-columns:28em 1fr}
+  .A[data-skin="uicheck-tmux"] [data-part="login-form"]{order:-1}
+}
+"""
+
+
+async def layout_theme(r):
+    """A theme that moves things around: the top bar at the bottom, the sign-in form on the left."""
+    p = r.p
+    if not r.designs_dir:
+        print("  (skipped: needs --start-demo, which owns the designs folder)")
+        return
+    path = os.path.join(r.designs_dir, "themes", "uicheck-tmux.css")
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(TMUX)
+    try:
+        await r.open(None)
+        await p.js(API + "await q('POST', '/api/login', {user: 'ihor@pve', password: 'x'});"
+                   "const pr = (await q('GET', '/api/me')).prefs; pr.skin = 'uicheck-tmux';"
+                   "await q('PUT', '/api/prefs', pr); await q('POST', '/api/logout');")
+        await p.send("Page.navigate", url=r.base)
+        await p.until("return !!document.querySelector('[data-user=\"ihor@pve\"]');", 15)
+        await p.js("document.querySelector('[data-user=\"ihor@pve\"]').click();", 0.6)
+        on = await p.until("return document.body.dataset.skin === 'uicheck-tmux';", 6)
+        r.check("the sign-in screen takes the person's theme", bool(on))
+        st = await p.js("const x = (s) => document.querySelector(s).getBoundingClientRect();"
+                        "return [x('[data-part=login-form]').left < x('[data-part=login-intro]').left, document.documentElement.scrollWidth <= innerWidth];")
+        r.check("…its sign-in form moved to the left, nothing wider than the screen", st == [True, True], st)
+        await p.js("document.querySelector('#pw').value = 'x'; document.querySelector('#loginForm').requestSubmit();")
+        await p.until("return document.querySelector('[data-scr=dash]')?.hidden === false && document.querySelectorAll('.sys .play').length > 0;", 15)
+        await asyncio.sleep(0.6)
+        st = await p.js("const x = (s) => document.querySelector(s).getBoundingClientRect(); const t = x('[data-part=topbar]'), b = x('[data-part=dash-body]');"
+                        "return [Math.abs(t.bottom - innerHeight) < 2, b.bottom <= t.top + 1, b.top < 2, document.documentElement.scrollWidth <= innerWidth];")
+        r.check("…the top bar sits at the bottom, the dashboard above it", st == [True, True, True, True], st)
+        await p.js("document.querySelector('#logoutBtn').focus();")
+        await p.key("ArrowUp", 38)
+        await asyncio.sleep(0.2)
+        up = await p.js("const a = document.activeElement; return !!a?.closest('[data-part=dash-body]') && a.id !== 'logoutBtn';")
+        r.check("…and ArrowUp from it goes to what is now above it", up)
+    finally:
+        os.remove(path)
+
+
 async def widget_strings(r):
     """Every widget's strings come from its i18n/<lang>.json files, in each language."""
     p = r.p
@@ -705,7 +778,7 @@ async def misc(r):
 
 CHECKS = {"guests": guests, "logout": logout, "widgets": widgets, "toasts": toasts, "offline": offline,
           "aria": dialogs_aria, "alerts": alerts, "update": failed_update, "focus": settings_focus,
-          "console": console, "launch": launch, "search": search, "order": reorder, "guests_table": guest_table, "designs": my_designs, "widget_strings": widget_strings, "my_widgets": my_widgets, "feedback": write_to_author, "node_updates": node_updates, "narrow": narrow, "designing": designing, "tabs": service_tabs, "misc": misc}
+          "console": console, "launch": launch, "search": search, "order": reorder, "guests_table": guest_table, "designs": my_designs, "widget_strings": widget_strings, "my_widgets": my_widgets, "feedback": write_to_author, "node_updates": node_updates, "narrow": narrow, "layout_hooks": layout_hooks, "layout_theme": layout_theme, "designing": designing, "tabs": service_tabs, "misc": misc}
 
 
 # ---------------------------------------------------------------- driver

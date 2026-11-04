@@ -89,21 +89,21 @@
   <div class="sv-hint" data-i18n="saver.hint"></div>
   <div class="sv-seat"><svg class="i"><use href="#i-monitor"/></svg><span data-seat-name></span></div>
   <div class="sv">
-    <div class="sv-clock"><div class="clock" data-clock></div><div class="date" data-date></div></div>
-    <div class="sv-wx"><div><div class="t" data-temp></div><div class="d"><span data-wx-text></span> · <span data-city></span></div></div><img data-wx-icon alt=""></div>
+    <div class="sv-clock" data-part="saver-time"><div class="clock" data-clock></div><div class="date" data-date></div></div>
+    <div class="sv-wx" data-part="saver-weather"><div><div class="t" data-temp></div><div class="d"><span data-wx-text></span> · <span data-city></span></div></div><img data-wx-icon alt=""></div>
   </div>
 </section>
 
 <!-- LOGIN -->
 <section class="scr scr-login" data-scr="login" hidden>
-  <div>
+  <div data-part="login-intro">
     <div class="host"><img src="/icons/proxmox.svg" alt=""><span data-hostline></span></div>
     <div class="login-title" id="loginTitle" hidden></div>
     <div class="clock" data-clock></div>
     <div class="date" data-date></div>
-    <div class="zone-login" data-zone="login"></div>
+    <div class="zone-login" data-zone="login" data-part="login-widgets"></div>
   </div>
-  <form class="glass who" id="loginForm" autocomplete="off">
+  <form class="glass who" id="loginForm" autocomplete="off" data-part="login-form">
     <h3 data-i18n="login.who"></h3>
     <div class="users" id="users"></div>
     <div class="other" id="otherRow" hidden><input id="otherUser" data-i18n-placeholder="login.user_placeholder" data-i18n-aria="login.user"></div>
@@ -112,16 +112,16 @@
     <div class="loginerr" id="loginErr" hidden></div>
     <div class="seatnote"><svg class="i"><use href="#i-monitor"/></svg><span><span data-i18n="login.seat" class="seat-local"></span> <b data-seat-name></b></span></div>
   </form>
-  <div class="about-mini login-about" data-about></div>
-  <div class="power"><div class="seg langseg" id="loginLang" role="group" data-i18n-aria="login.language"></div><button class="chipbtn" type="button" data-go="saver"><svg class="i"><use href="#i-moon"/></svg><span data-i18n="saver.button"></span></button></div>
+  <div class="about-mini login-about" data-about data-part="login-about"></div>
+  <div class="power" data-part="login-power"><div class="seg langseg" id="loginLang" role="group" data-i18n-aria="login.language"></div><button class="chipbtn" type="button" data-go="saver"><svg class="i"><use href="#i-moon"/></svg><span data-i18n="saver.button"></span></button></div>
 </section>
 
 <!-- DASHBOARD -->
 <section class="scr scr-dash" data-scr="dash" hidden>
-  <div class="top">
-    <div class="brand"><img src="/icons/proxmox.svg" alt=""><span data-node></span><span class="health" id="health" ></span></div>
-    <div class="opentabs" id="openTabs"></div>
-    <div class="tr">
+  <div class="top" data-part="topbar">
+    <div class="brand" data-part="brand"><img src="/icons/proxmox.svg" alt=""><span data-node></span><span class="health" id="health" ></span></div>
+    <div class="opentabs" id="openTabs" data-part="open-tabs"></div>
+    <div class="tr" data-part="topbar-tools">
       <button class="bell" type="button" id="alertBell" hidden data-i18n-title="alerts.title"><svg class="i"><use href="#i-bell"/></svg><span class="n"></span></button>
       <button class="bell pkg" type="button" id="nodeUpd" hidden><svg class="i"><use href="#i-dl"/></svg><span class="n"></span></button>
       <button class="updpill" type="button" id="updPill" hidden><svg class="i"><use href="#i-refresh"/></svg><span></span></button>
@@ -133,15 +133,15 @@
       <button class="ibtn" type="button" id="logoutBtn" data-i18n-title="top.logout"><svg class="i"><use href="#i-logout"/></svg></button>
     </div>
   </div>
-  <div class="body">
-    <div class="sidecol"><div class="zone-side" data-zone="side"></div><div class="about-mini" data-about></div></div>
-    <div class="main">
-      <div class="sysrail" id="sysrail">
+  <div class="body" data-part="dash-body">
+    <div class="sidecol" data-part="sidecol"><div class="zone-side" data-zone="side"></div><div class="about-mini" data-about></div></div>
+    <div class="main" data-part="dash-main">
+      <div class="sysrail" id="sysrail" data-part="systems">
         <div class="systems" id="systems"></div>
         <button class="rail-btn prev" type="button" tabindex="-1" data-rail="-1" data-i18n-title="sys.prev"><svg class="i"><use href="#i-chev"/></svg></button>
         <button class="rail-btn next" type="button" tabindex="-1" data-rail="1" data-i18n-title="sys.next"><svg class="i"><use href="#i-chev"/></svg><b class="more" id="sysMore"></b></button>
       </div>
-      <div class="glass tabp">
+      <div class="glass tabp" data-part="services">
         <div class="ptabs" role="tablist">
           <button role="tab" aria-selected="true" data-ptab="web"><svg class="i"><use href="#i-ext"/></svg><span data-i18n="dash.web"></span><span class="cnt" id="svcCount">0</span></button>
           <button role="tab" aria-selected="false" data-ptab="guests"><svg class="i"><use href="#i-box"/></svg><span data-i18n="dash.guests"></span><span class="cnt" id="guestCount">0</span></button>
