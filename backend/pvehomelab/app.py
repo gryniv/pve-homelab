@@ -1221,19 +1221,10 @@ async def on_startup(app):
 
 
 async def _adopt_running(app):
-    """Watch VMs that already hold a GPU wired to a menu monitor (started before us)."""
-    cfg, ddc = app["cfg"], app["ddc"]
+    """Watch VMs that already hold a GPU wired to a menu monitor (started before us); the watch
+    loop keeps doing it for those started from Proxmox while the menu runs."""
     try:
-        running = await app["running"]()
-        for g in await G.list_gpus(running):
-            vm, mon = g["running_vm"], ddc.monitor_for_gpu(g["pci"])
-            if not vm or not mon:
-                continue
-            seat_gpu = next((s["gpu"] for s in cfg["seats"].values()
-                             if s.get("kiosk") and ddc.monitor_for_gpu(s["gpu"]) == mon), None)
-            if seat_gpu:
-                app["launcher"].watch[vm] = (mon, seat_gpu)
-                log.info("watching VM %s on monitor %s", vm, mon)
+        await app["launcher"].adopt()
     except Exception as e:
         log.warning("adopt running VMs: %s", e)
 

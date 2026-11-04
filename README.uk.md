@@ -237,6 +237,7 @@ GitHub Actions запускає все це на кожен push (Python 3.10–
 
 ```bash
 python3 tools/dryrun.py --port 8901        # справжні дані, вхід з паролем "test", усі дії лише в журнал
+python3 tools/launch_plan.py 102           # що змінив би запуск VM 102 (qm set, вхід монітора), нічого не роблячи
 python3 tools/screenshots.py --out /tmp/shots --lang en
 ```
 

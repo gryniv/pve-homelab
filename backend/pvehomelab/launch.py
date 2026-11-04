@@ -347,22 +347,47 @@ class Launcher:
         except Exception as e:
             log.warning("VM %s: could not restore hostpci%s (%s): %s", vmid, slot, old, e)
 
+    ADOPT_EVERY = 8   # turns of the watch loop (4 s each): about every half a minute
+
+    async def adopt(self):
+        """Watch VMs that hold a GPU wired to a menu monitor though the menu did not start them:
+        started before it (an update restarts the menu at night) or from Proxmox itself. Otherwise
+        the monitor stays on that GPU's input, with no picture, after the VM stops."""
+        cfg, ddc = self.cfg, self.app["ddc"]
+        running = await self.app["running"]()
+        for g in await G.list_gpus(running):
+            vm, mon = g["running_vm"], ddc.monitor_for_gpu(g["pci"])
+            if not vm or not mon or vm in self.watch:
+                continue
+            seat_gpu = next((s["gpu"] for s in cfg["seats"].values()
+                             if s.get("kiosk") and s.get("gpu") and ddc.monitor_for_gpu(s["gpu"]) == mon), None)
+            if seat_gpu:
+                self.watch[vm] = (mon, seat_gpu)
+                log.info("watching VM %s on monitor %s", vm, mon)
+
+    async def give_back(self):
+        """The watched VMs that stopped: the monitor goes back to the menu."""
+        running = await self.app["running"](fresh=True)
+        for vmid, (mon, seat_gpu) in list(self.watch.items()):
+            if vmid in running:
+                continue
+            del self.watch[vmid]
+            if mon and self.cfg["launch"]["return_to_menu"]:
+                try:
+                    await self.app["ddc"].switch_to_gpu(mon, seat_gpu)
+                except Exception as e:
+                    log.warning("return to menu failed: %s", e)
+
     async def watch_loop(self):
-        """When a launched VM stops, give the monitor back to the menu."""
+        """When a VM on a menu monitor's GPU stops, give the monitor back to the menu."""
+        turn = 0
         while True:
             await asyncio.sleep(4)
-            if not self.watch:
-                continue
+            turn += 1
             try:
-                running = await self.app["running"](fresh=True)
-            except Exception:
-                continue
-            for vmid, (mon, seat_gpu) in list(self.watch.items()):
-                if vmid in running:
-                    continue
-                del self.watch[vmid]
-                if mon and self.cfg["launch"]["return_to_menu"]:
-                    try:
-                        await self.app["ddc"].switch_to_gpu(mon, seat_gpu)
-                    except Exception as e:
-                        log.warning("return to menu failed: %s", e)
+                if turn % self.ADOPT_EVERY == 0:
+                    await self.adopt()
+                if self.watch:
+                    await self.give_back()
+            except Exception as e:
+                log.debug("watch: %s", e)

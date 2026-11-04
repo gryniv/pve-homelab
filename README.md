@@ -412,6 +412,7 @@ On the host, next to the real service:
 
 ```bash
 python3 tools/dryrun.py --port 8901        # real data, password "test", actions only logged
+python3 tools/launch_plan.py 102           # what starting VM 102 would change (qm set, monitor input), nothing done
 python3 tools/screenshots.py --out /tmp/shots --lang en
 ```
 
