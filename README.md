@@ -118,6 +118,10 @@ settings form (⚙) and a live preview:
 | Note | your text | heading, text |
 | Quick actions | PVE web UI, screensaver, reboot, shut down | buttons |
 
+**Your own widgets** sit next to these: `/etc/pve-homelab/widgets/<id>/widget.js` on the host
+(updates leave it alone), or installed by an admin from *Settings → Dashboard → My widgets*.
+`python3 tools/new_widget.py <id>` starts one in the demo; see [DESIGNS.md](DESIGNS.md#your-own-widgets).
+
 ### Screensaver
 After a few idle minutes the sign-in screen dims into a big clock over the living landscape,
 with the current weather and particle effects. Any key brings it back.
@@ -314,7 +318,7 @@ The program's own extension points:
 
 | Module | File | Contract |
 |---|---|---|
-| Widget | `web/widgets/<id>/widget.js` | `zones`, `public`, `source`, `every`, `options`, `render(data, ctx)`, `after(el, data, ctx)`, own `i18n` |
+| Widget | `web/widgets/<id>/widget.js`, yours in `/etc/pve-homelab/widgets/<id>/widget.js` | `zones`, `public`, `source`, `every`, `options`, `render(data, ctx)`, `after(el, data, ctx)`, own `i18n` |
 | Language | `web/i18n/<code>.json` | the same keys as `en.json`, plus `"_name"` |
 
 A widget with settings looks like this:
@@ -346,7 +350,8 @@ kiosk/               kiosk.sh (cage + Chromium on the seat's GPU), an MV3 extens
                      tabs and the Alt+Q dock, Chromium policy (system DNS)
 systemd/             pve-homelab.service, pve-homelab-kiosk@.service, pve-homelab-update.{service,timer}
 tools/               dryrun.py (a safe backend next to the real one), screenshots.py (layout checks
-                     at 10 resolutions), readme_shots.py (the pictures above)
+                     at 10 resolutions), readme_shots.py (the pictures above), new_design.py and
+                     new_widget.py (start a design or a widget of your own)
 demo.py              the real app over an in-memory fake host
 ```
 

@@ -98,6 +98,7 @@ class Run:
         self.p, self.base, self.failed, self.passed = page, base, [], 0
         self.prefs = None  # the demo user's settings at the start; every check starts from them
         self.designs_dir = None  # the demo's own designs folder, when this run started the demo
+        self.widgets_dir = None  # …and its widgets folder
 
     def check(self, name, ok, detail=""):
         # an empty list or None as detail is worth seeing too: show anything but the default ""
@@ -374,7 +375,7 @@ async def my_designs(r):
                  "document.querySelector('#lookTabs [data-v=mine]').click();")
     await r.open()
     await p.js(open_mine)
-    ok = await p.until("return !!document.querySelector('#designPick') && document.querySelector('.dlist, .scont .mute:not(.dinstall .mute)') !== null;", 5)
+    ok = await p.until("return !!document.querySelector('#designPick') && document.querySelector('.mylist, .scont .mute:not(.dinstall .mute)') !== null;", 5)
     r.check("an admin sees My designs with an install button", ok)
     # choose the file in the real file input, as a person would through the file dialog
     doc = await p.send("DOM.getDocument")
@@ -382,20 +383,72 @@ async def my_designs(r):
     await p.send("DOM.setFileInputFiles", files=[theme], nodeId=node["nodeId"])
     back = await p.until("return !document.querySelector('[data-layer=settings]')?.hidden && "
                          "document.querySelector('#lookTabs [data-v=mine]')?.getAttribute('aria-pressed') === 'true' && "
-                         "[...document.querySelectorAll('.dlist li')].map(l => l.textContent).join('|').includes('UI check neon');", 12)
+                         "[...document.querySelectorAll('.mylist li')].map(l => l.textContent).join('|').includes('UI check neon');", 12)
     r.check("installing reloads back to My designs, listing the new one", back)
     themes = await p.js(API + "return (await q('GET', '/api/public')).themes.map(t => t.id);")
     r.check("…and it is offered as a theme", "uicheck-neon" in (themes or []), themes)
     await p.js("document.querySelector('[data-rmdesign^=\"themes|uicheck-neon\"]').click();", 0.4)
     await p.js("document.querySelector('#cYes').click();")
     gone = await p.until("return document.querySelector('#lookTabs [data-v=mine]')?.getAttribute('aria-pressed') === 'true' && "
-                         "!document.querySelector('[data-rmdesign]') && document.querySelectorAll('.dlist li').length === 0;", 12)
+                         "!document.querySelector('[data-rmdesign]') && document.querySelectorAll('.mylist li').length === 0;", 12)
     r.check("removing it reloads back with the list empty", gone)
     await r.open("guest@pve")
     await p.js(open_mine)
     guest = await p.until("return !document.querySelector('#designPick') && document.querySelector('.scont').textContent.includes('admins');", 5)
     r.check("someone without Sys.Modify is told installing is for admins", guest)
     shutil.rmtree(os.path.dirname(theme), ignore_errors=True)
+
+
+async def my_widgets(r):
+    """A widget of your own: installed from Settings → Dashboard, put on the dashboard, removed."""
+    p = r.p
+    tmp = tempfile.mkdtemp(prefix="pvehomelab-uicheck-widget-")
+    js, css = os.path.join(tmp, "uicheck-w.js"), os.path.join(tmp, "uicheck-w.css")
+    with open(js, "w", encoding="utf-8") as f:
+        f.write("export default { zones: ['side'], i18n: { en: { title: 'UI check widget' }, uk: { title: 'Віджет перевірки' } },\n"
+                "  render: (_d, { ui, t }) => `<h4>${ui.esc(t('title'))}</h4><div class=\"uiw\">hello</div>` };\n")
+    with open(css, "w", encoding="utf-8") as f:
+        f.write('.A .w[data-w="uicheck-w"] .uiw{color:rgb(1, 2, 3)}\n')
+    open_dash = ("document.querySelector('.top [data-go=settings]').click();"
+                 "await new Promise(r => setTimeout(r, 500));"
+                 "document.querySelector('[data-sp=dash]').click();")
+    in_dash = "!document.querySelector('[data-layer=settings]')?.hidden && document.querySelector('[data-sp=dash]')?.getAttribute('aria-selected') === 'true'"
+    try:
+        await r.open()
+        await p.js(open_dash)
+        r.check("an admin sees My widgets with an install button and the warning",
+                await p.until("return !!document.querySelector('#widgetPick') && !!document.querySelector('.wwarn');", 5))
+        doc = await p.send("DOM.getDocument")
+        node = await p.send("DOM.querySelector", nodeId=doc["root"]["nodeId"], selector="#widgetFiles")
+        await p.send("DOM.setFileInputFiles", files=[js, css], nodeId=node["nodeId"])
+        back = await p.until(f"return {in_dash} && (document.querySelector('#myWidgets')?.textContent || '').includes('UI check widget');", 12)
+        r.check("installing reloads back to Dashboard, listing the new widget", back)
+        offered = await p.js("return [...document.querySelectorAll('#add-side option')].map(o => o.value);")
+        r.check("…and it can be added to the dashboard", "uicheck-w" in (offered or []), offered)
+        await p.js("const s = document.querySelector('#add-side'); s.value = 'uicheck-w'; s.dispatchEvent(new Event('change'));"
+                   "document.querySelector('[data-add=side]').click();", 0.6)
+        await p.js("document.querySelector('#sClose').click();", 0.6)
+        shown = await p.until("const w = document.querySelector('[data-zone=side] [data-w=\"uicheck-w\"] .uiw');"
+                              "return w && [w.textContent, getComputedStyle(w).color];", 8)
+        r.check("it runs on the dashboard, in its own look", shown == ["hello", "rgb(1, 2, 3)"], shown)
+        await p.js(open_dash)
+        await p.until("return !!document.querySelector('[data-rmwidget^=\"uicheck-w|\"]');", 5)
+        await p.js("document.querySelector('[data-rmwidget^=\"uicheck-w|\"]').click();", 0.4)
+        await p.js("document.querySelector('#cYes').click();")
+        gone = await p.until(f"return {in_dash} && !document.querySelector('#myWidgets') && !document.querySelector('[data-w=\"uicheck-w\"]');", 12)
+        r.check("removing it reloads back, and it is gone from the list and the dashboard", gone)
+        await r.open("guest@pve")
+        await p.js(open_dash)
+        guest = await p.until("return !document.querySelector('#widgetPick') && document.querySelector('.scont').textContent.includes('Installing widgets is for admins');", 5)
+        r.check("someone without Sys.Modify is told installing widgets is for admins", guest)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+        if r.widgets_dir:  # leave the demo as it was, whatever happened above
+            shutil.rmtree(os.path.join(r.widgets_dir, "uicheck-w"), ignore_errors=True)
+            try:
+                os.remove(os.path.join(r.designs_dir, "widgets", "uicheck-w.css"))
+            except OSError:
+                pass
 
 
 async def designing(r):
@@ -477,7 +530,7 @@ async def misc(r):
 
 CHECKS = {"guests": guests, "logout": logout, "widgets": widgets, "toasts": toasts, "offline": offline,
           "aria": dialogs_aria, "alerts": alerts, "update": failed_update, "focus": settings_focus,
-          "console": console, "launch": launch, "search": search, "order": reorder, "guests_table": guest_table, "designs": my_designs, "designing": designing, "tabs": service_tabs, "misc": misc}
+          "console": console, "launch": launch, "search": search, "order": reorder, "guests_table": guest_table, "designs": my_designs, "my_widgets": my_widgets, "designing": designing, "tabs": service_tabs, "misc": misc}
 
 
 # ---------------------------------------------------------------- driver
@@ -532,6 +585,7 @@ async def main(a):
                 r = Run(p, base)
                 if demo_state:
                     r.designs_dir = os.path.join(demo_state, "state", "designs")
+                    r.widgets_dir = os.path.join(demo_state, "state", "widgets")
                 await r.open()
                 saved = r.prefs = await p.js(API + "return (await q('GET', '/api/me')).prefs;")
                 try:

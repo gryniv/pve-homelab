@@ -20,7 +20,7 @@ const SECTIONS = [
 ];
 const LOOK_TABS = [['theme', 'set.look.tab_theme'], ['bg', 'set.look.tab_bg'], ['fonts', 'set.look.tab_fonts'], ['clock', 'set.look.tab_clock'], ['mine', 'set.look.tab_mine']];
 
-let app, current = 'look', lookTab = 'theme', saveTimer, loginCfg = null, loginTimer, openW = '', stopPreview = null, logs = null, myDesigns = null;
+let app, current = 'look', lookTab = 'theme', saveTimer, loginCfg = null, loginTimer, openW = '', stopPreview = null, logs = null, myDesigns = null, myWidgets = null;
 
 const sw = (id, on) => `<span class="sw"><input type="checkbox" id="${id}" ${on ? 'checked' : ''}><i></i></span>`;
 const tgl = (id, on, title, sub = '') => `<label class="tgl"><span>${esc(t(title))}${sub ? `<small>${esc(t(sub))}</small>` : ''}</span>${sw(id, on)}</label>`;
@@ -167,7 +167,7 @@ lookViews.mine = (_p, lang) => {
   let list = '<p class="mute">…</p>';
   if (myDesigns.error) list = `<p class="bad">${esc(myDesigns.error)}</p>`;
   else if (!myDesigns.pending) {
-    list = myDesigns.mine.length ? `<ul class="dlist">${myDesigns.mine.map((d) => `<li>
+    list = myDesigns.mine.length ? `<ul class="mylist">${myDesigns.mine.map((d) => `<li>
         <span class="nm">${esc(pick(d.name, lang))}<small class="mute">${esc(t(KIND_LABEL[d.kind] || d.kind))} · ${esc(d.id)}${d.replaces ? ` · ${esc(t('set.designs.replaces'))}` : ''}</small></span>
         ${admin ? `<button class="chipbtn" type="button" data-rmdesign="${esc(d.kind)}|${esc(d.id)}|${esc(pick(d.name, lang))}">${icon('i-x')}${esc(t('set.designs.remove'))}</button>` : ''}</li>`).join('')}</ul>`
       : `<p class="mute">${esc(t('set.designs.none'))}</p>`;
@@ -175,9 +175,39 @@ lookViews.mine = (_p, lang) => {
   return grp('set.designs.title', `${lead('set.designs.lead', { folder: myDesigns.folder || '/etc/pve-homelab/designs' })}${install}${list}`);
 };
 
+// Your own widgets (Settings → Dashboard → My widgets). A widget is code that runs in the menu with
+// the signed-in person's rights, so installing one is for admins.
+function widgetsMine() {
+  if (!myWidgets) {
+    myWidgets = { pending: true };
+    app.api.get('/api/widgets').then((r) => { myWidgets = r; render(); })
+      .catch((e) => { myWidgets = { error: e.message }; render(); });
+  }
+  const admin = app.isAdmin();
+  const install = admin
+    ? `<div class="dinstall"><button class="btn" type="button" id="widgetPick">${icon('i-plus')}<span>${esc(t('set.mywidgets.install'))}</span></button>
+        <input id="widgetFiles" type="file" multiple accept=".js,.css,.zip" hidden>
+        <span class="mute">${esc(t('set.mywidgets.install_hint'))}</span></div>
+      <p class="mute wwarn">${icon('i-info')}${esc(t('set.mywidgets.warn'))}</p>`
+    : `<p class="mute">${esc(t('set.mywidgets.admin_only'))}</p>`;
+  let list = '<p class="mute">…</p>';
+  if (myWidgets.error) list = `<p class="bad">${esc(myWidgets.error)}</p>`;
+  else if (!myWidgets.pending) {
+    const reg = W.all();
+    list = myWidgets.mine.length ? `<ul class="mylist" id="myWidgets">${myWidgets.mine.map((w) => {
+      const name = reg[w.id]?.title || w.id;
+      const note = reg[w.id] ? (w.look ? t('set.mywidgets.with_look') : '') : t('set.mywidgets.broken');
+      return `<li><span class="nm">${esc(name)}<small class="mute">${esc(w.id)}${note ? ` · ${esc(note)}` : ''}</small></span>
+        ${admin ? `<button class="chipbtn" type="button" data-rmwidget="${esc(w.id)}|${esc(name)}">${icon('i-x')}${esc(t('set.designs.remove'))}</button>` : ''}</li>`;
+    }).join('')}</ul>`
+      : `<p class="mute">${esc(t('set.mywidgets.none'))}</p>`;
+  }
+  return `<h4 class="subh">${t('set.mywidgets.title')}</h4>${lead('set.mywidgets.lead', { folder: myWidgets.folder || '/etc/pve-homelab/widgets' })}${install}${list}`;
+}
+
 // After installing or removing, the page reloads (new stylesheets and lists) and comes back here.
-function reloadHere() {
-  try { sessionStorage.setItem('pvehomelab.reopen', 'look:mine'); } catch {}
+function reloadHere(where = 'look:mine') {
+  try { sessionStorage.setItem('pvehomelab.reopen', where); } catch {}
   setTimeout(() => location.reload(), 900);
 }
 
@@ -235,6 +265,7 @@ const views = {
   dash(p) {
     return `<h3>${t('set.s.dash')}</h3>${lead('set.dash.lead')}
       <div class="zones one">${zone(p, 'side')}</div>
+      ${widgetsMine()}
       <h4 class="subh">${t('set.dash.services')}</h4>${lead('set.services.lead')}
       ${orderEditor('services', app.services(), p, p.hidden_services,
         (x) => `<img src="/icons/${esc(x.icon || x.key)}.svg" alt="" onerror="this.style.visibility='hidden'"><span class="nm">${esc(x.name)}<small>${esc(x.host)}</small></span>`)}`;
@@ -345,6 +376,25 @@ function bind(p) {
     const [kind, id, name] = b.dataset.rmdesign.split('|');
     if (!(await confirmBox(t('set.designs.confirm_remove', { name }), t('set.designs.confirm_text'), t('set.designs.remove')))) return;
     try { await app.api.del(`/api/designs/${kind}/${id}`); toast(t('set.designs.removed', { name })); reloadHere(); }
+    catch (err) { toast(err.message, true); }
+  }));
+  // my widgets
+  $('#widgetPick') && ($('#widgetPick').onclick = () => $('#widgetFiles').click());
+  $('#widgetFiles') && ($('#widgetFiles').onchange = async (e) => {
+    const files = [...e.target.files];
+    if (!files.length) return;
+    const form = new FormData();
+    files.forEach((f) => form.append('file', f, f.name));
+    try {
+      const r = await app.api.post('/api/widgets', form);
+      toast(t('set.designs.installed', { list: r.installed.map((w) => w.id).join(', ') }));
+      reloadHere('dash');
+    } catch (err) { toast(err.message, true); e.target.value = ''; }
+  });
+  $$('[data-rmwidget]').forEach((b) => (b.onclick = async () => {
+    const [id, name] = b.dataset.rmwidget.split('|');
+    if (!(await confirmBox(t('set.designs.confirm_remove', { name }), t('set.mywidgets.confirm_text'), t('set.designs.remove')))) return;
+    try { await app.api.del(`/api/widgets/${id}`); toast(t('set.designs.removed', { name })); reloadHere('dash'); }
     catch (err) { toast(err.message, true); }
   }));
   $('#logRefresh') && ($('#logRefresh').onclick = () => { logs = null; render(); });

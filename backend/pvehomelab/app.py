@@ -11,7 +11,7 @@ from urllib.parse import quote
 import aiohttp
 from aiohttp import web
 
-from . import caddy, config, designs, discover, errlog, gpus as G, i18n, icons, prefs, update, weather, wol
+from . import caddy, config, designs, discover, errlog, gpus as G, i18n, icons, prefs, update, userwidgets, weather, wol
 from .ddc import DDC
 from .host import HostStats
 from .launch import Launcher
@@ -139,12 +139,6 @@ def pve_users(app):
     return users
 
 
-def list_dir_modules(sub, pattern):
-    base = os.path.join(config.WEB_DIR, sub)
-    return sorted(os.path.basename(os.path.dirname(p)) if pattern.endswith("widget.js") else p
-                  for p in glob.glob(os.path.join(base, pattern)))
-
-
 def languages():
     """Every web/i18n/<code>.json is a language; its "_name" is shown in the picker."""
     out = []
@@ -191,7 +185,7 @@ async def public(req):
         "widget_styles": [m["id"] for m in designs.catalog("widgets")],
         "designer": designer_mode(app),
         "login": prefs.load_login(),
-        "widgets": list_dir_modules("widgets", "*/widget.js"),
+        "widgets": userwidgets.all_ids(),
     })
 
 
@@ -220,6 +214,16 @@ async def design_clock(req):
 @routes.get("/widgets/" + DESIGN_ID + "/widget.css")
 async def design_widget(req):
     return await design_file("widgets", req.match_info["did"])
+
+
+@routes.get("/widgets/" + DESIGN_ID + "/widget.js")
+async def widget_code(req):
+    """A widget's logic: the built-in one, or yours from /etc/pve-homelab/widgets."""
+    p = userwidgets.path_of(req.match_info["did"])
+    if not p:
+        raise web.HTTPNotFound()
+    # revalidated every time: a widget reinstalled under the same id must not come from the cache
+    return web.FileResponse(p, headers={"Cache-Control": "no-cache"})
 
 
 @routes.get("/api/weather")
@@ -302,7 +306,8 @@ async def me(req):
 
 # ---------------- your own designs ----------------
 async def designs_admin(req):
-    """Designs change the menu for everyone on the host (and a clock is code): admins only."""
+    """Designs and widgets change the menu for everyone on the host (and clocks and widgets are
+    code that runs in it): admins only."""
     s = await session(req)
     if not await req.app["pve"].can(s["ticket"], "/", "Sys.Modify"):
         raise PVEError(403, i18n._("forbidden"))
@@ -315,10 +320,8 @@ async def designs_list(req):
     return web.json_response({"mine": designs.mine(), "folder": config.USER_DESIGNS_DIR})
 
 
-@routes.post("/api/designs")
-async def designs_install(req):
-    """One or more designs (.css, .js, or a .zip of them) as multipart files."""
-    s = await designs_admin(req)
+async def uploaded_files(req):
+    """[(filename, bytes)] of a multipart form, at most designs.MAX_TOTAL in all."""
     files, total = [], 0
     try:
         reader = await req.multipart()
@@ -334,6 +337,14 @@ async def designs_install(req):
             if total > designs.MAX_TOTAL:
                 raise web.HTTPRequestEntityTooLarge(max_size=designs.MAX_TOTAL, actual_size=total)
         files.append((part.filename, bytes(data)))
+    return files
+
+
+@routes.post("/api/designs")
+async def designs_install(req):
+    """One or more designs (.css, .js, or a .zip of them) as multipart files."""
+    s = await designs_admin(req)
+    files = await uploaded_files(req)
     try:
         done = await asyncio.get_running_loop().run_in_executor(None, designs.install, files)
     except designs.DesignError as e:
@@ -356,7 +367,11 @@ async def designs_events(req):
     resp = web.StreamResponse(headers={"Content-Type": "text/event-stream", "Cache-Control": "no-cache"})
     await resp.prepare(req)
     loop = asyncio.get_running_loop()
-    prev, quiet = await loop.run_in_executor(None, designs.snapshot), 0
+
+    def both():
+        return designs.snapshot(), userwidgets.snapshot()
+
+    prev, quiet = await loop.run_in_executor(None, both), 0
     stop = req.app["stopping"]  # the server is shutting down: end the stream instead of holding it up
     try:
         while not stop.is_set():
@@ -365,9 +380,12 @@ async def designs_events(req):
                 break
             except asyncio.TimeoutError:
                 pass
-            cur = await loop.run_in_executor(None, designs.snapshot)
+            cur = await loop.run_in_executor(None, both)
             if cur != prev:
-                await resp.write(f"data: {json.dumps(designs.changes(prev, cur))}\n\n".encode())
+                d = designs.changes(prev[0], cur[0])
+                if cur[1] != prev[1]:
+                    d["catalog"] = True  # a widget's code changed: only a reload picks it up
+                await resp.write(f"data: {json.dumps(d)}\n\n".encode())
                 prev, quiet = cur, 0
             elif (quiet := quiet + 1) >= 15:
                 await resp.write(b": still here\n\n")
@@ -384,6 +402,37 @@ async def designs_remove(req):
     if not designs.remove(kind, did):
         raise web.HTTPNotFound(text="no such design of yours")
     log.info("design %s/%s removed by %s", kind, did, s["user"])
+    return web.json_response({"ok": True})
+
+
+# ---------------- your own widgets ----------------
+@routes.get("/api/widgets")
+async def widgets_list(req):
+    await session(req)
+    return web.json_response({"mine": userwidgets.mine(), "folder": config.USER_WIDGETS_DIR})
+
+
+@routes.post("/api/widgets")
+async def widgets_install(req):
+    """One or more widgets: <id>.js (+ <id>.css, its look), or a .zip of <id>/widget.js
+    (+ <id>/widget.css). A widget is code that runs in the menu: admins only."""
+    s = await designs_admin(req)
+    files = await uploaded_files(req)
+    try:
+        done = await asyncio.get_running_loop().run_in_executor(None, userwidgets.install, files)
+    except userwidgets.WidgetError as e:
+        raise web.HTTPBadRequest(text=str(e))
+    log.info("widgets installed by %s: %s", s["user"], ", ".join(d["id"] for d in done))
+    return web.json_response({"installed": done})
+
+
+@routes.delete("/api/widgets/{wid}")
+async def widgets_remove(req):
+    s = await designs_admin(req)
+    wid = req.match_info["wid"]
+    if not userwidgets.remove(wid):
+        raise web.HTTPNotFound(text="no such widget of yours")
+    log.info("widget %s removed by %s", wid, s["user"])
     return web.json_response({"ok": True})
 
 

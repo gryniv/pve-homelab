@@ -17,7 +17,7 @@ look of each widget. A design is **one file**; drop it in a folder and it shows 
 | Background | `backgrounds/<id>.css` | what is behind the sign-in screen and the dashboard |
 | Clock | `clocks/<id>.js` | how the time is drawn (a small ES module) |
 | Font | `fonts/<id>.css` | a web font to pick for the interface or the clock |
-| Widget look | `widgets/<id>.css` | how widget `<id>` looks; its logic stays in `web/widgets/<id>/` |
+| Widget look | `widgets/<id>.css` | how widget `<id>` looks; its logic is a widget, built in or [your own](#your-own-widgets) |
 
 The id is the file name: lower-case letters, digits, `-` and `_`.
 
@@ -148,8 +148,57 @@ Styles for `.A .w[data-w="<id>"]`, where `<id>` is the widget's id. A widget's o
 its own; the quickest start is a copy of the built-in look:
 `python3 tools/new_design.py widget host`.
 
+## Your own widgets
+
+A widget is the part with logic: what it reads and what it shows. The built-in ones are in
+`web/widgets/<id>/widget.js`; yours live in `/etc/pve-homelab/widgets/<id>/widget.js` on the host,
+are kept by updates, and show up in *Settings → Dashboard* (or *Sign-in screen*) next to the
+built-in ones. The id can't be a built-in widget's. Its look is a design like any other,
+`widgets/<id>.css`.
+
+```bash
+./demo.sh
+python3 tools/new_widget.py uptime            # .demo/state/widgets/uptime/widget.js + its look
+# add "Uptime" in Settings → Dashboard, then edit: saving the widget reloads the page,
+# saving its look restyles it in place
+python3 tools/new_widget.py uptime --to ~/my-widgets   # a folder laid out like /etc/pve-homelab
+./demo.sh --widgets ~/my-widgets/widgets --designs ~/my-widgets/designs
+```
+
+The new widget is a working example of each part of the contract: it reads `/api/host`, has an
+option and strings in English and Ukrainian.
+
+```js
+export default {
+  zones: ['side', 'login'],          // where it may be placed
+  public: true,                      // allowed on the sign-in screen (it reads only public data)
+  source: '/api/host', every: 10,    // what it reads (a GET of the menu's API, or (ctx) => Promise) and how often (s)
+  options: [                         // a ⚙ form with a live preview in Settings
+    { key: 'load', type: 'toggle', label: 'opt_load', default: true },
+  ],                                 // toggle · select · checks · number · text · date · list · textarea
+  i18n: { en: { title: 'Uptime', opt_load: 'Show the load' }, uk: { title: 'Аптайм', opt_load: 'Навантаження' } },
+  render: (data, { t, ui, opts }) => `<h4>${ui.esc(t('title'))}</h4>…`,   // returns HTML
+  after: (el, data, ctx) => {},      // optional: wire up the rendered element
+};
+```
+
+`ctx` also has `app` (the menu: `app.prefs()`, `app.api`, …) and `zone`. Escape anything that comes
+from data with `ui.esc`. When `render` throws or `source` fails, the widget shows the error with
+a retry button and the error journal (*Settings → About*) records it.
+
+**Installing on a host:** copy the files into `/etc/pve-homelab` (same layout), or, as an admin,
+*Settings → Dashboard → My widgets → Install widgets…* with `<id>.js` (and `<id>.css`), or a
+`.zip`: of `<id>/widget.js` (+ `<id>/widget.css`) folders, of a folder laid out like
+`/etc/pve-homelab` (`widgets/<id>/widget.js`, `designs/widgets/<id>.css`), or with `widget.js` on
+top, then named like the zip. `new_widget.py` prints the `zip` command.
+
+**A widget is code.** It runs in the menu with the rights of whoever is signed in, and its file is
+served to anyone who can open the menu, like the built-in ones: keep secrets out of it. That is
+why only admins may install one, and why it is worth installing only widgets you wrote or trust.
+
 ## Limits
 
-A design file is at most 512 KB of UTF-8 text; one install takes up to 50 designs and 8 MB.
+A design file is at most 512 KB of UTF-8 text; one install takes up to 50 designs and 8 MB. A
+widget's `widget.js` is at most 256 KB.
 Installing and removing need `Sys.Modify` on `/` in Proxmox: a design changes the menu for
 everyone on the host, and a clock is code that runs in the menu.

@@ -71,8 +71,9 @@ fi
 usermod -aG video,render,input pvehomelab
 
 echo "==> Program files -> /opt/pve-homelab"
-# /etc/pve-homelab/designs holds your own looks (themes, backgrounds, clocks, fonts, widget styles): kept by updates.
-install -d /etc/pve-homelab/users /etc/pve-homelab/designs /var/cache/pve-homelab
+# /etc/pve-homelab/designs holds your own looks (themes, backgrounds, clocks, fonts, widget styles) and
+# /etc/pve-homelab/widgets your own widgets: both kept by updates.
+install -d /etc/pve-homelab/users /etc/pve-homelab/designs /etc/pve-homelab/widgets /var/cache/pve-homelab
 # The new version is assembled next to the running one and swapped in with two renames; the old
 # one stays as /opt/pve-homelab.prev so the updater can put it back if the new one doesn't start.
 NEW=/opt/pve-homelab.new

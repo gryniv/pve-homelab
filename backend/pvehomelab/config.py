@@ -11,6 +11,8 @@ WEB_DIR = os.environ.get("PVEHOMELAB_WEB", "/opt/pve-homelab/web")
 # (kept by updates; a design here with the same id as a built-in one wins).
 DESIGNS_DIR = os.environ.get("PVEHOMELAB_DESIGNS", "/opt/pve-homelab/designs")
 USER_DESIGNS_DIR = os.environ.get("PVEHOMELAB_USER_DESIGNS", os.path.join(STATE_DIR, "designs"))
+# Your own widgets (logic: <id>/widget.js), kept by updates; their look is a design (widgets/<id>.css).
+USER_WIDGETS_DIR = os.environ.get("PVEHOMELAB_USER_WIDGETS", os.path.join(STATE_DIR, "widgets"))
 CACHE_DIR = os.environ.get("PVEHOMELAB_CACHE", "/var/cache/pve-homelab")
 
 DEFAULTS = {
