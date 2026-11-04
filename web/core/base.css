@@ -374,6 +374,7 @@ html,body{margin:0;height:100%;background:#05080e}
 .A .scr-away[hidden]{display:none}
 .A .away-box{text-align:center;color:#9aa4b2;max-width:36em;padding:2em}
 .A .away-box .i{width:3em;height:3em;opacity:.6}
+.A .away-note{font-size:2.2em;color:#f5c451;font-weight:700;margin:.4em 0}
 .A .away-box h2{color:#e8edf3;margin:.4em 0;font-family:var(--font-display,var(--display))}
 .A #vnc{position:absolute;inset:0}
 .A .cbar{position:absolute;left:1em;bottom:1em;display:flex;gap:.7em;align-items:center;font-size:.85em;opacity:.35;transition:opacity .2s;

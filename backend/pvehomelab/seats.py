@@ -45,6 +45,11 @@ class Seats:
         for q in list(self.listeners.get(sid, ())):
             q.put_nowait(self.get(sid))
 
+    def notify(self, sid, notice):
+        """Something for the page to show once (a time limit's countdown); the state stays as it is."""
+        for q in list(self.listeners.get(sid, ())):
+            q.put_nowait({**self.get(sid), "notice": notice})
+
     def subscribe(self, sid):
         q = asyncio.Queue()
         self.listeners.setdefault(sid, set()).add(q)

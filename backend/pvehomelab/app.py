@@ -18,6 +18,7 @@ from .host import HostStats
 from .launch import Launcher
 from .seats import Power, Seats
 from .wolserver import WolServer
+from .budget import Limits
 from .inputs import Passer
 from .pve import PVE, TFA_KINDS, PVEError, TfaChallenge
 from .util import Cached, log, pvesh, run
@@ -992,6 +993,8 @@ async def guest_action(req):
     if typ not in ("qemu", "lxc") or action not in ("start", "shutdown", "stop", "reboot"):
         raise web.HTTPBadRequest(text="bad action")
     node = req.app["cfg"]["node"]
+    if action == "start" and typ == "qemu" and not req.app["limits"].may_start(vmid, s["user"]):
+        raise PVEError(403, i18n._("limit_now"))
     upid = await req.app["pve"].post(s["ticket"], f"/nodes/{node}/{typ}/{vmid}/status/{action}")
     req.app["resources"].invalidate()
     return web.json_response({"upid": upid})
@@ -1763,12 +1766,14 @@ async def on_startup(app):
     app["seats"] = Seats(cfg)
     app["input"] = Passer(app)
     app["power"] = Power(app)
+    app["limits"] = Limits(app)
     app["wolserver"] = WolServer(app)
     await app["wolserver"].start()
     app["launcher"] = Launcher(app)
     app["tasks"] = [asyncio.create_task(app["stats"].loop()),
                     asyncio.create_task(app["launcher"].watch_loop()),
                     asyncio.create_task(app["power"].loop()),
+                    asyncio.create_task(app["limits"].loop()),
                     asyncio.create_task(housekeeping_loop(app)),
                     asyncio.create_task(app["services"].get())]
     await _adopt_running(app)

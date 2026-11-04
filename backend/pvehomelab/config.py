@@ -31,6 +31,8 @@ DEFAULTS = {
     "wol": [],                 # [{name, mac, broadcast?, port?}]: machines the menu can wake up
     # A Wake-on-LAN packet for a listed VM's network card starts that VM (Moonlight's "Wake PC").
     "wol_listen": {"enabled": False, "vms": [], "from": [], "ports": [9]},
+    # Time limits of systems: {vmid: {hours: "16:00-19:00", daily_min: 90, grace_min: 5, exempt: "a@pve, b@pve"}}
+    "limits": {},
     "kiosk": {"debug_port": 0},
     "update": {"repo": "", "channel": "release", "branch": "main", "auto": False, "check_hours": 6},
     "seats": {},

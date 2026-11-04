@@ -613,6 +613,14 @@ function touched() {
 
 function onSeat(state) {
   document.body.classList.toggle('blank', state.screen === 'off');
+  if (state.notice?.limit) {
+    // a time limit: the monitor shows this page for a few seconds, the countdown on it
+    const n = state.notice.limit.minutes;
+    $('#awayNote').textContent = t('away.limit', { n });
+    $('#awayNote').hidden = false;
+    clearTimeout(onSeat.t);
+    onSeat.t = setTimeout(() => { $('#awayNote').hidden = true; }, 12000);
+  }
   if (state.shows !== 'menu') {
     st.awayVm = state.shows;
     const vm = st.systems.find((s) => s.vmid === state.shows);

@@ -84,6 +84,12 @@ wol: []
 #  - {name: NAS, mac: "aa:bb:cc:dd:ee:ff"}
 #  - {name: Desktop, mac: "11:22:33:44:55:66", broadcast: 192.168.1.255, port: 9}
 
+# Time limits of systems (a child's VM): the hours it may run and minutes a day; a warning on its monitor
+# 10 and 2 minutes before the end, then a shutdown, and a stop after the grace minutes. The limit is the
+# VM's, however it starts; the exempt people may start it any time.
+limits: {}
+#  102: {hours: "16:00-19:00, 10:00-12:00", daily_min: 90, grace_min: 5, exempt: "ihor@pve"}
+
 # A Wake-on-LAN packet for a listed VM's network card starts that VM (e.g. Moonlight's "Wake PC").
 # Off unless enabled; only these VMs, from these networks (empty: any). It never switches a monitor.
 wol_listen:

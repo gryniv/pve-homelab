@@ -20,7 +20,7 @@ from . import config
 
 FILE = "settings.yaml"
 
-GROUPS = ("general", "access", "launch", "services", "weather", "alerts", "wol", "updates", "components")
+GROUPS = ("general", "access", "launch", "limits", "services", "weather", "alerts", "wol", "updates", "components")
 
 
 class S:
@@ -58,6 +58,7 @@ ITEM = {
 }
 MAC = re.compile(r"^([0-9a-fA-F]{2}[:-]){5}[0-9a-fA-F]{2}$")
 URL = re.compile(r"^https?://[^\s\"'<>]{1,500}$")
+HOURS = re.compile(r"^\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}(\s*,\s*\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}){0,5}$")
 
 # Services and links: name, icon, description (and the address of a link).
 SVC_FIELDS = (("name", "str", False), ("icon", "str", False), ("desc", "str", False))
@@ -108,6 +109,9 @@ REGISTRY = [
     S("alerts.storage_pct", "int", "alerts", lo=50, hi=100),
     S("alerts.temp_c", "int", "alerts", lo=40, hi=120),
     S("alerts.backup_days", "int", "alerts", lo=1, hi=365),
+    # time limits of systems, by VM id
+    S("limits", "map", "limits", fields=(("hours", "hours", False), ("daily_min", "int", False),
+                                          ("grace_min", "int", False), ("exempt", "str", False))),
     # wake-on-LAN
     S("wol", "rows", "wol", fields=(("name", "str", True), ("mac", "mac", True), ("broadcast", "ip", False), ("port", "port", False))),
     S("wol_listen.enabled", "bool", "wol", restart="backend"),
@@ -208,6 +212,15 @@ def _field(kind, v, maxlen=200):
         if isinstance(v, bool) or not str(v).isdigit() or not 1 <= int(v) <= 65535:
             raise Invalid("port")
         return int(v)
+    if kind == "int":
+        if isinstance(v, bool) or not str(v).strip().isdigit() or int(v) > 100000:
+            raise Invalid("number")
+        return int(v)
+    if kind == "hours":
+        v = str(v).strip()
+        if not HOURS.match(v):
+            raise Invalid("hours like 16:00-19:00, 10:00-12:00")
+        return v
     v = str(v)
     if len(v) > maxlen or any(c in v for c in "\r\n\0"):
         raise Invalid("text")

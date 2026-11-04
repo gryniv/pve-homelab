@@ -274,6 +274,9 @@ class Launcher:
         """Start (or show, or switch to) `vmid` on `gpu`; the job is its starter's alone to follow.
         `resources` ({memory: MB, cores}) are written into a stopped VM's config first, with the
         user's own ticket (Proxmox checks VM.Config.Memory / VM.Config.CPU); they stay there."""
+        limits = self.app.get("limits")
+        if limits and not limits.may_start(vmid, t.user):
+            raise PVEError(403, _("limit_now"))
         if resources:
             await self._set_resources(t, vmid, resources)
         # keyboard and mouse go with the monitor: a screen on the host, input on, and VM.Console
@@ -556,6 +559,22 @@ class Launcher:
         except Exception as e:
             log.warning("input to VM %s: %s", vmid, e)
             return []
+
+    async def peek_menu(self, sid, vmid, seconds):
+        """The monitor shows the menu's page for a moment (a countdown on it), then the VM again.
+        The keyboard stays in the VM."""
+        ddc = self.app["ddc"]
+        seat_gpu = self.cfg["seats"][sid]["gpu"]
+        mon = ddc.monitor_for_gpu(seat_gpu)
+        vm_gpu = next((p for p in self.cfg["monitors"].get(mon, {}).get("inputs", {})
+                       if p != seat_gpu and any(g["pci"] == p and g["running_vm"] == vmid
+                                                for g in await G.list_gpus(await self.app["running"]()))), None)
+        if not mon or not vm_gpu:
+            return
+        await ddc.switch_to_gpu(mon, seat_gpu)
+        await asyncio.sleep(seconds)
+        if self.app["seats"].get(sid)["shows"] == vmid:
+            await ddc.switch_to_gpu(mon, vm_gpu)
 
     def on_monitor(self, sid):
         """The VMs running on GPUs wired to seat `sid`'s monitor, the menu knows of (watched)."""

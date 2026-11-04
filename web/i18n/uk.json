@@ -602,5 +602,13 @@
   "cfg.wol_listen.from": "З яких мереж",
   "cfg.wol_listen.from_hint": "порожньо — з будь-яких",
   "cfg.wol_listen.ports": "Порти UDP",
-  "cfg.wol_listen.ports_hint": "9 — що шле більшість"
+  "cfg.wol_listen.ports_hint": "9 — що шле більшість",
+  "away.limit": "На сьогодні лишилось {n} хв",
+  "cfg.g.limits": "Обмеження",
+  "cfg.limits": "Обмеження часу систем",
+  "cfg.limits_hint": "ключ — id VM; години як 16:00-19:00, 10:00-12:00; хвилин на день; хвилини запасу після вимкнення; люди, на яких не діє",
+  "cfg.f.hours": "Години",
+  "cfg.f.daily_min": "Хвилин на день",
+  "cfg.f.grace_min": "Запас, хв",
+  "cfg.f.exempt": "Не для"
 }

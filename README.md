@@ -86,6 +86,11 @@ signed in, so each person sees and controls exactly what PVE allows them to.
   alone. A tick in the launch dialog, a default in *Settings → Systems*, the devices and the hotkey in
   *Settings → System*. It takes `VM.Console` on the VM. `tools/input_probe.py` lists the host's
   devices and tries lending them to a VM for a few seconds.
+- **Time limits of systems** (a child's VM): the hours it may run and minutes a day (`limits:`,
+  *Settings → System → Limits*). Ten and two minutes before the end its monitor shows the menu's
+  countdown for a few seconds; then the VM shuts down, and stops after the grace minutes. The limit
+  is the VM's, however it starts (the menu, Proxmox's actions in the menu, Wake-on-LAN); the people
+  listed as exempt may start it any time.
 - **Monitors go dark** after some minutes without a key, and at night (`screen.off_after_min`,
   `screen.night: "23:00-07:00"`): DDC standby (VCP D6) and a black page, for monitors that ignore D6.
   Any key or touch wakes them; never while a system is on the monitor.

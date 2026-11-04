@@ -602,5 +602,13 @@
   "cfg.wol_listen.from": "From which networks",
   "cfg.wol_listen.from_hint": "empty: any",
   "cfg.wol_listen.ports": "UDP ports",
-  "cfg.wol_listen.ports_hint": "9 is what most senders use"
+  "cfg.wol_listen.ports_hint": "9 is what most senders use",
+  "away.limit": "{n} min left today",
+  "cfg.g.limits": "Limits",
+  "cfg.limits": "Time limits of systems",
+  "cfg.limits_hint": "key: the VM's id; hours like 16:00-19:00, 10:00-12:00; minutes a day; grace minutes after the shutdown; people it does not apply to",
+  "cfg.f.hours": "Hours",
+  "cfg.f.daily_min": "Minutes a day",
+  "cfg.f.grace_min": "Grace, min",
+  "cfg.f.exempt": "Not for"
 }
