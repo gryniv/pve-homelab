@@ -392,6 +392,36 @@ async def guest_rrd(req):
     return web.json_response({"timeframe": tf, **summarize_rrd(rows)})
 
 
+def summarize_snapshots(rows):
+    """Proxmox's snapshot list without the "current" pseudo-entry, newest first."""
+    out = [{"name": r.get("name", ""), "time": int(r.get("snaptime") or 0),
+            "desc": (r.get("description") or "").strip()[:200], "ram": bool(r.get("vmstate"))}
+           for r in rows or [] if r.get("name") and r.get("name") != "current"]
+    return sorted(out, key=lambda r: -r["time"])
+
+
+@routes.get("/api/guests/{type}/{vmid}/info")
+async def guest_info(req):
+    """For a guest's dialog: its snapshots and its latest backup, each read with the user's own
+    rights; what the user may not see comes back as null rather than an error."""
+    s = await session(req)
+    typ, vmid = req.match_info["type"], vmid_of(req.match_info["vmid"])
+    if typ not in ("qemu", "lxc"):
+        raise web.HTTPBadRequest(text="bad type")
+    pve, node, t = req.app["pve"], req.app["cfg"]["node"], s["ticket"]
+    guests = [g for g in await pve.get(t, "/cluster/resources", type="vm") or [] if g.get("vmid") == vmid]
+    if not guests:
+        raise web.HTTPNotFound(text="no such guest")
+    snaps, bk = await asyncio.gather(pve.get(t, f"/nodes/{node}/{typ}/{vmid}/snapshot"),
+                                     backups_data(req.app, t, 365, guests), return_exceptions=True)
+    backup = None
+    if not isinstance(bk, Exception) and bk["guests"]:
+        g = bk["guests"][0]
+        backup = {"last": g["last"], "count": g["count"], "size": g["size"]}
+    return web.json_response({"snapshots": None if isinstance(snaps, Exception) else summarize_snapshots(snaps),
+                              "backup": backup})
+
+
 @routes.post("/api/guests/{type}/{vmid}/{action}")
 async def guest_action(req):
     s = await session(req)

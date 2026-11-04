@@ -275,3 +275,24 @@ def test_summarize_rrd_orders_and_keeps_gaps():
     from pvehomelab.app import summarize_rrd
     d = summarize_rrd([{"time": 20, "cpu": 0.5, "maxmem": 8}, {"time": 10}, {"cpu": 1}])
     assert d["time"] == [10, 20] and d["cpu"] == [None, 50.0] and d["maxmem"] == 8
+
+
+async def test_guest_info_snapshots_and_backup(client):
+    await login(client)
+    d = await (await client.get("/api/guests/qemu/100/info")).json()
+    assert [s["name"] for s in d["snapshots"]] == ["before-upgrade", "clean-install"]   # newest first, no "current"
+    assert d["snapshots"][0]["ram"] is True and d["snapshots"][1]["ram"] is False
+    assert d["backup"]["count"] == 3 and d["backup"]["last"] > 0
+
+
+async def test_guest_info_without_backup_or_snapshots(client):
+    await login(client)
+    never = next(v for v in demo.WORLD if v not in demo.BACKUP_AGE and v not in demo.SNAPSHOTS)
+    d = await (await client.get(f"/api/guests/{demo.WORLD[never]['type']}/{never}/info")).json()
+    assert d["snapshots"] == [] and d["backup"] == {"last": 0, "count": 0, "size": 0}
+
+
+async def test_guest_info_hidden_guest_is_404(client):
+    await login(client, "guest@pve")
+    hidden = next(v for v in demo.WORLD if v not in demo.GUEST_SEES)
+    assert (await client.get(f"/api/guests/{demo.WORLD[hidden]['type']}/{hidden}/info")).status == 404

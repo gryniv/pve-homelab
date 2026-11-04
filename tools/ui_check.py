@@ -348,6 +348,11 @@ async def guest_table(r):
     await p.js("document.querySelector('#guestrows [data-guest]').click();")
     charts = await p.until("return !document.querySelector('#guestLayer').hidden && document.querySelectorAll('#gCharts .chart path').length;", 5)
     r.check("a guest's name opens its history with charts", (charts or 0) >= 3, charts)
+    extra = await p.until("const x = document.querySelector('#gExtra').textContent; return x.includes('before-upgrade') && x;", 5)
+    r.check("…with its snapshots and last backup", extra and "Last backup" in extra and "with RAM" in extra, extra)
+    # the first guest by ID (VM 100) is stopped in the demo: its charts must not show old values as "now"
+    head = await p.js("return [...document.querySelectorAll('#gCharts .gch span')].map(s => s.textContent);")
+    r.check("a stopped guest reads as off now, not its last values", head and all("off now" in h for h in head), head)
     await p.js("document.querySelector('#gRange [data-range=week]').click();")
     wk = await p.until("return document.querySelector('#gRange [data-range=week]').getAttribute('aria-pressed') === 'true' && document.querySelectorAll('#gCharts .chart').length === 3;", 5)
     r.check("the week range loads", wk)

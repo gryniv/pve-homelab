@@ -4,7 +4,7 @@
 import { api } from './api.js';
 import { st } from './state.js';
 import { lines, last, peak } from './chart.js';
-import { $, $$, icon, esc, fmt, toast, confirmBox, t, kindLabel } from './ui.js';
+import { $, $$, icon, esc, fmt, toast, confirmBox, t, kindLabel, locale } from './ui.js';
 
 let ctx = null; // { openUrl, pveUrl, openConsole, refreshDash } from app.js
 
@@ -98,6 +98,34 @@ function openHistory(g, fromButton) {
   $('#guestLayer').hidden = false;
   $(`#gRange [data-range="${range}"]`).focus();
   load();
+  loadInfo();
+}
+
+// Latest backup and snapshots: they don't depend on the chart's period, so loaded once.
+async function loadInfo() {
+  const g = shown;
+  $('#gExtra').innerHTML = '';
+  let d;
+  try { d = await api.get(`/api/guests/${g.type}/${g.vmid}/info`); } catch { return; }
+  if (shown !== g) return;
+  const when = (ts) => {
+    const days = Math.floor((Date.now() / 1000 - ts) / 86400);
+    return days < 1 ? t('guest.today') : t('guest.ago', { d: days });
+  };
+  const date = (ts) => new Date(ts * 1000).toLocaleString(locale(), { dateStyle: 'medium', timeStyle: 'short' });
+  const parts = [];
+  if (d.backup) {
+    parts.push(`<section><b>${esc(t('guest.backup'))}</b>${d.backup.last
+      ? `<span>${esc(when(d.backup.last))} · ${esc(t('guest.backup_copies', { n: d.backup.count, size: fmt.bytes(d.backup.size) }))}</span>`
+      : `<span class="bad">${esc(t('guest.backup_none'))}</span>`}</section>`);
+  }
+  if (d.snapshots) {
+    parts.push(`<section><b>${esc(t('guest.snapshots'))}</b>${d.snapshots.length
+      ? `<ul class="snaps">${d.snapshots.slice(0, 6).map((s) => `<li><span class="sn">${esc(s.name)}${s.ram ? ` <span class="pill dim">${esc(t('guest.snap_ram'))}</span>` : ''}</span>
+          <small class="mute">${esc(date(s.time))}${s.desc ? ` · ${esc(s.desc)}` : ''}</small></li>`).join('')}</ul>`
+      : `<span class="mute">${esc(t('guest.snap_none'))}</span>`}</section>`);
+  }
+  $('#gExtra').innerHTML = parts.join('');
 }
 
 function closeHistory() {
@@ -120,7 +148,8 @@ async function load() {
   catch (e) { if (my === loading) $('#gCharts').innerHTML = `<div class="werr">${esc(e.message)}</div>`; return; }
   if (my !== loading || shown !== g) return; // a newer range or another guest was asked for meanwhile
   if (!d.cpu.some((v) => v != null)) { $('#gCharts').innerHTML = `<div class="mute">${esc(t('guest.no_history'))}</div>`; return; }
-  const now = (v, f) => (v == null ? t('guest.off_now') : f(v));
+  // "Now" is the guest's state now: a stopped guest is off, whatever it did before.
+  const now = (v, f) => (!running(g) || v == null ? t('guest.off_now') : f(v));
   const rate = (v) => `${fmt.bytes(v)}/${t('unit.s')}`;
   const block = (title, value, chart, foot = '') => `<section class="gchart"><div class="gch"><b>${esc(title)}</b><span>${value}</span></div>${chart}${foot}</section>`;
   $('#gCharts').innerHTML =

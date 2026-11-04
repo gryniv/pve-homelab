@@ -61,6 +61,9 @@
   "guest.cpu": "Процесор", "guest.mem": "Пам'ять", "guest.net": "Мережа",
   "guest.net_in": "вхідний", "guest.net_out": "вихідний", "guest.peak": "пік {v}",
   "guest.off_now": "зараз вимкнений", "guest.no_history": "За цей період даних немає: гість був вимкнений",
+  "guest.backup": "Останній бекап", "guest.backup_none": "Бекапу ще немає",
+  "guest.backup_copies": "збережено {n}, {size}", "guest.today": "сьогодні", "guest.ago": "{d} дн. тому",
+  "guest.snapshots": "Снапшоти", "guest.snap_none": "Снапшотів немає", "guest.snap_ram": "з пам'яттю",
 
   "launch.cancel": "Скасувати",
   "launch.close": "Закрити",

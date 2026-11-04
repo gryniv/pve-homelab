@@ -66,6 +66,10 @@ DISKS = [
     {"devpath": "/dev/sda", "model": "WDC WD120EFBX", "type": "hdd", "size": 12000 * GB, "health": "PASSED", "wearout": "N/A"},
 ]
 POOLS = [{"name": "nvme2tb", "health": "ONLINE", "size": 1800 * GB, "alloc": 612 * GB}]
+SNAPSHOTS = {  # vmid -> [(name, days ago, description, with RAM)]
+    100: [("clean-install", 40, "Fresh Ubuntu, drivers in", False), ("before-upgrade", 3, "Before 26.04 upgrade", True)],
+    201: [("pre-update", 9, "Jellyfin 10.10 before update", False)],
+}
 BACKUP_AGE = {100: 0.5, 101: 1, 102: 12, 200: 0.5, 201: 0.5, 202: 2, 205: 0.5, 206: 0.5}  # days since the last backup
 GUEST_SEES = {100, 201, 202}   # guest@pve's permissions: one VM and two media services
 
@@ -149,6 +153,13 @@ class DemoPVE(PVE):
         await asyncio.sleep(0.05)
         if endpoint == "/cluster/resources":
             return resources(t.user)
+        if endpoint.endswith("/snapshot"):
+            vmid = int(endpoint.split("/")[4])
+            if vmid not in _visible(t.user):
+                raise PVEError(403, i18n._("forbidden"))
+            now = int(time.time())
+            return [{"name": n, "snaptime": now - age * 86400, "description": d, **({"vmstate": 1} if ram else {})}
+                    for n, age, d, ram in SNAPSHOTS.get(vmid, [])] + [{"name": "current", "running": 1}]
         if endpoint.endswith("/rrddata"):
             return rrddata(t.user, int(endpoint.split("/")[4]), params.get("timeframe", "hour"))
         if endpoint.startswith(f"/nodes/{NODE}/qemu/") and endpoint.endswith("/config"):

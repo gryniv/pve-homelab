@@ -61,6 +61,9 @@
   "guest.cpu": "CPU", "guest.mem": "Memory", "guest.net": "Network",
   "guest.net_in": "in", "guest.net_out": "out", "guest.peak": "peak {v}",
   "guest.off_now": "off now", "guest.no_history": "No data for this period: the guest was off",
+  "guest.backup": "Last backup", "guest.backup_none": "No backup yet",
+  "guest.backup_copies": "{n} kept, {size}", "guest.today": "today", "guest.ago": "{d} days ago",
+  "guest.snapshots": "Snapshots", "guest.snap_none": "No snapshots", "guest.snap_ram": "with RAM",
 
   "launch.cancel": "Cancel",
   "launch.close": "Close",
