@@ -256,3 +256,41 @@ async def test_live_reload_stream_ends_on_shutdown(client):
     rest = await asyncio.wait_for(r.content.read(), 3)   # the server closes the stream: EOF
     assert rest == b""
     client.server.app["stopping"].clear()
+
+
+# A theme may move things around (DESIGNS.md, "Moving things around"), but only under its own
+# [data-skin]: every theme's stylesheet is loaded at once.
+@pytest.mark.parametrize("css,bad", [
+    ('.A[data-skin="x"],.A [data-skin="x"]{--acc:red}', None),
+    ('@media (min-width:901px){.A[data-skin="x"] [data-part="topbar"]{bottom:0}}', None),
+    ('.A[data-skin=x] .w[data-w="host"] .ring .fg{stroke:var(--acc)}', None),
+    ('@import url("https://fonts.googleapis.com/css2?family=VT323");\n@keyframes k{from{opacity:0}to{opacity:1}}'
+     '\n.A[data-skin="x"]{animation:k 1s}', None),
+    ('.A[data-skin="x"]{--a:1;&:hover{--a:2}}', None),                       # nested rules sit under their parent
+    (":root{--acc:red}", ":root"),
+    ('.A[data-skin="dusk"]{--acc:red}', '.A[data-skin="dusk"]'),
+    ('.A[data-skin="x"],.top{bottom:0}', ".top"),
+    ('@media (min-width:1px){[data-part="topbar"]{bottom:0}}', '[data-part="topbar"]'),
+    ('/* [data-skin="x"] */ .top{bottom:0}', ".top"),
+    ('.A[data-skin="x2"]{a:b}', '.A[data-skin="x2"]'),
+    ('.A[data-skin^="x"]{a:b}', '.A[data-skin^="x"]'),                       # a prefix would reach other themes
+])
+def test_theme_rules_stay_under_their_own_skin(css, bad):
+    assert designs.unscoped(css, "x") == bad
+
+
+def test_builtin_themes_are_scoped():
+    folder = os.path.join(ROOT, "designs", "themes")
+    for f in os.listdir(folder):
+        with open(os.path.join(folder, f), encoding="utf-8") as fh:
+            assert designs.unscoped(fh.read(), f[:-4]) is None, f
+
+
+async def test_a_theme_that_reaches_other_themes_is_refused(client, mine):
+    await login(client)
+    leaky = b"/*\n * @kind theme\n */\n.A[data-skin=\"tmux\"]{--acc:#0f0}\n.top{bottom:0}\n"
+    r = await client.post("/api/designs", data=form(("tmux.css", leaky)))
+    assert r.status == 400 and "data-skin" in (await r.json())["error"]
+    assert not (mine / "themes").exists()
+    ok = leaky.replace(b".top{", b".A[data-skin=\"tmux\"] [data-part=\"topbar\"]{")
+    assert (await client.post("/api/designs", data=form(("tmux.css", ok)))).status == 200

@@ -116,6 +116,41 @@ def kind_of(name, text, folder=None):
     raise DesignError(f"{name}: can't tell what kind of design this is; add @kind to its first comment")
 
 
+# At-rules whose blocks hold more rules (each checked); any other block (@keyframes, @font-face…) is left alone.
+_GROUPS = {"media", "supports", "layer", "container"}
+
+
+def unscoped(css, did):
+    """The first selector of a theme that is not under the theme's own [data-skin="<did>"], or None.
+    Every theme's stylesheet is loaded at once (the page picks one with data-skin), so a rule
+    without it would restyle, or rearrange, the menu under every other theme too."""
+    own = re.compile(r"\[data-skin\s*=\s*[\"']?" + re.escape(did) + r"[\"']?\s*\]")
+    css = re.sub(r"/\*.*?\*/", "", css, flags=re.S)
+    stack, buf = [], ""
+    for ch in css:
+        if ch == "{":
+            prelude, buf = buf.strip(), ""
+            if stack and stack[-1] != "group":   # nested in a rule (CSS nesting) or in @keyframes & co.
+                stack.append("skip")
+            elif prelude.startswith("@"):
+                name = re.match(r"@([\w-]*)", prelude).group(1).lower()
+                stack.append("group" if name in _GROUPS else "skip")
+            else:
+                bad = next((sel.strip() for sel in prelude.split(",") if not own.search(sel)), None)
+                if bad is not None:
+                    return bad
+                stack.append("rule")
+        elif ch == "}":
+            if stack:
+                stack.pop()
+            buf = ""
+        elif ch == ";":
+            buf = ""   # the end of a declaration or of @import / @charset
+        else:
+            buf += ch
+    return None
+
+
 def _check(name, data, folder=None):
     """(kind, id, text) of one design file, or DesignError."""
     base = os.path.basename(name)
@@ -133,6 +168,11 @@ def _check(name, data, folder=None):
     kind = kind_of(base, text, folder)
     if ext != "." + KINDS[kind]:
         raise DesignError(f"{base}: a {kind[:-1]} design is a .{KINDS[kind]} file")
+    if kind == "themes":
+        bad = unscoped(text, did)
+        if bad is not None:
+            raise DesignError(f"{base}: every rule of a theme must be under its own [data-skin=\"{did}\"], "
+                              f"or it changes the other themes too: {bad[:80]}")
     return kind, did, text
 
 
