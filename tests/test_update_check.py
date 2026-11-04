@@ -33,6 +33,21 @@ async def test_check_now_is_for_admins(client):
     assert (await client.post("/api/update/check")).status == 403
 
 
+async def test_a_machine_up_for_less_than_the_ttl(monkeypatch):
+    """monotonic() counts from boot: on a host rebooted 100 s ago (or a fresh CI runner) "never
+    checked" must not look recent, or a 6-hour cache can't be asked again."""
+    monkeypatch.setattr(util.time, "monotonic", lambda: 100.0)
+    n = [0]
+
+    async def fn():
+        n[0] += 1
+        return n[0]
+    c = util.Cached(fn, 6 * 3600, stale=True)
+    assert await c.get() == 1
+    c.invalidate()
+    assert await c.fresh() == 2
+
+
 async def test_fresh_skips_a_stale_value():
     n = [0]
 

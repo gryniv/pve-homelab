@@ -34,9 +34,13 @@ class Cached:
     """Async value refreshed at most every `ttl` seconds; failures keep the old value.
     With stale=True an expired value is returned at once and refreshed in the background."""
 
+    # "Never" is -inf, not 0: monotonic() counts from boot, so on a machine up for less than `ttl`
+    # (a fresh CI runner, a host just rebooted) 0 would still look recent.
+    NEVER = float("-inf")
+
     def __init__(self, fn, ttl, stale=False):
         self.fn, self.ttl, self.stale = fn, ttl, stale
-        self.value, self.at, self.lock = None, 0.0, asyncio.Lock()
+        self.value, self.at, self.lock = None, self.NEVER, asyncio.Lock()
 
     async def get(self):
         if time.monotonic() - self.at < self.ttl and self.value is not None:
@@ -61,9 +65,9 @@ class Cached:
             return self.value
 
     def invalidate(self):
-        self.at = 0.0
+        self.at = self.NEVER
 
     async def fresh(self):
         """The value worked out now, whatever the age of the one held (stale or not)."""
-        self.at = 0.0
+        self.at = self.NEVER
         return await self._refresh()
